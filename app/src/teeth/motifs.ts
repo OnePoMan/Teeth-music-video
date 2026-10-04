@@ -206,8 +206,14 @@ export function handPath(s: number, seed = 1, left = false): Path2D {
   const p = new Path2D();
   const k = s / 100;
   const m = left ? -1 : 1;
-  // palm: a rounded, slightly trapezoid blob
-  p.ellipse(0, 12 * k, 27 * k, 31 * k, 0, 0, TAU);
+  // palm: wide at the knuckles, narrowing to the wrist, a mound under the thumb (clockwise)
+  const j = (v: number) => v * (0.97 + 0.06 * r());
+  p.moveTo(-27 * k * m, -8 * k);
+  p.bezierCurveTo(-12 * k * m, j(-13) * k, 12 * k * m, j(-13) * k, 27 * k * m, -8 * k);
+  p.bezierCurveTo(31 * k * m, 6 * k, j(30) * k * m, 26 * k, 22 * k * m, 40 * k);
+  p.bezierCurveTo(12 * k * m, j(50) * k, -12 * k * m, j(50) * k, -21 * k * m, 40 * k);
+  p.bezierCurveTo(-28 * k * m, 28 * k, -30 * k * m, 8 * k, -27 * k * m, -8 * k);
+  p.closePath();
   const fingers = [
     { x: -19, len: 38, w: 7.0, a: -0.22 },
     { x: -6.5, len: 46, w: 7.6, a: -0.07 },
@@ -244,14 +250,16 @@ export function handCreases(c: CanvasRenderingContext2D, s: number, seed = 1, le
   c.lineCap = 'round';
   c.strokeStyle = '#000';
   // joints across the fingers
+  c.globalAlpha = 0.55;
   for (const [fx, y1, y2] of [[-19, -22, -34], [-6.5, -24, -40], [7, -23, -38], [19, -20, -30]] as const) {
     for (const y of [y1, y2]) {
-      c.lineWidth = (1.2 + r() * 1.4) * k;
+      c.lineWidth = (0.6 + r() * 0.8) * k;
       c.beginPath(); c.moveTo(m * (fx - 6) * k, (y + (r() - 0.5) * 3) * k); c.lineTo(m * (fx + 6) * k, (y + (r() - 0.5) * 3) * k); c.stroke();
     }
   }
   // palm creases: heart line, head line, life line
-  c.lineWidth = 1.8 * k;
+  c.globalAlpha = 0.45;
+  c.lineWidth = 1.1 * k;
   c.beginPath(); c.moveTo(m * 24 * k, 0); c.quadraticCurveTo(m * 2 * k, -6 * k, m * -22 * k, 2 * k); c.stroke();
   c.beginPath(); c.moveTo(m * 22 * k, 10 * k); c.quadraticCurveTo(m * 0, 8 * k, m * -20 * k, 18 * k); c.stroke();
   c.beginPath(); c.moveTo(m * 20 * k, 12 * k); c.quadraticCurveTo(m * 8 * k, 30 * k, m * 12 * k, 42 * k); c.stroke();

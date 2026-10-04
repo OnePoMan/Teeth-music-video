@@ -16,7 +16,7 @@ import { TEETH_GLSL, tc } from '../palette';
 interface Placed { w: Word; x: number; y: number; width: number; size: number }
 
 export default class Sheets extends Scene {
-  R = new Layer2D(W, H, 1); // relief heights (blurred)
+  R = new Layer2D(W / 2, H / 2, 1); // relief heights (half res, blurred; a full-res canvas blur costs seconds on the CPU)
   T = new Layer2D(); // mono annotations
   lines: Line[] = [];
   placed = new Map<number, Placed[]>();
@@ -153,7 +153,8 @@ export default class Sheets extends Scene {
     // grip on "stay"
     let grip = 0, gripPos: [number, number] = [W / 2, H / 2];
     r.save();
-    r.filter = 'blur(3px)';
+    r.scale(0.5, 0.5);
+    r.filter = 'blur(1.4px)';
     r.textBaseline = 'alphabetic';
     for (const p of this.placed.get(cur.i)!) {
       const w = p.w;

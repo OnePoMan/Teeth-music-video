@@ -156,8 +156,8 @@ export default class JawScene extends Scene {
     this.drawCounter(cf, t, i, pal, tilt);
 
     B.upload(); Fr.upload();
-    const hot = pal.bg === 'red' ? 0 : 1.3;
-    this.comp.render(this.ctx.renderer, out, { a: B.texture, b: Fr.texture, bg: TL[pal.bg], hot, hotB: pal.bg === 'red' ? 0 : 1.0 });
+    const hot = pal.bg === 'ink' ? 1.3 : 0;
+    this.comp.render(this.ctx.renderer, out, { a: B.texture, b: Fr.texture, bg: TL[pal.bg], hot, hotB: pal.bg === 'ink' ? 1.0 : 0 });
 
     // ---- post: shake on every bite, heavier on the big ones; flash on TEETH and GO
     const o: PostOverrides = { bloom: pal.bg === 'red' ? 0.3 : 0.65, bloomThreshold: pal.bg === 'red' ? 1.3 : 1.0, bloomKnee: 0.12, vignette: pal.bg === 'enamel' ? 0.25 : 0.45, paper: pal.bg === 'enamel' ? 1 : 0 };
@@ -196,7 +196,7 @@ export default class JawScene extends Scene {
     if (kind === 'talk' && /^(heart|got)$/i.test(x.w.w)) return; // the heart plate carries these words
     const st = this.wordStyle(x);
     const size = Math.min(st.max, fitSize(st.text, st.fam, st.maxW, st.max));
-    const col = st.col ?? pal.ink;
+    const col = st.col === 'rose' ? (pal.bg === 'ink' ? 'rose' : pal.bg === 'enamel' ? 'red' : 'enamel') : st.col ?? pal.ink;
     // held words creep toward camera; the devil line leans
     const hold = 1 + 0.06 * prog(t, x.w.start, x.w.start + 1.2, ease.outCubic);
     const lean = kind === 'late' && /devil/i.test(x.w.w) ? -0.18 : 0;
@@ -254,7 +254,7 @@ export default class JawScene extends Scene {
     const r = mulberry32(x.w.gi);
     const age = t - x.w.start;
     c.save();
-    c.fillStyle = tc('rose', 1);
+    c.fillStyle = tc(pal.bg === 'ink' ? 'rose' : pal.bg === 'enamel' ? 'red' : 'enamel', 1);
     for (let d = 0; d < 9; d++) {
       const px = W / 2 - w * 0.42 + r() * w * 0.84;
       const L = Math.max(0, age - 0.08 * r()) * (120 + 260 * r()) * (1 - 0.3 * age);
@@ -328,7 +328,7 @@ export default class JawScene extends Scene {
     cf.save();
     cf.textAlign = 'center';
     if (t < wGot.start) {
-      const size = 150 * inT;
+      const size = 104 * inT;
       cf.font = font(this.f.blackW, size);
       cf.fillStyle = tc(pal.bg === 'red' ? 'red' : 'enamel', 1);
       cf.fillText('HEART', W / 2, cy + 0.05 * S + CAP * size / 2);
@@ -407,7 +407,7 @@ export default class JawScene extends Scene {
         }
         if (t >= wEver.start) {
           c.font = font(this.f.serif, 300);
-          c.fillStyle = tc('rose', 1);
+          c.fillStyle = tc(pal.bg === 'ink' ? 'rose' : pal.bg === 'enamel' ? 'red' : 'enamel', 1);
           c.fillText('ever', W / 2 + 520, CY + 330 * 0.28 + 260);
         }
       });
@@ -419,18 +419,17 @@ export default class JawScene extends Scene {
       const held = go ? prog(t, wGo.start, wGo.end) : 0;
       const tug = go ? Math.sin((t - wGo.start) * TAU * 6.5) * 22 * (1 - 0.6 * held) * Math.min(1, (t - wGo.start) * 8) : 0;
       const stretch = go ? 1 + 0.18 * ease.inOutCubic(held) : 1;
-      drawBitten(c, this.jaw, CY, go ? 0 : gapPx, () => {
+      for (const upper of [true, false]) {
+        // held in the bite: the two halves grind against each other, the word pulled long
+        const shear = go ? (upper ? 1 : -1) * tug * 0.8 : 0;
+        const g = go ? 0 : gapPx;
         c.save();
-        c.translate(W / 2 + tug, CY); c.scale(stretch, 1 / Math.sqrt(stretch)); c.translate(-W / 2, -CY);
+        c.translate(shear, upper ? -g / 2 : g / 2);
+        c.clip(regionOf(this.jaw, CY, upper));
+        c.translate(W / 2 + (go ? 0 : tug), CY); c.scale(stretch, 1 / Math.sqrt(stretch)); c.translate(-W / 2, -CY);
         c.font = font(go ? this.f.blackW : this.f.black, size);
         c.fillStyle = tc(pal.ink, 1);
         c.fillText(txt, W / 2, CY + CAP / 2 * size);
-        c.restore();
-      });
-      if (go) {
-        // the teeth that hold it: enamel crowns biting into the word along the seam
-        c.save();
-        drawTeeth(c, this.jaw, CY, -18 + 10 * Math.sin(t * 40) * (1 - held), tc(pal.bg === 'enamel' ? 'ink' : 'enamel', 1), tc(pal.bg === 'enamel' ? 'graphite' : 'dentin', 1), 34);
         c.restore();
       }
     }
