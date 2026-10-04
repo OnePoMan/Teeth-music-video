@@ -139,8 +139,9 @@ export default class Ember extends Scene {
       const wd = step * (1.3 + 0.6 * noise1(k + t, 44));
       const y0 = p.y - p.size * 0.5;
       const g = c.createLinearGradient(0, y0 + p.size * 0.15, 0, y0 - h);
-      g.addColorStop(0, `rgba(255,120,110,${0.45 * a})`);
-      g.addColorStop(0.35, `rgba(255,27,45,${0.45 * a})`);
+      g.addColorStop(0, 'rgba(255,27,45,0)');
+      g.addColorStop(0.22, `rgba(255,130,120,${0.5 * a})`);
+      g.addColorStop(0.5, `rgba(255,27,45,${0.42 * a})`);
       g.addColorStop(1, 'rgba(122,10,23,0)');
       c.fillStyle = g;
       c.beginPath();
@@ -156,6 +157,7 @@ export default class Ember extends Scene {
   /** Heat of a word 0..1: white-hot as sung, cooling to an ember. */
   private heat(w: Word, t: number) {
     if (t < w.start) return 0;
+    if (w === this.burning) return 0.9 + 0.08 * Math.sin(t * 23) * Math.sin(t * 7.1);
     const p = clamp((t - w.start) / Math.max(0.05, w.end - w.start));
     const cool = Math.exp(-Math.max(0, t - w.end) / 0.9);
     return Math.max(0.32, lerp(0.75, 1, p) * cool + 0.32 * (1 - cool));

@@ -24,6 +24,7 @@ export default class Throat extends Scene {
   never: Word[] = [];
   go!: Word;
   tStop = 0; // the music's hard stop
+  stage = 0; // the outro tunnel's escalation step (set by tunnel())
   fam = F.archivo(125, 900);
   mono = F.mono(500);
 
@@ -52,6 +53,7 @@ export default class Throat extends Scene {
     // which shout is on (each holds until the next event)
     const events = [...this.shouts.map((w) => w.start), this.never[0]!.start];
     let si = -1;
+    this.stage = 0;
     for (let k = 0; k < this.shouts.length; k++) if (t >= this.shouts[k]!.start && t < events[k + 1]!) si = k;
     const inNever = t >= this.never[0]!.start && t < this.go.end + 0.25;
     const stopped = t >= this.tStop;
@@ -124,11 +126,12 @@ export default class Throat extends Scene {
       // the last two bars rush in
       const rush = smoothstep(this.tStop - 3.6, this.tStop, t);
       o.zoom = 1 + 0.25 * rush * rush;
-      o.bloom = 0.8 + 0.6 * rush;
+      o.bloom = this.stage > 0 ? 0.35 : 0.8 + 0.6 * rush;
+      if (this.stage > 0) o.bloomThreshold = 1.3;
     }
 
     B.upload(); L.upload();
-    const light = bg === TL.red || bg === TL.enamel;
+    const light = bg === TL.red || bg === TL.enamel || this.stage > 0;
     this.comp.render(this.ctx.renderer, out, { a: B.texture, b: L.texture, bg, hot: light ? 0 : 1.6, hotB: light ? 0 : 1.1 });
     if (sh > 0.1) o.shake = [noise1(frameIdx(t), 41) * sh, noise1(frameIdx(t), 42) * sh];
     return o;
@@ -142,11 +145,21 @@ export default class Throat extends Scene {
     const fl = Math.floor(bp), fr = bp - fl;
     const cam = fl + ease.inOutCubic(clamp(fr / 0.55));
     const Fz = 900;
+    // the riff's eight bars escalate every two: dark throat -> red-hot -> negative (paper and ink) -> strobing
+    const b0 = au.barAt(this.go.end + 0.3);
+    const stage = clamp(Math.floor((au.barAt(t) - b0) / 2), 0, 3);
+    this.stage = stage;
+    const neg = stage === 2 || (stage === 3 && fl % 2 === 1);
+    const hotK = stage === 1 ? 1 : stage === 3 ? 0.7 : 0;
     // deep red light at the end of the throat
-    const g = c.createRadialGradient(W / 2, CY, 0, W / 2, CY, 700);
-    g.addColorStop(0, tc('red', 1)); g.addColorStop(0.18, tc('wine', 1)); g.addColorStop(1, tc('ink', 1));
+    const g = c.createRadialGradient(W / 2, CY, 0, W / 2, CY, 700 + 500 * hotK);
+    if (neg) { g.addColorStop(0, tc('red', 1)); g.addColorStop(0.12, tc('enamel', 1)); g.addColorStop(1, tc('dentin', 1)); }
+    else { g.addColorStop(0, tc('red', 1)); g.addColorStop(0.18 + 0.2 * hotK, tc(hotK > 0 ? 'red' : 'wine', 1)); g.addColorStop(1, tc(hotK > 0 ? 'wine' : 'ink', 1)); }
     c.fillStyle = g;
     c.fillRect(0, 0, W, H);
+    // the throat rolls, faster each stage
+    c.save();
+    c.translate(W / 2, CY); c.rotate((t - b0) * 0.08 * stage * stage); c.translate(-W / 2, -CY);
     const snare = au.hit('snare', t, 0.12);
     const NR = 14;
     for (let k = NR; k >= 0; k--) {
@@ -166,7 +179,7 @@ export default class Throat extends Scene {
       c.beginPath();
       c.arc(W / 2, CY, R * 1.28, 0, TAU);
       c.arc(W / 2, CY, R * 0.98, 0, TAU, true);
-      c.fillStyle = `rgba(${Math.round(122 * fog)},${Math.round(10 * fog)},${Math.round(23 * fog)},1)`;
+      c.fillStyle = neg ? tc('red', 0.25 + 0.75 * fog) : `rgba(${Math.round(122 * fog + 133 * hotK * fog)},${Math.round(10 * fog)},${Math.round(23 * fog + 20 * hotK * fog)},1)`;
       c.fill();
       for (let i = 0; i < N; i++) {
         const a = rot + (i / N) * TAU;
@@ -176,7 +189,7 @@ export default class Throat extends Scene {
         const x2 = W / 2 + Math.cos(a + wv) * R, y2 = CY + Math.sin(a + wv) * R;
         const tx = W / 2 + Math.cos(a) * R * (1 - tl), ty = CY + Math.sin(a) * R * (1 - tl);
         const lum = fog * (0.55 + 0.45 * Math.max(0, Math.cos(a + 2.2)));
-        c.fillStyle = `rgba(${Math.round(240 * lum)},${Math.round(235 * lum * 0.97)},${Math.round(225 * lum * 0.92)},1)`;
+        c.fillStyle = neg ? `rgba(${Math.round(10 + 40 * (1 - fog))},${Math.round(8 + 30 * (1 - fog))},${Math.round(10 + 30 * (1 - fog))},1)` : `rgba(${Math.round(240 * lum)},${Math.round(235 * lum * 0.97)},${Math.round(225 * lum * 0.92)},1)`;
         c.beginPath();
         c.moveTo(x1, y1);
         c.quadraticCurveTo(W / 2 + Math.cos(a - wv * 0.4) * R * (1 - tl * 0.6), CY + Math.sin(a - wv * 0.4) * R * (1 - tl * 0.6), tx, ty);
@@ -185,6 +198,7 @@ export default class Throat extends Scene {
         c.fill();
       }
     }
+    c.restore();
   }
 
   /** "Never, never, never ever let go": stacked in the throat's mouth, LET GO bitten by the clamp. */
