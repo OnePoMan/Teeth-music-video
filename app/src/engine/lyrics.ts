@@ -36,8 +36,9 @@ export class Lyrics {
     this.words.forEach((w, i) => (w.gi = i));
   }
 
-  static async load(): Promise<Lyrics> {
-    for (const url of ['data/lyrics.json', 'data/lyrics.approx.json']) {
+  /** `base`: the song's data folder (e.g. 'data/teeth/'). */
+  static async load(base = 'data/'): Promise<Lyrics> {
+    for (const url of [`${base}lyrics.json`, `${base}lyrics.approx.json`]) {
       const r = await fetch(url);
       if (r.ok && (r.headers.get('content-type') ?? '').includes('json')) return new Lyrics(await r.json());
     }

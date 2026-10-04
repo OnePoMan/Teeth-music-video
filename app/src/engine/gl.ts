@@ -210,7 +210,21 @@ export class Layer2D {
     if (color) { c.fillStyle = color; c.fillRect(0, 0, this.w, this.h); }
     else c.clearRect(0, 0, this.w, this.h);
   }
-  upload() { this.texture.needsUpdate = true; return this.texture; }
+  upload() {
+    // Chrome can hand texImage2D a stale snapshot of a canvas that was only cleared since the last
+    // upload (seen with SwiftShader: the previous frame's content came back). One real, invisible draw
+    // op per frame forces a fresh snapshot.
+    const c = this.ctx;
+    c.save();
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.globalAlpha = 1;
+    c.globalCompositeOperation = 'source-over';
+    c.fillStyle = 'rgba(0,0,0,0.004)';
+    c.fillRect(0, 0, 1, 1);
+    c.restore();
+    this.texture.needsUpdate = true;
+    return this.texture;
+  }
 }
 
 /** Clear a render target to a linear colour. */
