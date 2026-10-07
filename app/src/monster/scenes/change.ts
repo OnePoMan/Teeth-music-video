@@ -86,7 +86,7 @@ export default class Change extends Scene {
       [audio.timeOfBeat(bOut), [0.0, 3.1, -5.5], ease.inOutCubic], [T1, [0.0, 3.2, -5.5], ease.linear]]);
     this.st.cam.set(pos, at, lerp(38, 46, creep));
 
-    this.st.render(renderer, out, t, { base, h: flH, I: LI, reach: lerp(15, 18, creep) }, { wall: 1, wallZ: WALL_Z, freqFloor: 4.5, freqWall: 4.2 },
+    this.st.render(renderer, out, t, { base, h: flH, I: LI, reach: lerp(15, 18, creep) }, { wall: 1, wallZ: WALL_Z, freqFloor: 4.5, freqWall: 4.2, toneWall: 1 },
       { gust: fl.gust * 0.6 + (beat >= bChange && beat < bEnd + 0.5 ? 0.6 * Math.sin(e8 * 2.1) : 0), rim: 1.3 });
 
     return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5 + 0.2 * creep, grain: 0.06, ca: 0.6, halation: 0.35 };
