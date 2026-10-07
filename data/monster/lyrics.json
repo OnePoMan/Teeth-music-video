@@ -1,0 +1,3246 @@
+{
+ "lines": [
+  {
+   "i": 0,
+   "text": "How has everything been turned against us?",
+   "start": 4.66,
+   "end": 8.161,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "How",
+     "start": 4.66,
+     "end": 5.04,
+     "conf": 0.85
+    },
+    {
+     "w": "has",
+     "start": 5.04,
+     "end": 5.248,
+     "conf": 0.85
+    },
+    {
+     "w": "everything",
+     "start": 5.248,
+     "end": 6.12,
+     "conf": 0.85
+    },
+    {
+     "w": "been",
+     "start": 6.12,
+     "end": 6.4,
+     "conf": 0.85
+    },
+    {
+     "w": "turned",
+     "start": 6.4,
+     "end": 6.974,
+     "conf": 0.85
+    },
+    {
+     "w": "against",
+     "start": 6.974,
+     "end": 8.0,
+     "conf": 0.85
+    },
+    {
+     "w": "us?",
+     "start": 8.0,
+     "end": 8.161,
+     "conf": 0.7
+    }
+   ]
+  },
+  {
+   "i": 1,
+   "text": "How did suffering become so endless?",
+   "start": 9.937,
+   "end": 13.714,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "How",
+     "start": 9.937,
+     "end": 10.16,
+     "conf": 0.85
+    },
+    {
+     "w": "did",
+     "start": 10.16,
+     "end": 10.317,
+     "conf": 0.85
+    },
+    {
+     "w": "suffering",
+     "start": 10.317,
+     "end": 11.5,
+     "conf": 0.85
+    },
+    {
+     "w": "become",
+     "start": 11.5,
+     "end": 12.073,
+     "conf": 0.85
+    },
+    {
+     "w": "so",
+     "start": 12.073,
+     "end": 12.58,
+     "conf": 0.85
+    },
+    {
+     "w": "endless?",
+     "start": 12.58,
+     "end": 13.714,
+     "conf": 0.69
+    }
+   ]
+  },
+  {
+   "i": 2,
+   "text": "How am I to reunite with my estranged?",
+   "start": 15.26,
+   "end": 19.077,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "How",
+     "start": 15.26,
+     "end": 15.76,
+     "conf": 0.85
+    },
+    {
+     "w": "am",
+     "start": 15.76,
+     "end": 16.2,
+     "conf": 0.85
+    },
+    {
+     "w": "I",
+     "start": 16.2,
+     "end": 16.34,
+     "conf": 0.7
+    },
+    {
+     "w": "to",
+     "start": 16.34,
+     "end": 16.52,
+     "conf": 0.85
+    },
+    {
+     "w": "reunite",
+     "start": 16.52,
+     "end": 17.405,
+     "conf": 1.0
+    },
+    {
+     "w": "with",
+     "start": 17.405,
+     "end": 17.84,
+     "conf": 1.0
+    },
+    {
+     "w": "my",
+     "start": 17.84,
+     "end": 18.32,
+     "conf": 0.85
+    },
+    {
+     "w": "estranged?",
+     "start": 18.32,
+     "end": 19.077,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 3,
+   "text": "Do I need to change?",
+   "start": 20.0,
+   "end": 21.935,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Do",
+     "start": 20.0,
+     "end": 20.46,
+     "conf": 0.68
+    },
+    {
+     "w": "I",
+     "start": 20.46,
+     "end": 20.58,
+     "conf": 0.85
+    },
+    {
+     "w": "need",
+     "start": 20.58,
+     "end": 20.82,
+     "conf": 0.85
+    },
+    {
+     "w": "to",
+     "start": 20.82,
+     "end": 20.922,
+     "conf": 1.0
+    },
+    {
+     "w": "change?",
+     "start": 20.922,
+     "end": 21.935,
+     "conf": 0.99
+    }
+   ]
+  },
+  {
+   "i": 4,
+   "text": "I'm surrounded by the souls of those I've lost",
+   "start": 25.971,
+   "end": 29.678,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "I'm",
+     "start": 25.971,
+     "end": 26.265,
+     "conf": 0.81
+    },
+    {
+     "w": "surrounded",
+     "start": 26.265,
+     "end": 27.12,
+     "conf": 1.0
+    },
+    {
+     "w": "by",
+     "start": 27.12,
+     "end": 27.66,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 27.66,
+     "end": 27.762,
+     "conf": 0.85
+    },
+    {
+     "w": "souls",
+     "start": 27.762,
+     "end": 28.44,
+     "conf": 1.0
+    },
+    {
+     "w": "of",
+     "start": 28.44,
+     "end": 28.56,
+     "conf": 0.85
+    },
+    {
+     "w": "those",
+     "start": 28.56,
+     "end": 29.019,
+     "conf": 1.0
+    },
+    {
+     "w": "I've",
+     "start": 29.019,
+     "end": 29.24,
+     "conf": 0.85
+    },
+    {
+     "w": "lost",
+     "start": 29.24,
+     "end": 29.678,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 5,
+   "text": "I'm the only one whose line I haven't crossed",
+   "start": 31.309,
+   "end": 34.756,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "I'm",
+     "start": 31.309,
+     "end": 31.583,
+     "conf": 0.83
+    },
+    {
+     "w": "the",
+     "start": 31.66,
+     "end": 32.04,
+     "conf": 0.85
+    },
+    {
+     "w": "only",
+     "start": 32.04,
+     "end": 32.566,
+     "conf": 0.7
+    },
+    {
+     "w": "one",
+     "start": 32.566,
+     "end": 32.78,
+     "conf": 0.85
+    },
+    {
+     "w": "whose",
+     "start": 32.78,
+     "end": 33.04,
+     "conf": 1.0
+    },
+    {
+     "w": "line",
+     "start": 33.04,
+     "end": 33.718,
+     "conf": 0.85
+    },
+    {
+     "w": "I",
+     "start": 33.718,
+     "end": 33.818,
+     "conf": 0.85
+    },
+    {
+     "w": "haven't",
+     "start": 33.818,
+     "end": 34.26,
+     "conf": 1.0
+    },
+    {
+     "w": "crossed",
+     "start": 34.26,
+     "end": 34.756,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 6,
+   "text": "What if the greatest threat we'll find across the sea",
+   "start": 36.592,
+   "end": 40.383,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "What",
+     "start": 36.592,
+     "end": 36.731,
+     "conf": 0.85
+    },
+    {
+     "w": "if",
+     "start": 36.731,
+     "end": 36.896,
+     "conf": 1.0
+    },
+    {
+     "w": "the",
+     "start": 36.94,
+     "end": 37.1,
+     "conf": 1.0
+    },
+    {
+     "w": "greatest",
+     "start": 37.1,
+     "end": 37.6,
+     "conf": 1.0
+    },
+    {
+     "w": "threat",
+     "start": 37.6,
+     "end": 38.039,
+     "conf": 0.85
+    },
+    {
+     "w": "we'll",
+     "start": 38.1,
+     "end": 38.298,
+     "conf": 0.84
+    },
+    {
+     "w": "find",
+     "start": 38.298,
+     "end": 38.971,
+     "conf": 1.0
+    },
+    {
+     "w": "across",
+     "start": 38.971,
+     "end": 39.64,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 39.64,
+     "end": 39.75,
+     "conf": 0.85
+    },
+    {
+     "w": "sea",
+     "start": 39.75,
+     "end": 40.383,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 7,
+   "text": "Is me?",
+   "start": 42.309,
+   "end": 42.942,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Is",
+     "start": 42.309,
+     "end": 42.56,
+     "conf": 0.85
+    },
+    {
+     "w": "me?",
+     "start": 42.56,
+     "end": 42.942,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 8,
+   "text": "What if I'm the monster?",
+   "start": 43.95,
+   "end": 46.145,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "What",
+     "start": 43.95,
+     "end": 44.52,
+     "conf": 0.85
+    },
+    {
+     "w": "if",
+     "start": 44.52,
+     "end": 44.738,
+     "conf": 0.7
+    },
+    {
+     "w": "I'm",
+     "start": 44.738,
+     "end": 45.14,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 45.14,
+     "end": 45.32,
+     "conf": 0.85
+    },
+    {
+     "w": "monster?",
+     "start": 45.32,
+     "end": 46.145,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 9,
+   "text": "What if I'm in the wrong?",
+   "start": 46.52,
+   "end": 48.649,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "What",
+     "start": 46.52,
+     "end": 46.878,
+     "conf": 0.85
+    },
+    {
+     "w": "if",
+     "start": 46.878,
+     "end": 47.063,
+     "conf": 0.85
+    },
+    {
+     "w": "I'm",
+     "start": 47.063,
+     "end": 47.62,
+     "conf": 0.68
+    },
+    {
+     "w": "in",
+     "start": 47.62,
+     "end": 47.82,
+     "conf": 0.7
+    },
+    {
+     "w": "the",
+     "start": 47.82,
+     "end": 48.02,
+     "conf": 0.85
+    },
+    {
+     "w": "wrong?",
+     "start": 48.02,
+     "end": 48.649,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 10,
+   "text": "What if I'm the problem that's been hiding all along?",
+   "start": 49.278,
+   "end": 53.808,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "What",
+     "start": 49.278,
+     "end": 49.84,
+     "conf": 0.85
+    },
+    {
+     "w": "if",
+     "start": 49.84,
+     "end": 50.32,
+     "conf": 0.7
+    },
+    {
+     "w": "I'm",
+     "start": 50.32,
+     "end": 50.5,
+     "conf": 0.84
+    },
+    {
+     "w": "the",
+     "start": 50.5,
+     "end": 50.64,
+     "conf": 0.85
+    },
+    {
+     "w": "problem",
+     "start": 50.64,
+     "end": 51.52,
+     "conf": 1.0
+    },
+    {
+     "w": "that's",
+     "start": 51.52,
+     "end": 51.84,
+     "conf": 0.85
+    },
+    {
+     "w": "been",
+     "start": 51.84,
+     "end": 51.912,
+     "conf": 1.0
+    },
+    {
+     "w": "hiding",
+     "start": 51.912,
+     "end": 52.86,
+     "conf": 1.0
+    },
+    {
+     "w": "all",
+     "start": 52.86,
+     "end": 53.1,
+     "conf": 0.7
+    },
+    {
+     "w": "along?",
+     "start": 53.1,
+     "end": 53.808,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 11,
+   "text": "What if I'm the one who killed you every time I caved to guilt?",
+   "start": 54.32,
+   "end": 58.881,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "What",
+     "start": 54.32,
+     "end": 54.54,
+     "conf": 0.85
+    },
+    {
+     "w": "if",
+     "start": 54.54,
+     "end": 55.02,
+     "conf": 0.85
+    },
+    {
+     "w": "I'm",
+     "start": 55.02,
+     "end": 55.18,
+     "conf": 0.7
+    },
+    {
+     "w": "the",
+     "start": 55.18,
+     "end": 55.42,
+     "conf": 1.0
+    },
+    {
+     "w": "one",
+     "start": 55.42,
+     "end": 55.569,
+     "conf": 0.85
+    },
+    {
+     "w": "who",
+     "start": 55.569,
+     "end": 55.803,
+     "conf": 0.85
+    },
+    {
+     "w": "killed",
+     "start": 55.803,
+     "end": 56.147,
+     "conf": 1.0
+    },
+    {
+     "w": "you",
+     "start": 56.147,
+     "end": 56.566,
+     "conf": 0.85
+    },
+    {
+     "w": "every",
+     "start": 57.0,
+     "end": 57.36,
+     "conf": 0.85
+    },
+    {
+     "w": "time",
+     "start": 57.36,
+     "end": 57.908,
+     "conf": 0.85
+    },
+    {
+     "w": "I",
+     "start": 57.908,
+     "end": 58.02,
+     "conf": 0.7
+    },
+    {
+     "w": "caved",
+     "start": 58.02,
+     "end": 58.34,
+     "conf": 0.97
+    },
+    {
+     "w": "to",
+     "start": 58.34,
+     "end": 58.422,
+     "conf": 0.85
+    },
+    {
+     "w": "guilt?",
+     "start": 58.422,
+     "end": 58.881,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 12,
+   "text": "What if I've been far too kind to foes,",
+   "start": 59.68,
+   "end": 62.34,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "What",
+     "start": 59.68,
+     "end": 59.92,
+     "conf": 0.85
+    },
+    {
+     "w": "if",
+     "start": 59.92,
+     "end": 60.068,
+     "conf": 0.85
+    },
+    {
+     "w": "I've",
+     "start": 60.068,
+     "end": 60.36,
+     "conf": 1.0
+    },
+    {
+     "w": "been",
+     "start": 60.36,
+     "end": 60.607,
+     "conf": 1.0
+    },
+    {
+     "w": "far",
+     "start": 60.607,
+     "end": 60.98,
+     "conf": 1.0
+    },
+    {
+     "w": "too",
+     "start": 60.98,
+     "end": 61.326,
+     "conf": 0.85
+    },
+    {
+     "w": "kind",
+     "start": 61.326,
+     "end": 61.69,
+     "conf": 0.85
+    },
+    {
+     "w": "to",
+     "start": 61.69,
+     "end": 61.8,
+     "conf": 0.85
+    },
+    {
+     "w": "foes,",
+     "start": 61.8,
+     "end": 62.34,
+     "conf": 0.99
+    }
+   ]
+  },
+  {
+   "i": 13,
+   "text": "but a monster to ourselves?",
+   "start": 62.34,
+   "end": 64.623,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "but",
+     "start": 62.34,
+     "end": 62.56,
+     "conf": 1.0
+    },
+    {
+     "w": "a",
+     "start": 62.56,
+     "end": 62.7,
+     "conf": 0.84
+    },
+    {
+     "w": "monster",
+     "start": 62.7,
+     "end": 63.3,
+     "conf": 0.85
+    },
+    {
+     "w": "to",
+     "start": 63.3,
+     "end": 63.58,
+     "conf": 0.85
+    },
+    {
+     "w": "ourselves?",
+     "start": 63.58,
+     "end": 64.623,
+     "conf": 0.68
+    }
+   ]
+  },
+  {
+   "i": 14,
+   "text": "What if I'm the monster?",
+   "start": 65.277,
+   "end": 67.966,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "What",
+     "start": 65.277,
+     "end": 65.68,
+     "conf": 0.85
+    },
+    {
+     "w": "if",
+     "start": 65.68,
+     "end": 66.16,
+     "conf": 0.7
+    },
+    {
+     "w": "I'm",
+     "start": 66.16,
+     "end": 66.44,
+     "conf": 0.64
+    },
+    {
+     "w": "the",
+     "start": 66.44,
+     "end": 66.62,
+     "conf": 1.0
+    },
+    {
+     "w": "monster?",
+     "start": 66.62,
+     "end": 67.966,
+     "conf": 0.99
+    }
+   ]
+  },
+  {
+   "i": 15,
+   "text": "Is the cyclops struck with guilt when he kills?",
+   "start": 68.988,
+   "end": 71.74,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Is",
+     "start": 68.988,
+     "end": 69.16,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 69.16,
+     "end": 69.258,
+     "conf": 0.85
+    },
+    {
+     "w": "cyclops",
+     "start": 69.258,
+     "end": 69.916,
+     "conf": 0.96,
+     "syl": [
+      [
+       69.258,
+       69.62
+      ],
+      [
+       69.62,
+       69.916
+      ]
+     ]
+    },
+    {
+     "w": "struck",
+     "start": 69.916,
+     "end": 70.195,
+     "conf": 1.0
+    },
+    {
+     "w": "with",
+     "start": 70.28,
+     "end": 70.5,
+     "conf": 0.85
+    },
+    {
+     "w": "guilt",
+     "start": 70.5,
+     "end": 70.759,
+     "conf": 0.85
+    },
+    {
+     "w": "when",
+     "start": 70.86,
+     "end": 70.959,
+     "conf": 0.85
+    },
+    {
+     "w": "he",
+     "start": 70.959,
+     "end": 71.188,
+     "conf": 1.0
+    },
+    {
+     "w": "kills?",
+     "start": 71.26,
+     "end": 71.74,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 16,
+   "text": "Is he up in the middle of the night?",
+   "start": 71.74,
+   "end": 73.722,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Is",
+     "start": 71.74,
+     "end": 71.837,
+     "conf": 1.0
+    },
+    {
+     "w": "he",
+     "start": 71.837,
+     "end": 72.111,
+     "conf": 0.99
+    },
+    {
+     "w": "up",
+     "start": 72.111,
+     "end": 72.216,
+     "conf": 0.85
+    },
+    {
+     "w": "in",
+     "start": 72.321,
+     "end": 72.5,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 72.5,
+     "end": 72.66,
+     "conf": 1.0
+    },
+    {
+     "w": "middle",
+     "start": 72.66,
+     "end": 73.059,
+     "conf": 0.85
+    },
+    {
+     "w": "of",
+     "start": 73.059,
+     "end": 73.18,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 73.18,
+     "end": 73.38,
+     "conf": 1.0
+    },
+    {
+     "w": "night?",
+     "start": 73.38,
+     "end": 73.722,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 17,
+   "text": "Or does he end my men to avenge his friend",
+   "start": 73.832,
+   "end": 76.87,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Or",
+     "start": 73.832,
+     "end": 74.36,
+     "conf": 0.85
+    },
+    {
+     "w": "does",
+     "start": 74.36,
+     "end": 74.516,
+     "conf": 1.0
+    },
+    {
+     "w": "he",
+     "start": 74.516,
+     "end": 74.72,
+     "conf": 1.0
+    },
+    {
+     "w": "end",
+     "start": 74.72,
+     "end": 74.96,
+     "conf": 0.7
+    },
+    {
+     "w": "my",
+     "start": 74.96,
+     "end": 75.32,
+     "conf": 0.85
+    },
+    {
+     "w": "men",
+     "start": 75.32,
+     "end": 75.62,
+     "conf": 0.85
+    },
+    {
+     "w": "to",
+     "start": 75.62,
+     "end": 75.88,
+     "conf": 0.7
+    },
+    {
+     "w": "avenge",
+     "start": 75.88,
+     "end": 76.232,
+     "conf": 0.84
+    },
+    {
+     "w": "his",
+     "start": 76.232,
+     "end": 76.456,
+     "conf": 1.0
+    },
+    {
+     "w": "friend",
+     "start": 76.456,
+     "end": 76.87,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 18,
+   "text": "And then sleep knowing he has done him right?",
+   "start": 76.87,
+   "end": 79.025,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "And",
+     "start": 76.87,
+     "end": 77.02,
+     "conf": 0.85
+    },
+    {
+     "w": "then",
+     "start": 77.02,
+     "end": 77.22,
+     "conf": 1.0
+    },
+    {
+     "w": "sleep",
+     "start": 77.22,
+     "end": 77.614,
+     "conf": 1.0
+    },
+    {
+     "w": "knowing",
+     "start": 77.614,
+     "end": 77.973,
+     "conf": 0.85
+    },
+    {
+     "w": "he",
+     "start": 77.973,
+     "end": 78.073,
+     "conf": 0.85
+    },
+    {
+     "w": "has",
+     "start": 78.073,
+     "end": 78.34,
+     "conf": 1.0
+    },
+    {
+     "w": "done",
+     "start": 78.34,
+     "end": 78.54,
+     "conf": 1.0
+    },
+    {
+     "w": "him",
+     "start": 78.54,
+     "end": 78.68,
+     "conf": 0.83
+    },
+    {
+     "w": "right?",
+     "start": 78.68,
+     "end": 79.025,
+     "conf": 0.97
+    }
+   ]
+  },
+  {
+   "i": 19,
+   "text": "When the witch turns men to pigs to protect her nymphs,",
+   "start": 79.64,
+   "end": 82.907,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "When",
+     "start": 79.64,
+     "end": 79.724,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 79.724,
+     "end": 80.0,
+     "conf": 1.0
+    },
+    {
+     "w": "witch",
+     "start": 80.0,
+     "end": 80.3,
+     "conf": 0.85
+    },
+    {
+     "w": "turns",
+     "start": 80.3,
+     "end": 80.702,
+     "conf": 0.85
+    },
+    {
+     "w": "men",
+     "start": 80.702,
+     "end": 80.96,
+     "conf": 0.85
+    },
+    {
+     "w": "to",
+     "start": 80.96,
+     "end": 81.041,
+     "conf": 0.85
+    },
+    {
+     "w": "pigs",
+     "start": 81.041,
+     "end": 81.5,
+     "conf": 1.0
+    },
+    {
+     "w": "to",
+     "start": 81.5,
+     "end": 81.769,
+     "conf": 0.85
+    },
+    {
+     "w": "protect",
+     "start": 81.82,
+     "end": 82.293,
+     "conf": 0.85
+    },
+    {
+     "w": "her",
+     "start": 82.293,
+     "end": 82.52,
+     "conf": 0.85
+    },
+    {
+     "w": "nymphs,",
+     "start": 82.52,
+     "end": 82.907,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 20,
+   "text": "is she going insane?",
+   "start": 82.907,
+   "end": 84.493,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "is",
+     "start": 82.907,
+     "end": 83.016,
+     "conf": 0.97
+    },
+    {
+     "w": "she",
+     "start": 83.016,
+     "end": 83.186,
+     "conf": 1.0
+    },
+    {
+     "w": "going",
+     "start": 83.186,
+     "end": 83.725,
+     "conf": 1.0
+    },
+    {
+     "w": "insane?",
+     "start": 83.725,
+     "end": 84.493,
+     "conf": 0.69
+    }
+   ]
+  },
+  {
+   "i": 21,
+   "text": "Or did she learn to be colder when she got older,",
+   "start": 84.86,
+   "end": 87.9,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Or",
+     "start": 84.86,
+     "end": 85.002,
+     "conf": 0.85
+    },
+    {
+     "w": "did",
+     "start": 85.002,
+     "end": 85.102,
+     "conf": 0.85
+    },
+    {
+     "w": "she",
+     "start": 85.102,
+     "end": 85.221,
+     "conf": 1.0
+    },
+    {
+     "w": "learn",
+     "start": 85.221,
+     "end": 85.68,
+     "conf": 1.0
+    },
+    {
+     "w": "to",
+     "start": 85.68,
+     "end": 85.755,
+     "conf": 0.85
+    },
+    {
+     "w": "be",
+     "start": 85.755,
+     "end": 86.0,
+     "conf": 1.0
+    },
+    {
+     "w": "colder",
+     "start": 86.0,
+     "end": 86.54,
+     "conf": 0.85
+    },
+    {
+     "w": "when",
+     "start": 86.54,
+     "end": 86.743,
+     "conf": 0.85
+    },
+    {
+     "w": "she",
+     "start": 86.743,
+     "end": 87.042,
+     "conf": 0.85
+    },
+    {
+     "w": "got",
+     "start": 87.042,
+     "end": 87.252,
+     "conf": 0.85
+    },
+    {
+     "w": "older,",
+     "start": 87.386,
+     "end": 87.9,
+     "conf": 0.7
+    }
+   ]
+  },
+  {
+   "i": 22,
+   "text": "and now she saves them the pain?",
+   "start": 87.9,
+   "end": 89.941,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "and",
+     "start": 87.9,
+     "end": 88.07,
+     "conf": 0.85
+    },
+    {
+     "w": "now",
+     "start": 88.07,
+     "end": 88.254,
+     "conf": 0.85
+    },
+    {
+     "w": "she",
+     "start": 88.254,
+     "end": 88.444,
+     "conf": 0.85
+    },
+    {
+     "w": "saves",
+     "start": 88.444,
+     "end": 88.88,
+     "conf": 1.0
+    },
+    {
+     "w": "them",
+     "start": 88.88,
+     "end": 89.16,
+     "conf": 1.0
+    },
+    {
+     "w": "the",
+     "start": 89.16,
+     "end": 89.32,
+     "conf": 0.85
+    },
+    {
+     "w": "pain?",
+     "start": 89.32,
+     "end": 89.941,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 23,
+   "text": "When a God comes down and makes a fleet drown",
+   "start": 90.235,
+   "end": 93.06,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "When",
+     "start": 90.235,
+     "end": 90.58,
+     "conf": 0.85
+    },
+    {
+     "w": "a",
+     "start": 90.58,
+     "end": 90.68,
+     "conf": 0.85
+    },
+    {
+     "w": "God",
+     "start": 90.68,
+     "end": 90.993,
+     "conf": 1.0
+    },
+    {
+     "w": "comes",
+     "start": 91.063,
+     "end": 91.36,
+     "conf": 0.85
+    },
+    {
+     "w": "down",
+     "start": 91.36,
+     "end": 91.72,
+     "conf": 0.85
+    },
+    {
+     "w": "and",
+     "start": 91.72,
+     "end": 91.84,
+     "conf": 0.85
+    },
+    {
+     "w": "makes",
+     "start": 91.84,
+     "end": 92.2,
+     "conf": 1.0
+    },
+    {
+     "w": "a",
+     "start": 92.2,
+     "end": 92.295,
+     "conf": 0.73
+    },
+    {
+     "w": "fleet",
+     "start": 92.295,
+     "end": 92.62,
+     "conf": 1.0
+    },
+    {
+     "w": "drown",
+     "start": 92.62,
+     "end": 93.06,
+     "conf": 0.84
+    }
+   ]
+  },
+  {
+   "i": 24,
+   "text": "Is he scared that he's doing something wrong",
+   "start": 93.06,
+   "end": 95.109,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Is",
+     "start": 93.06,
+     "end": 93.16,
+     "conf": 0.85
+    },
+    {
+     "w": "he",
+     "start": 93.16,
+     "end": 93.258,
+     "conf": 1.0
+    },
+    {
+     "w": "scared",
+     "start": 93.258,
+     "end": 93.617,
+     "conf": 1.0
+    },
+    {
+     "w": "that",
+     "start": 93.66,
+     "end": 93.86,
+     "conf": 0.81
+    },
+    {
+     "w": "he's",
+     "start": 93.86,
+     "end": 94.0,
+     "conf": 1.0
+    },
+    {
+     "w": "doing",
+     "start": 94.0,
+     "end": 94.266,
+     "conf": 1.0
+    },
+    {
+     "w": "something",
+     "start": 94.266,
+     "end": 94.68,
+     "conf": 1.0
+    },
+    {
+     "w": "wrong",
+     "start": 94.68,
+     "end": 95.109,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 25,
+   "text": "Or does he keep us in check so we must respect him",
+   "start": 95.403,
+   "end": 98.52,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Or",
+     "start": 95.403,
+     "end": 95.66,
+     "conf": 0.85
+    },
+    {
+     "w": "does",
+     "start": 95.66,
+     "end": 95.817,
+     "conf": 0.85
+    },
+    {
+     "w": "he",
+     "start": 95.817,
+     "end": 95.98,
+     "conf": 1.0
+    },
+    {
+     "w": "keep",
+     "start": 95.98,
+     "end": 96.341,
+     "conf": 0.97
+    },
+    {
+     "w": "us",
+     "start": 96.341,
+     "end": 96.52,
+     "conf": 0.85
+    },
+    {
+     "w": "in",
+     "start": 96.52,
+     "end": 96.62,
+     "conf": 1.0
+    },
+    {
+     "w": "check",
+     "start": 96.62,
+     "end": 96.865,
+     "conf": 1.0
+    },
+    {
+     "w": "so",
+     "start": 96.865,
+     "end": 97.244,
+     "conf": 1.0
+    },
+    {
+     "w": "we",
+     "start": 97.244,
+     "end": 97.5,
+     "conf": 0.85
+    },
+    {
+     "w": "must",
+     "start": 97.5,
+     "end": 97.728,
+     "conf": 0.85
+    },
+    {
+     "w": "respect",
+     "start": 97.8,
+     "end": 98.297,
+     "conf": 0.85
+    },
+    {
+     "w": "him",
+     "start": 98.297,
+     "end": 98.52,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 26,
+   "text": "And now no one dares to piss him off?",
+   "start": 98.52,
+   "end": 100.377,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "And",
+     "start": 98.52,
+     "end": 98.68,
+     "conf": 1.0
+    },
+    {
+     "w": "now",
+     "start": 98.68,
+     "end": 99.02,
+     "conf": 1.0
+    },
+    {
+     "w": "no",
+     "start": 99.02,
+     "end": 99.22,
+     "conf": 0.85
+    },
+    {
+     "w": "one",
+     "start": 99.22,
+     "end": 99.34,
+     "conf": 0.83
+    },
+    {
+     "w": "dares",
+     "start": 99.34,
+     "end": 99.56,
+     "conf": 1.0
+    },
+    {
+     "w": "to",
+     "start": 99.56,
+     "end": 99.66,
+     "conf": 1.0
+    },
+    {
+     "w": "piss",
+     "start": 99.66,
+     "end": 99.838,
+     "conf": 1.0
+    },
+    {
+     "w": "him",
+     "start": 99.838,
+     "end": 100.028,
+     "conf": 1.0
+    },
+    {
+     "w": "off?",
+     "start": 100.028,
+     "end": 100.377,
+     "conf": 0.83
+    }
+   ]
+  },
+  {
+   "i": 27,
+   "text": "Does a soldier use a wooden horse to kill sleeping Trojans",
+   "start": 100.98,
+   "end": 104.52,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Does",
+     "start": 100.98,
+     "end": 101.22,
+     "conf": 0.85
+    },
+    {
+     "w": "a",
+     "start": 101.22,
+     "end": 101.32,
+     "conf": 0.83
+    },
+    {
+     "w": "soldier",
+     "start": 101.32,
+     "end": 101.744,
+     "conf": 1.0
+    },
+    {
+     "w": "use",
+     "start": 101.744,
+     "end": 102.24,
+     "conf": 0.83
+    },
+    {
+     "w": "a",
+     "start": 102.24,
+     "end": 102.317,
+     "conf": 0.75
+    },
+    {
+     "w": "wooden",
+     "start": 102.38,
+     "end": 102.552,
+     "conf": 0.9
+    },
+    {
+     "w": "horse",
+     "start": 102.552,
+     "end": 103.0,
+     "conf": 0.85
+    },
+    {
+     "w": "to",
+     "start": 103.0,
+     "end": 103.185,
+     "conf": 0.85
+    },
+    {
+     "w": "kill",
+     "start": 103.185,
+     "end": 103.38,
+     "conf": 1.0
+    },
+    {
+     "w": "sleeping",
+     "start": 103.38,
+     "end": 103.94,
+     "conf": 1.0
+    },
+    {
+     "w": "Trojans",
+     "start": 103.94,
+     "end": 104.52,
+     "conf": 0.82
+    }
+   ]
+  },
+  {
+   "i": 28,
+   "text": "'cause he is vile?",
+   "start": 104.52,
+   "end": 105.889,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "'cause",
+     "start": 104.52,
+     "end": 104.857,
+     "conf": 0.82
+    },
+    {
+     "w": "he",
+     "start": 104.857,
+     "end": 105.06,
+     "conf": 0.85
+    },
+    {
+     "w": "is",
+     "start": 105.06,
+     "end": 105.32,
+     "conf": 0.7
+    },
+    {
+     "w": "vile?",
+     "start": 105.32,
+     "end": 105.889,
+     "conf": 0.82
+    }
+   ]
+  },
+  {
+   "i": 29,
+   "text": "Or does he throw away his remorse",
+   "start": 106.074,
+   "end": 108.36,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Or",
+     "start": 106.074,
+     "end": 106.34,
+     "conf": 0.81
+    },
+    {
+     "w": "does",
+     "start": 106.34,
+     "end": 106.478,
+     "conf": 1.0
+    },
+    {
+     "w": "he",
+     "start": 106.478,
+     "end": 106.62,
+     "conf": 1.0
+    },
+    {
+     "w": "throw",
+     "start": 106.62,
+     "end": 107.047,
+     "conf": 1.0
+    },
+    {
+     "w": "away",
+     "start": 107.047,
+     "end": 107.316,
+     "conf": 0.85
+    },
+    {
+     "w": "his",
+     "start": 107.316,
+     "end": 107.82,
+     "conf": 0.84
+    },
+    {
+     "w": "remorse",
+     "start": 107.82,
+     "end": 108.36,
+     "conf": 0.7
+    }
+   ]
+  },
+  {
+   "i": 30,
+   "text": "and save more lives with guile?",
+   "start": 108.36,
+   "end": 110.46,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "and",
+     "start": 108.36,
+     "end": 108.459,
+     "conf": 0.84
+    },
+    {
+     "w": "save",
+     "start": 108.459,
+     "end": 108.84,
+     "conf": 1.0
+    },
+    {
+     "w": "more",
+     "start": 108.84,
+     "end": 109.16,
+     "conf": 0.85
+    },
+    {
+     "w": "lives",
+     "start": 109.16,
+     "end": 109.476,
+     "conf": 0.85
+    },
+    {
+     "w": "with",
+     "start": 109.476,
+     "end": 109.79,
+     "conf": 1.0
+    },
+    {
+     "w": "guile?",
+     "start": 109.79,
+     "end": 110.46,
+     "conf": 0.97
+    }
+   ]
+  },
+  {
+   "i": 31,
+   "text": "If I became the monster and threw that guilt away",
+   "start": 110.46,
+   "end": 115.113,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "If",
+     "start": 110.46,
+     "end": 110.698,
+     "conf": 1.0
+    },
+    {
+     "w": "I",
+     "start": 110.698,
+     "end": 111.083,
+     "conf": 1.0
+    },
+    {
+     "w": "became",
+     "start": 111.083,
+     "end": 111.82,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 111.82,
+     "end": 112.0,
+     "conf": 0.85
+    },
+    {
+     "w": "monster",
+     "start": 112.0,
+     "end": 112.863,
+     "conf": 0.85
+    },
+    {
+     "w": "and",
+     "start": 113.003,
+     "end": 113.143,
+     "conf": 0.5
+    },
+    {
+     "w": "threw",
+     "start": 113.143,
+     "end": 113.722,
+     "conf": 0.85
+    },
+    {
+     "w": "that",
+     "start": 113.722,
+     "end": 113.96,
+     "conf": 0.85
+    },
+    {
+     "w": "guilt",
+     "start": 113.96,
+     "end": 114.29,
+     "conf": 0.85
+    },
+    {
+     "w": "away",
+     "start": 114.29,
+     "end": 115.113,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 32,
+   "text": "Would that make us stronger?",
+   "start": 115.917,
+   "end": 118.28,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Would",
+     "start": 115.917,
+     "end": 116.36,
+     "conf": 0.85
+    },
+    {
+     "w": "that",
+     "start": 116.36,
+     "end": 116.68,
+     "conf": 0.85
+    },
+    {
+     "w": "make",
+     "start": 116.68,
+     "end": 117.009,
+     "conf": 0.85
+    },
+    {
+     "w": "us",
+     "start": 117.009,
+     "end": 117.199,
+     "conf": 0.85
+    },
+    {
+     "w": "stronger?",
+     "start": 117.199,
+     "end": 118.28,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 33,
+   "text": "Would it keep our foes at bay?",
+   "start": 118.28,
+   "end": 120.202,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Would",
+     "start": 118.28,
+     "end": 118.491,
+     "conf": 0.83
+    },
+    {
+     "w": "it",
+     "start": 118.491,
+     "end": 118.645,
+     "conf": 1.0
+    },
+    {
+     "w": "keep",
+     "start": 118.645,
+     "end": 118.915,
+     "conf": 1.0
+    },
+    {
+     "w": "our",
+     "start": 118.915,
+     "end": 119.049,
+     "conf": 0.85
+    },
+    {
+     "w": "foes",
+     "start": 119.049,
+     "end": 119.588,
+     "conf": 1.0
+    },
+    {
+     "w": "at",
+     "start": 119.588,
+     "end": 119.718,
+     "conf": 1.0
+    },
+    {
+     "w": "bay?",
+     "start": 119.8,
+     "end": 120.202,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 34,
+   "text": "If I became the monster to everyone but us",
+   "start": 121.15,
+   "end": 125.659,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "If",
+     "start": 121.15,
+     "end": 121.429,
+     "conf": 0.85
+    },
+    {
+     "w": "I",
+     "start": 121.429,
+     "end": 121.82,
+     "conf": 0.85
+    },
+    {
+     "w": "became",
+     "start": 121.82,
+     "end": 122.397,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 122.397,
+     "end": 122.68,
+     "conf": 0.85
+    },
+    {
+     "w": "monster",
+     "start": 122.68,
+     "end": 123.509,
+     "conf": 1.0
+    },
+    {
+     "w": "to",
+     "start": 123.82,
+     "end": 124.028,
+     "conf": 0.85
+    },
+    {
+     "w": "everyone",
+     "start": 124.028,
+     "end": 124.98,
+     "conf": 0.7
+    },
+    {
+     "w": "but",
+     "start": 124.98,
+     "end": 125.235,
+     "conf": 0.85
+    },
+    {
+     "w": "us",
+     "start": 125.235,
+     "end": 125.659,
+     "conf": 0.7
+    }
+   ]
+  },
+  {
+   "i": 35,
+   "text": "And made sure we got home again,",
+   "start": 126.493,
+   "end": 128.897,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "And",
+     "start": 126.493,
+     "end": 126.68,
+     "conf": 0.85
+    },
+    {
+     "w": "made",
+     "start": 126.68,
+     "end": 126.907,
+     "conf": 0.99
+    },
+    {
+     "w": "sure",
+     "start": 126.907,
+     "end": 127.34,
+     "conf": 1.0
+    },
+    {
+     "w": "we",
+     "start": 127.34,
+     "end": 127.66,
+     "conf": 0.85
+    },
+    {
+     "w": "got",
+     "start": 127.66,
+     "end": 127.939,
+     "conf": 0.85
+    },
+    {
+     "w": "home",
+     "start": 127.939,
+     "end": 128.398,
+     "conf": 0.85
+    },
+    {
+     "w": "again,",
+     "start": 128.398,
+     "end": 128.897,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 36,
+   "text": "who would care if we're unjust?",
+   "start": 128.897,
+   "end": 130.982,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "who",
+     "start": 128.897,
+     "end": 129.072,
+     "conf": 0.68
+    },
+    {
+     "w": "would",
+     "start": 129.072,
+     "end": 129.38,
+     "conf": 0.75
+    },
+    {
+     "w": "care",
+     "start": 129.38,
+     "end": 129.9,
+     "conf": 0.84
+    },
+    {
+     "w": "if",
+     "start": 129.9,
+     "end": 130.02,
+     "conf": 0.85
+    },
+    {
+     "w": "we're",
+     "start": 130.02,
+     "end": 130.34,
+     "conf": 1.0
+    },
+    {
+     "w": "unjust?",
+     "start": 130.34,
+     "end": 130.982,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 37,
+   "text": "If I became the",
+   "start": 131.79,
+   "end": 134.035,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "If",
+     "start": 131.79,
+     "end": 132.03,
+     "conf": 0.84
+    },
+    {
+     "w": "I",
+     "start": 132.03,
+     "end": 132.46,
+     "conf": 0.85
+    },
+    {
+     "w": "became",
+     "start": 132.46,
+     "end": 133.16,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 133.16,
+     "end": 134.035,
+     "conf": 0.8
+    }
+   ]
+  },
+  {
+   "i": 38,
+   "text": "Monster",
+   "start": 132.88,
+   "end": 135.86,
+   "voice": "ensemble",
+   "words": [
+    {
+     "w": "Monster",
+     "start": 132.88,
+     "end": 135.86,
+     "conf": 0.61
+    }
+   ]
+  },
+  {
+   "i": 39,
+   "text": "Oh, ruthlessness is mercy upon ourselves",
+   "start": 134.035,
+   "end": 140.68,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Oh,",
+     "start": 134.035,
+     "end": 135.82,
+     "conf": 0.4
+    },
+    {
+     "w": "ruthlessness",
+     "start": 135.82,
+     "end": 136.904,
+     "conf": 1.0
+    },
+    {
+     "w": "is",
+     "start": 136.904,
+     "end": 137.059,
+     "conf": 0.85
+    },
+    {
+     "w": "mercy",
+     "start": 137.128,
+     "end": 137.572,
+     "conf": 1.0
+    },
+    {
+     "w": "upon",
+     "start": 137.572,
+     "end": 138.226,
+     "conf": 0.85
+    },
+    {
+     "w": "ourselves",
+     "start": 138.226,
+     "end": 140.68,
+     "conf": 0.77
+    }
+   ]
+  },
+  {
+   "i": 40,
+   "text": "Monster",
+   "start": 137.8,
+   "end": 138.64,
+   "voice": "ensemble",
+   "words": [
+    {
+     "w": "Monster",
+     "start": 137.8,
+     "end": 138.64,
+     "conf": 0.64
+    }
+   ]
+  },
+  {
+   "i": 41,
+   "text": "And deep down I know this well",
+   "start": 140.68,
+   "end": 142.776,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "And",
+     "start": 140.68,
+     "end": 140.84,
+     "conf": 0.92
+    },
+    {
+     "w": "deep",
+     "start": 140.88,
+     "end": 141.16,
+     "conf": 0.85
+    },
+    {
+     "w": "down",
+     "start": 141.16,
+     "end": 141.538,
+     "conf": 0.85
+    },
+    {
+     "w": "I",
+     "start": 141.538,
+     "end": 141.723,
+     "conf": 0.58
+    },
+    {
+     "w": "know",
+     "start": 141.8,
+     "end": 142.02,
+     "conf": 0.78
+    },
+    {
+     "w": "this",
+     "start": 142.02,
+     "end": 142.3,
+     "conf": 0.79
+    },
+    {
+     "w": "well",
+     "start": 142.3,
+     "end": 142.776,
+     "conf": 0.85
+    }
+   ]
+  },
+  {
+   "i": 42,
+   "text": "I lost my best friend, I lost my mentor, my mom",
+   "start": 143.329,
+   "end": 146.397,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "I",
+     "start": 143.329,
+     "end": 143.54,
+     "conf": 0.7
+    },
+    {
+     "w": "lost",
+     "start": 143.54,
+     "end": 143.82,
+     "conf": 0.85
+    },
+    {
+     "w": "my",
+     "start": 143.82,
+     "end": 144.0,
+     "conf": 0.85
+    },
+    {
+     "w": "best",
+     "start": 144.0,
+     "end": 144.197,
+     "conf": 0.97
+    },
+    {
+     "w": "friend,",
+     "start": 144.197,
+     "end": 144.656,
+     "conf": 0.8
+    },
+    {
+     "w": "I",
+     "start": 144.656,
+     "end": 144.86,
+     "conf": 0.85
+    },
+    {
+     "w": "lost",
+     "start": 144.86,
+     "end": 145.12,
+     "conf": 0.85
+    },
+    {
+     "w": "my",
+     "start": 145.12,
+     "end": 145.32,
+     "conf": 0.85
+    },
+    {
+     "w": "mentor,",
+     "start": 145.32,
+     "end": 145.644,
+     "conf": 1.0
+    },
+    {
+     "w": "my",
+     "start": 145.644,
+     "end": 146.0,
+     "conf": 0.99
+    },
+    {
+     "w": "mom",
+     "start": 146.0,
+     "end": 146.397,
+     "conf": 0.81
+    }
+   ]
+  },
+  {
+   "i": 43,
+   "text": "Five hundred men gone, this can't go on",
+   "start": 146.397,
+   "end": 148.877,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Five",
+     "start": 146.397,
+     "end": 146.662,
+     "conf": 0.92
+    },
+    {
+     "w": "hundred",
+     "start": 146.662,
+     "end": 147.12,
+     "conf": 0.92
+    },
+    {
+     "w": "men",
+     "start": 147.12,
+     "end": 147.4,
+     "conf": 0.85
+    },
+    {
+     "w": "gone,",
+     "start": 147.4,
+     "end": 147.82,
+     "conf": 0.84
+    },
+    {
+     "w": "this",
+     "start": 147.82,
+     "end": 148.0,
+     "conf": 0.85
+    },
+    {
+     "w": "can't",
+     "start": 148.0,
+     "end": 148.258,
+     "conf": 0.85
+    },
+    {
+     "w": "go",
+     "start": 148.32,
+     "end": 148.44,
+     "conf": 1.0
+    },
+    {
+     "w": "on",
+     "start": 148.44,
+     "end": 148.877,
+     "conf": 0.67
+    }
+   ]
+  },
+  {
+   "i": 44,
+   "text": "I must get to see Penelope and Telemachus",
+   "start": 148.877,
+   "end": 152.698,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "I",
+     "start": 148.877,
+     "end": 149.02,
+     "conf": 1.0
+    },
+    {
+     "w": "must",
+     "start": 149.02,
+     "end": 149.251,
+     "conf": 1.0
+    },
+    {
+     "w": "get",
+     "start": 149.32,
+     "end": 149.535,
+     "conf": 0.85
+    },
+    {
+     "w": "to",
+     "start": 149.62,
+     "end": 149.77,
+     "conf": 0.85
+    },
+    {
+     "w": "see",
+     "start": 149.77,
+     "end": 150.104,
+     "conf": 0.99
+    },
+    {
+     "w": "Penelope",
+     "start": 150.14,
+     "end": 151.077,
+     "conf": 0.82,
+     "syl": [
+      [
+       150.14,
+       150.32
+      ],
+      [
+       150.32,
+       150.7
+      ],
+      [
+       150.7,
+       150.8
+      ],
+      [
+       150.8,
+       151.077
+      ]
+     ]
+    },
+    {
+     "w": "and",
+     "start": 151.291,
+     "end": 151.516,
+     "conf": 0.7
+    },
+    {
+     "w": "Telemachus",
+     "start": 151.6,
+     "end": 152.698,
+     "conf": 0.82,
+     "syl": [
+      [
+       151.6,
+       151.96
+      ],
+      [
+       151.96,
+       152.329
+      ],
+      [
+       152.329,
+       152.44
+      ],
+      [
+       152.44,
+       152.698
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "i": 45,
+   "text": "So if we must sail through dangerous oceans and beaches",
+   "start": 152.698,
+   "end": 156.48,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "So",
+     "start": 152.698,
+     "end": 153.027,
+     "conf": 0.85
+    },
+    {
+     "w": "if",
+     "start": 153.147,
+     "end": 153.317,
+     "conf": 0.85
+    },
+    {
+     "w": "we",
+     "start": 153.376,
+     "end": 153.66,
+     "conf": 0.85
+    },
+    {
+     "w": "must",
+     "start": 153.66,
+     "end": 153.84,
+     "conf": 0.85
+    },
+    {
+     "w": "sail",
+     "start": 153.84,
+     "end": 154.239,
+     "conf": 1.0
+    },
+    {
+     "w": "through",
+     "start": 154.28,
+     "end": 154.649,
+     "conf": 0.85
+    },
+    {
+     "w": "dangerous",
+     "start": 154.649,
+     "end": 155.367,
+     "conf": 0.85
+    },
+    {
+     "w": "oceans",
+     "start": 155.367,
+     "end": 155.84,
+     "conf": 0.84
+    },
+    {
+     "w": "and",
+     "start": 155.84,
+     "end": 156.0,
+     "conf": 0.85
+    },
+    {
+     "w": "beaches",
+     "start": 156.0,
+     "end": 156.48,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 46,
+   "text": "I'll go where Poseidon won't reach us",
+   "start": 156.48,
+   "end": 158.565,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "I'll",
+     "start": 156.48,
+     "end": 156.604,
+     "conf": 0.93
+    },
+    {
+     "w": "go",
+     "start": 156.64,
+     "end": 156.9,
+     "conf": 0.98
+    },
+    {
+     "w": "where",
+     "start": 156.9,
+     "end": 157.1,
+     "conf": 0.85
+    },
+    {
+     "w": "Poseidon",
+     "start": 157.1,
+     "end": 157.692,
+     "conf": 0.95,
+     "syl": [
+      [
+       157.1,
+       157.233
+      ],
+      [
+       157.233,
+       157.58
+      ],
+      [
+       157.58,
+       157.692
+      ]
+     ]
+    },
+    {
+     "w": "won't",
+     "start": 157.692,
+     "end": 158.04,
+     "conf": 1.0
+    },
+    {
+     "w": "reach",
+     "start": 158.04,
+     "end": 158.34,
+     "conf": 1.0
+    },
+    {
+     "w": "us",
+     "start": 158.34,
+     "end": 158.565,
+     "conf": 0.84
+    }
+   ]
+  },
+  {
+   "i": 47,
+   "text": "And if I gotta drop another infant from a wall",
+   "start": 158.565,
+   "end": 161.18,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "And",
+     "start": 158.565,
+     "end": 158.694,
+     "conf": 0.78
+    },
+    {
+     "w": "if",
+     "start": 158.694,
+     "end": 158.92,
+     "conf": 1.0
+    },
+    {
+     "w": "I",
+     "start": 158.92,
+     "end": 158.98,
+     "conf": 0.85
+    },
+    {
+     "w": "gotta",
+     "start": 158.98,
+     "end": 159.203,
+     "conf": 1.0
+    },
+    {
+     "w": "drop",
+     "start": 159.203,
+     "end": 159.66,
+     "conf": 1.0
+    },
+    {
+     "w": "another",
+     "start": 159.66,
+     "end": 160.036,
+     "conf": 0.85
+    },
+    {
+     "w": "infant",
+     "start": 160.036,
+     "end": 160.376,
+     "conf": 0.79
+    },
+    {
+     "w": "from",
+     "start": 160.44,
+     "end": 160.6,
+     "conf": 0.85
+    },
+    {
+     "w": "a",
+     "start": 160.6,
+     "end": 160.74,
+     "conf": 0.99
+    },
+    {
+     "w": "wall",
+     "start": 160.74,
+     "end": 161.18,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 48,
+   "text": "In an instant so we all don't die",
+   "start": 161.18,
+   "end": 162.86,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "In",
+     "start": 161.18,
+     "end": 161.28,
+     "conf": 0.85
+    },
+    {
+     "w": "an",
+     "start": 161.28,
+     "end": 161.4,
+     "conf": 1.0
+    },
+    {
+     "w": "instant",
+     "start": 161.4,
+     "end": 161.683,
+     "conf": 1.0
+    },
+    {
+     "w": "so",
+     "start": 161.683,
+     "end": 161.802,
+     "conf": 0.85
+    },
+    {
+     "w": "we",
+     "start": 161.802,
+     "end": 162.027,
+     "conf": 1.0
+    },
+    {
+     "w": "all",
+     "start": 162.027,
+     "end": 162.24,
+     "conf": 1.0
+    },
+    {
+     "w": "don't",
+     "start": 162.24,
+     "end": 162.52,
+     "conf": 0.85
+    },
+    {
+     "w": "die",
+     "start": 162.52,
+     "end": 162.86,
+     "conf": 0.98
+    }
+   ]
+  },
+  {
+   "i": 49,
+   "text": "Then I'll become the monster",
+   "start": 163.62,
+   "end": 167.02,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Then",
+     "start": 163.62,
+     "end": 164.017,
+     "conf": 0.72
+    },
+    {
+     "w": "I'll",
+     "start": 164.017,
+     "end": 164.34,
+     "conf": 0.54
+    },
+    {
+     "w": "become",
+     "start": 164.34,
+     "end": 165.16,
+     "conf": 0.91
+    },
+    {
+     "w": "the",
+     "start": 165.16,
+     "end": 165.32,
+     "conf": 0.85
+    },
+    {
+     "w": "monster",
+     "start": 165.32,
+     "end": 167.02,
+     "conf": 1.0
+    }
+   ]
+  },
+  {
+   "i": 50,
+   "text": "I will deal the blow",
+   "start": 167.02,
+   "end": 169.04,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "I",
+     "start": 167.02,
+     "end": 167.12,
+     "conf": 0.55
+    },
+    {
+     "w": "will",
+     "start": 167.12,
+     "end": 167.34,
+     "conf": 0.72
+    },
+    {
+     "w": "deal",
+     "start": 167.34,
+     "end": 167.849,
+     "conf": 0.69
+    },
+    {
+     "w": "the",
+     "start": 167.849,
+     "end": 167.98,
+     "conf": 0.78
+    },
+    {
+     "w": "blow",
+     "start": 167.98,
+     "end": 169.04,
+     "conf": 0.83
+    }
+   ]
+  },
+  {
+   "i": 51,
+   "text": "And I'll become the monster",
+   "start": 169.04,
+   "end": 171.68,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "And",
+     "start": 169.04,
+     "end": 169.375,
+     "conf": 0.56
+    },
+    {
+     "w": "I'll",
+     "start": 169.375,
+     "end": 169.66,
+     "conf": 0.51
+    },
+    {
+     "w": "become",
+     "start": 169.66,
+     "end": 170.418,
+     "conf": 0.86
+    },
+    {
+     "w": "the",
+     "start": 170.48,
+     "end": 170.64,
+     "conf": 0.85
+    },
+    {
+     "w": "monster",
+     "start": 170.64,
+     "end": 171.68,
+     "conf": 0.98
+    }
+   ]
+  },
+  {
+   "i": 52,
+   "text": "Like none they've ever known",
+   "start": 171.68,
+   "end": 174.189,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Like",
+     "start": 171.68,
+     "end": 172.0,
+     "conf": 0.7
+    },
+    {
+     "w": "none",
+     "start": 172.0,
+     "end": 172.32,
+     "conf": 0.69
+    },
+    {
+     "w": "they've",
+     "start": 172.32,
+     "end": 172.72,
+     "conf": 0.67
+    },
+    {
+     "w": "ever",
+     "start": 172.72,
+     "end": 173.14,
+     "conf": 0.36
+    },
+    {
+     "w": "known",
+     "start": 173.14,
+     "end": 174.189,
+     "conf": 0.67
+    }
+   ]
+  },
+  {
+   "i": 53,
+   "text": "So what if I'm the monster lurking deep below?",
+   "start": 174.189,
+   "end": 179.692,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "So",
+     "start": 174.189,
+     "end": 174.64,
+     "conf": 0.74
+    },
+    {
+     "w": "what",
+     "start": 174.64,
+     "end": 175.02,
+     "conf": 0.73
+    },
+    {
+     "w": "if",
+     "start": 175.02,
+     "end": 175.62,
+     "conf": 0.53
+    },
+    {
+     "w": "I'm",
+     "start": 175.62,
+     "end": 175.716,
+     "conf": 0.56
+    },
+    {
+     "w": "the",
+     "start": 175.8,
+     "end": 176.01,
+     "conf": 0.83
+    },
+    {
+     "w": "monster",
+     "start": 176.01,
+     "end": 177.367,
+     "conf": 0.82
+    },
+    {
+     "w": "lurking",
+     "start": 177.367,
+     "end": 178.02,
+     "conf": 0.73
+    },
+    {
+     "w": "deep",
+     "start": 178.02,
+     "end": 178.48,
+     "conf": 0.68
+    },
+    {
+     "w": "below?",
+     "start": 178.48,
+     "end": 179.692,
+     "conf": 0.68
+    }
+   ]
+  },
+  {
+   "i": 54,
+   "text": "I must become the monster,",
+   "start": 179.692,
+   "end": 182.53,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "I",
+     "start": 179.692,
+     "end": 179.96,
+     "conf": 0.72
+    },
+    {
+     "w": "must",
+     "start": 179.96,
+     "end": 180.34,
+     "conf": 0.7
+    },
+    {
+     "w": "become",
+     "start": 180.34,
+     "end": 181.059,
+     "conf": 0.68
+    },
+    {
+     "w": "the",
+     "start": 181.14,
+     "end": 181.3,
+     "conf": 0.77
+    },
+    {
+     "w": "monster,",
+     "start": 181.3,
+     "end": 182.53,
+     "conf": 0.91
+    }
+   ]
+  },
+  {
+   "i": 55,
+   "text": "and then we'll make it home",
+   "start": 182.53,
+   "end": 189.62,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "and",
+     "start": 182.53,
+     "end": 182.66,
+     "conf": 0.52
+    },
+    {
+     "w": "then",
+     "start": 182.66,
+     "end": 182.96,
+     "conf": 0.57
+    },
+    {
+     "w": "we'll",
+     "start": 182.96,
+     "end": 183.18,
+     "conf": 0.58
+    },
+    {
+     "w": "make",
+     "start": 183.18,
+     "end": 183.558,
+     "conf": 0.72
+    },
+    {
+     "w": "it",
+     "start": 183.558,
+     "end": 183.702,
+     "conf": 0.59
+    },
+    {
+     "w": "home",
+     "start": 183.702,
+     "end": 189.62,
+     "conf": 0.74
+    }
+   ]
+  },
+  {
+   "i": 56,
+   "text": "Monster",
+   "start": 185.88,
+   "end": 188.62,
+   "voice": "ensemble",
+   "words": [
+    {
+     "w": "Monster",
+     "start": 185.88,
+     "end": 188.62,
+     "conf": 0.39
+    }
+   ]
+  },
+  {
+   "i": 57,
+   "text": "Penelope",
+   "start": 189.62,
+   "end": 194.26,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Penelope",
+     "start": 189.62,
+     "end": 194.26,
+     "conf": 0.63,
+     "syl": [
+      [
+       189.62,
+       189.699
+      ],
+      [
+       189.699,
+       190.28
+      ],
+      [
+       190.28,
+       190.36
+      ],
+      [
+       190.36,
+       194.26
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "i": 58,
+   "text": "Monster",
+   "start": 190.44,
+   "end": 194.52,
+   "voice": "ensemble",
+   "words": [
+    {
+     "w": "Monster",
+     "start": 190.44,
+     "end": 194.52,
+     "conf": 0.46
+    }
+   ]
+  },
+  {
+   "i": 59,
+   "text": "Telemachus",
+   "start": 194.26,
+   "end": 198.02,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Telemachus",
+     "start": 194.26,
+     "end": 198.02,
+     "conf": 0.64,
+     "syl": [
+      [
+       194.26,
+       194.62
+      ],
+      [
+       194.62,
+       195.226
+      ],
+      [
+       195.226,
+       195.62
+      ],
+      [
+       195.62,
+       198.02
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "i": 60,
+   "text": "Monster",
+   "start": 197.48,
+   "end": 199.78,
+   "voice": "ensemble",
+   "words": [
+    {
+     "w": "Monster",
+     "start": 197.48,
+     "end": 199.78,
+     "conf": 0.44
+    }
+   ]
+  },
+  {
+   "i": 61,
+   "text": "Oh, ruthlessness is mercy upon ourselves",
+   "start": 198.02,
+   "end": 206.7,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "Oh,",
+     "start": 198.02,
+     "end": 199.56,
+     "conf": 0.63
+    },
+    {
+     "w": "ruthlessness",
+     "start": 199.56,
+     "end": 200.92,
+     "conf": 0.63
+    },
+    {
+     "w": "is",
+     "start": 200.92,
+     "end": 201.12,
+     "conf": 0.84
+    },
+    {
+     "w": "mercy",
+     "start": 201.12,
+     "end": 201.567,
+     "conf": 0.67
+    },
+    {
+     "w": "upon",
+     "start": 201.567,
+     "end": 202.195,
+     "conf": 0.69
+    },
+    {
+     "w": "ourselves",
+     "start": 202.195,
+     "end": 206.7,
+     "conf": 0.54
+    }
+   ]
+  },
+  {
+   "i": 62,
+   "text": "Monster",
+   "start": 201.74,
+   "end": 203.78,
+   "voice": "ensemble",
+   "words": [
+    {
+     "w": "Monster",
+     "start": 201.74,
+     "end": 203.78,
+     "conf": 0.44
+    }
+   ]
+  },
+  {
+   "i": 63,
+   "text": "I'll become the monster",
+   "start": 206.7,
+   "end": 209.524,
+   "voice": "lead",
+   "words": [
+    {
+     "w": "I'll",
+     "start": 206.7,
+     "end": 207.06,
+     "conf": 0.71
+    },
+    {
+     "w": "become",
+     "start": 207.06,
+     "end": 207.8,
+     "conf": 0.85
+    },
+    {
+     "w": "the",
+     "start": 207.8,
+     "end": 208.0,
+     "conf": 0.85
+    },
+    {
+     "w": "monster",
+     "start": 208.0,
+     "end": 209.524,
+     "conf": 0.85
+    }
+   ]
+  }
+ ],
+ "extras": [],
+ "notes": "Timeline = gapless decode of audio/monster.mp3 (ffmpeg; the same as data/monster/audio.json and the browser). Method: CTC emissions (20 ms frames) of the Demucs htdemucs_ft vocal stem (mono, left, right) from two acoustic models (torchaudio MMS_FA, wav2vec2-large-lv60k-960h), fused; one constrained Viterbi pass over the lead lines with a margin-scored garbage token between lines; the ensemble's interjections aligned separately; starts refined on vocal rests, onsets and fricatives; ends where the voice stops or the next word starts; manual corrections from QA plots (analysis/monster/align.py FIX). Lines with voice 'ensemble' are the chorus' interjections; 'syl' gives per-subword starts for multi-syllable respellings."
+}
