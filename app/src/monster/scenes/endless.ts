@@ -49,6 +49,7 @@ float carve(vec2 xz) {
   // far away the grooves close up into the engraving's tone
   return g * (1.0 - smoothstep(0.03, 0.09, gPix));
 }
+float floorLines(vec3 P, float u) { return u; }
 float extraShadow(vec3 P, bool wall) { return 0.0; }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   if (wall) return col;

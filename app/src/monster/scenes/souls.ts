@@ -1,11 +1,224 @@
-// `souls` — verse 1 pilot shot (placeholder while it is built).
-import type * as THREE from 'three';
+// `souls` — verse 1b, lines 1–2 (docs/MONSTER.md, revision 1), one round chamber, two set-ups.
+// "I'm surrounded by the souls of those I've lost": a round cave, the flame in the middle. On every word a shadow
+// of a man stands up on the wall, and nobody casts it. SOULS folds up in a ring round the flame as it is sung, its
+// letters lit, and what they throw on the wall is not letters: each casts a person. The camera circles above.
+// "I'm the only one whose line I haven't crossed": down at floor level. The flame runs to the left and, on "line",
+// sweeps across the chamber burning a line into the floor; LINE is burned in beside it, drawn in anamorphosis so it
+// reads from where we stand. Every shadow is beyond the line; his side is empty. The camera cranes up to see it.
+import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
-import { clearRT } from '../../engine/gl';
+import { Layer2D } from '../../engine/gl';
+import { F, font, layout } from '../../engine/type';
+import type { Line, Word } from '../../engine/lyrics';
+import { ease, keys, lerp, mulberry32, prog, pulse, springStep } from '../../engine/util';
+import { flameState } from '../motifs';
+import { Stage, Word3D, drawPhrase, vkeys } from '../stage';
 
-export default class Placeholder extends Scene {
-  render(_f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
-    clearRT(this.ctx.renderer, out, [0.02, 0.0, 0.0]);
-    return {};
+/** The chamber's radius, the ring SOULS stands on, cap height, the flame's home and height. */
+const R = 6.5, RING = 3.4, CAP = 1.05, HOME = new THREE.Vector3(0, 0, 0.6), FLAME_H = 0.7;
+/** The line in the floor (z) and its groove half-width; the anamorphic LINE's floor rectangle (near side). */
+const Z_LINE = -0.25, LINE_W = 0.085;
+const MAXF = 16;
+
+const HOOKS = /* glsl */ `
+uniform float figA[${MAXF}], figH[${MAXF}], figV[${MAXF}], figT[${MAXF}];
+uniform int nFig; uniform float tNow, sway, cylR, zLine, lineW, flameX, lineOn, revealX;
+uniform vec2 home; uniform sampler2D word; uniform vec4 wordRect; uniform mat4 anaVP;
+// a standing man as a shadow: proportions in units of his height, feet at the origin, y up
+float figure(vec2 q, float v) {
+  float sh = 0.1 + 0.025 * fract(v * 7.3), hd = 0.052 + 0.01 * fract(v * 3.1), st = 0.03 + 0.03 * fract(v * 5.7);
+  float d = length(q - vec2(0.0, 0.93)) - hd;
+  d = min(d, sdSegment(q, vec2(0.0, 0.84), vec2(0.0, 0.9)) - 0.022);
+  d = min(d, sdSegment(q, vec2(-sh * 0.85, 0.8), vec2(sh * 0.85, 0.8)) - 0.035);
+  d = min(d, sdSegment(q, vec2(0.0, 0.55), vec2(0.0, 0.79)) - 0.075);
+  d = min(d, sdSegment(q, vec2(-sh, 0.79), vec2(-sh - 0.02, 0.5)) - 0.026);
+  d = min(d, sdSegment(q, vec2(sh, 0.79), vec2(sh + 0.02 * (1.0 - 2.0 * fract(v * 2.7)), 0.5)) - 0.026);
+  d = min(d, sdSegment(q, vec2(-0.04, 0.55), vec2(-st - 0.03, 0.02)) - 0.035);
+  d = min(d, sdSegment(q, vec2(0.04, 0.55), vec2(st + 0.03, 0.02)) - 0.035);
+  // some wear a tunic to the thigh
+  if (fract(v * 11.1) > 0.45) d = min(d, max(abs(q.x) - (0.07 + 0.35 * (0.6 - q.y) * step(q.y, 0.6)), abs(q.y - 0.5) - 0.1));
+  return d;
+}
+float carve(vec2 xz) {
+  float g = (1.0 - smoothstep(lineW * 0.5 - gPix, lineW + gPix, abs(xz.y - zLine))) * step(xz.x, revealX) * lineOn;
+  return g;
+}
+// LINE in anamorphosis: the floor point as seen by the camera at the moment of the burn, read in screen space
+float anaMask(vec2 xz) {
+  if (xz.y < zLine + 0.12 || lineOn <= 0.0) return 0.0;
+  vec4 c = anaVP * vec4(xz.x, 0.0, xz.y, 1.0);
+  if (c.w <= 0.0) return 0.0;
+  vec2 sp = c.xy / c.w * 0.5 + 0.5;
+  vec2 uv = (sp - wordRect.xy) / (wordRect.zw - wordRect.xy);
+  uv.y = 1.0 - uv.y;
+  if (uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0) return 0.0;
+  return smoothstep(0.25, 0.75, textureLod(word, uv, 0.0).a) * smoothstep(0.02, -0.25, sp.x - (revealX + 5.4) / 10.8);
+}
+// the floor in rings round the flame's home
+float floorLines(vec3 P, float u) { return length(P.xz - home) * 4.2 + 0.25 * snoise(P.xz * 0.2); }
+float extraShadow(vec3 P, bool wall) {
+  if (!wall) return 0.0;
+  float a = atan(P.z, P.x), occ = 0.0;
+  for (int i = 0; i < ${MAXF}; i++) {
+    if (i >= nFig) break;
+    float rise = sat((tNow - figT[i]) / 0.4);
+    if (rise <= 0.0) continue;
+    rise = 1.0 + 2.70158 * pow(rise - 1.0, 3.0) + 1.70158 * pow(rise - 1.0, 2.0);   // out-back: they stand up
+    float da = a - figA[i]; da = da - 6.2831853 * floor((da + 3.14159265) / 6.2831853);
+    float h = figH[i] * rise;
+    vec2 p = vec2(da * cylR, P.y);
+    p.x -= sway * p.y * (0.6 + 0.4 * fract(figV[i] * 4.1));        // they waver with the flame
+    vec2 q = p / max(h, 0.01);
+    if (abs(q.x) > 0.4 || q.y > 1.1) continue;
+    float d = figure(q, figV[i]) * h;
+    occ = max(occ, 1.0 - smoothstep(-0.05, 0.07, d));
+  }
+  return occ;
+}
+vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
+  if (wall) return col;
+  float onLine = 1.0 - smoothstep(lineW * 0.35, lineW * 1.2 + gPix, abs(P.z - zLine));
+  float tr = exp(-max(flameX - P.x, 0.0) / 4.0) * step(P.x, revealX) * onLine * lineOn;
+  col += mix(C_BLOOD, C_EMBER, tr) * (0.35 + tr) * onLine * step(P.x, revealX) * lineOn;
+  // LINE, burned in: embers in the floor, hottest just after the flame has passed
+  float m = anaMask(P.xz);
+  col = mix(col, mix(C_SIGNAL * 0.9, C_EMBER * 1.3, 0.5 + 0.5 * exp(-max(flameX - P.x, 0.0) / 3.0)), m * 0.92);
+  return col;
+}`;
+
+export default class Souls extends Scene {
+  private st!: Stage;
+  private word!: Word3D;
+  private txt = new Layer2D();
+  private l1!: Line;
+  private l2!: Line;
+  private figs: { a: number; h: number; v: number; t: number }[] = [];
+  private lineTex!: THREE.CanvasTexture;
+  private anaCam = new THREE.PerspectiveCamera(40, 16 / 9, 0.05, 600);
+
+  override async init() {
+    // LINE, burned into the floor in anamorphosis: drawn tall so that, lying on the floor, it reads from the camera
+    const fam = F.archivo(100, 900), px = 260, lay = layout('LINE', fam, px, 8);
+    const cv = document.createElement('canvas');
+    const pad = 40, cap = px * 0.72;
+    cv.width = Math.ceil(lay.width + pad * 2); cv.height = Math.ceil(cap + pad * 2);
+    const c = cv.getContext('2d')!;
+    c.font = font(fam, px); c.letterSpacing = '8px'; c.fillStyle = '#fff'; c.textBaseline = 'alphabetic';
+    c.fillText('LINE', pad, pad + cap);
+    this.lineTex = new THREE.CanvasTexture(cv);
+    this.lineTex.flipY = false; this.lineTex.colorSpace = THREE.NoColorSpace; this.lineTex.generateMipmaps = true;
+    this.lineTex.minFilter = THREE.LinearMipmapLinearFilter;
+    this.st = new Stage({
+      hooks: HOOKS,
+      uniforms: {
+        figA: { value: new Array(MAXF).fill(0) }, figH: { value: new Array(MAXF).fill(0) }, figV: { value: new Array(MAXF).fill(0) },
+        figT: { value: new Array(MAXF).fill(1e9) }, nFig: { value: 0 }, tNow: { value: 0 }, sway: { value: 0 }, cylR: { value: R },
+        zLine: { value: Z_LINE }, lineW: { value: LINE_W }, flameX: { value: 0 }, lineOn: { value: 0 }, revealX: { value: -99 },
+        home: { value: new THREE.Vector2(HOME.x, HOME.z) }, word: { value: this.lineTex },
+        wordRect: { value: new THREE.Vector4(0.33, 0.045, 0.67, 0.225) }, anaVP: { value: new THREE.Matrix4() },
+      },
+    });
+    this.word = new Word3D('SOULS', F.archivo(100, 900), { size: 220 });
+    this.st.add(this.word);
+    this.l1 = this.ctx.lyrics.get("I'm surrounded");
+    this.l2 = this.ctx.lyrics.get("I'm the only one");
+    // the shades: one stands for each word; SOULS' letters each cast one; all of them beyond the line (z < 0)
+    const r = mulberry32(17);
+    const ws = this.l1.words;
+    const soulsW = ws.find((w) => w.w.toLowerCase().startsWith('souls'))!;
+    const s = CAP / this.word.cap;
+    const ang = (penX: number) => -Math.PI / 2 + ((penX - this.word.width / 2) * s) / RING;
+    const free = [-2.25, -0.95, -2.6, -0.55, -2.85, -0.3, -2.42, -0.75];
+    let fi = 0;
+    for (const w of ws) {
+      if (w === soulsW) {
+        this.word.letters.forEach((l, k) => this.figs.push({ a: ang(l.penX), h: 3.4 + r() * 0.5, v: r(), t: soulsW.start + (k / 4) * Math.min(0.5, soulsW.end - soulsW.start) }));
+      } else {
+        this.figs.push({ a: free[fi++ % free.length]!, h: 3.0 + r() * 0.7, v: r(), t: w.start });
+      }
+    }
+  }
+
+  render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
+    const t = f.t, { renderer, comp, audio } = this.ctx;
+    const T0 = this.ctx.start, T1 = this.ctx.end;
+    const w1 = this.l1.words, w2 = this.l2.words;
+    const souls = w1.find((w) => w.w.toLowerCase().startsWith('souls'))!;
+    const lineW = w2.find((w) => w.w.toLowerCase() === 'line')!;
+    const crossed = w2[w2.length - 1]!;
+    const tCut = audio.timeOfBeat(Math.floor(audio.beatAt(w2[0]!.start + 0.02)));   // the sub-cut to floor level
+    const second = t >= tCut;
+    const u = this.st.bg.u;
+    u.tNow!.value = t;
+    const fl = flameState(audio, t, 13);
+    u.sway!.value = 0.05 * fl.gust;
+    const nf = this.figs.length;
+    this.figs.forEach((g, i) => {
+      (u.figA!.value as number[])[i] = g.a; (u.figH!.value as number[])[i] = g.h;
+      (u.figV!.value as number[])[i] = g.v; (u.figT!.value as number[])[i] = g.t;
+    });
+    u.nFig!.value = nf;
+
+    // ---- SOULS: a ring round the flame, facing it, folding up as sung
+    const wd = this.word, n = wd.letters.length, s = CAP / wd.cap;
+    for (let k = 0; k < n; k++) {
+      const l = wd.letters[k]!;
+      const th = -Math.PI / 2 + ((l.penX - wd.width / 2) * s) / RING;
+      l.x = RING * Math.cos(th); l.z = RING * Math.sin(th); l.y = 0; l.s = s;
+      l.yaw = Math.atan2(-l.x, -l.z);
+      const tk = souls.start + (k / (n - 1)) * Math.min(0.5, souls.end - souls.start);
+      l.on = t >= tk - 0.02 ? 1 : 0;
+      l.hinge = (Math.PI / 2) * (1 - springStep(t - tk, 2.4, 0.4));
+      l.mat.uniforms.glow!.value = 0.3 * pulse(t, tk, 0.2) * l.on;
+    }
+    wd.update();
+
+    // ---- the flame: at home; in the second set-up it runs left, then sweeps across on "line", burning it in
+    const fx = second ? keys(t, [[tCut, 0], [lineW.start - 0.08, -5.4, ease.inOutCubic], [lineW.end, 5.4, ease.inOutQuad], [T1, 1.2, ease.inOutCubic]]) : 0;
+    const fz = second ? keys(t, [[tCut, HOME.z], [lineW.start - 0.08, Z_LINE, ease.inOutCubic], [lineW.end, Z_LINE, ease.linear], [T1, HOME.z + 0.3, ease.inOutCubic]]) : HOME.z;
+    const base = new THREE.Vector3(fx, 0, fz);
+    const sweeping = t >= lineW.start - 0.08 && t <= lineW.end + 0.05;
+    u.flameX!.value = fx;
+    u.lineOn!.value = t >= lineW.start - 0.1 ? 1 : 0;
+    u.revealX!.value = t < lineW.start - 0.1 ? -99 : t <= lineW.end ? fx : 99;
+
+    // ---- the camera: circling above in the first set-up; at floor level in the second, then craning up
+    let pos: THREE.Vector3, at: THREE.Vector3, fov = 40;
+    if (!second) {
+      const a = lerp(1.2, 1.95, prog(t, T0, tCut, ease.inOutQuad));
+      const rad = keys(t, [[T0, 5.2], [souls.start, 4.6, ease.inOutCubic], [tCut, 4.3, ease.linear]]);
+      pos = new THREE.Vector3(rad * Math.cos(a), keys(t, [[T0, 2.6], [souls.start, 2.9, ease.inOutCubic], [tCut, 3.0]]), rad * Math.sin(a));
+      at = new THREE.Vector3(0, keys(t, [[T0, 2.2], [souls.start, 1.5, ease.inOutCubic]]), -2.6);
+    } else {
+      pos = vkeys(t, [[tCut, [-1.2, 0.95, 4.9]], [crossed.end, [-0.6, 0.95, 4.6], ease.linear], [T1, [0.4, 6.8, 6.4], ease.inOutCubic]]);
+      at = vkeys(t, [[tCut, [0.6, 1.1, -4.5]], [crossed.end, [0.6, 1.1, -4.5], ease.linear], [T1, [0.0, 0.0, -1.2], ease.inOutCubic]]);
+      fov = lerp(40, 46, prog(t, crossed.end, T1));
+    }
+    this.st.cam.set(pos, at, fov);
+    // the anamorphic word is drawn from the camera as it stands when the line is burned
+    if (second) {
+      const ap = vkeys(lineW.start, [[tCut, [-1.2, 0.95, 4.9]], [crossed.end, [-0.6, 0.95, 4.6], ease.linear]]);
+      const aat = new THREE.Vector3(0.6, 1.1, -4.5);
+      const cam = this.anaCam;
+      cam.fov = 40; cam.aspect = 16 / 9; cam.updateProjectionMatrix();
+      cam.position.copy(ap); cam.lookAt(aat); cam.updateMatrixWorld(true);
+      (u.anaVP!.value as THREE.Matrix4).multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    }
+
+    this.st.render(renderer, out, t, { base, h: FLAME_H * fl.h * (sweeping ? 1.25 : 1), I: fl.I * 1.7, reach: 15 },
+      { wall: 2, cyl: [0, 0, R], freqWall: 6.5, freqFloor: 6 },
+      { cards: false, gust: fl.gust * 0.6 + (sweeping ? -1.2 : 0), rim: 1.2 });
+
+    // ---- the small voice
+    const c = this.txt.ctx;
+    this.txt.clear();
+    const si = w1.indexOf(souls);
+    drawPhrase(c, w1.slice(0, si), t, 160, 990, { exit: prog(t, souls.start, souls.start + 0.25) });
+    drawPhrase(c, w1.slice(si + 1), t, 160, 990, { exit: prog(t, tCut - 0.35, tCut - 0.05) });
+    const li = w2.indexOf(lineW);
+    drawPhrase(c, w2.slice(0, li), t, 160, 150, { exit: prog(t, lineW.start, lineW.start + 0.25) });
+    drawPhrase(c, w2.slice(li + 1), t, 160, 150, { exit: prog(t, T1 - 0.5, T1 - 0.1) });
+    comp.draw(renderer, this.txt.upload(), out);
+    return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6, halation: 0.35 };
   }
 }

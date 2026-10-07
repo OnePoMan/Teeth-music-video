@@ -68,8 +68,9 @@ void main() {
   // engraving (horizontal on the face, along the depth on the sides) carries the shading
   vec3 base = mix(C_BONE * 0.72, C_BONE * 1.02, face);
   float u = face > 0.5 ? vP.y * lineFreq : vP.z * lineFreq * 1.6;
-  float lines = hatch(u, sat(1.0 - tone * 1.15) * 0.75) * smoothstep(0.1, 0.3, tone);
-  vec3 col = base * tone * (1.0 - 0.85 * lines);
+  float lines = hatch(u, sat(0.62 - tone) * 1.1) * smoothstep(0.08, 0.25, tone);
+  // bone type stays crisp: the lit face tops out just under the bloom threshold
+  vec3 col = base * min(tone, 0.82) * (1.0 - 0.85 * lines);
   // turned from the light, a letter is a silhouette: ink with a graphite hairline engraving and a burning rim
   float back = sat(-ndl);
   col += C_GRAPHITE * 0.018 * (1.0 - tone) * (1.0 - hatch(vP.y * lineFreq, 0.35));
@@ -189,7 +190,7 @@ export class Word3D {
       glslVersion: THREE.GLSL3, vertexShader: LETTER_VERT, fragmentShader: LETTER_FRAG,
       uniforms: {
         Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, glow: { value: 0 },
-        lineFreq: { value: o.lineFreq ?? 0.075 }, rim: { value: 1 }, amb: { value: 0 },
+        lineFreq: { value: o.lineFreq ?? 0.12 }, rim: { value: 1 }, amb: { value: 0 },
       },
     });
     let ax = 0;
@@ -331,6 +332,7 @@ export interface StageSurfaces {
 /** Default surface hooks: no grooves, no extra shadows (scenes pass their own, see `Stage` options). */
 export const STAGE_HOOKS_DEFAULT = /* glsl */ `
 float carve(vec2 xz) { return 0.0; }
+float floorLines(vec3 P, float u) { return u; }
 float extraShadow(vec3 P, bool wall) { return 0.0; }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) { return col; }`;
 
@@ -366,7 +368,9 @@ float cardShadow(vec3 P) {
 // apart as hairlines, toward the horizon they close up into a tone
 float pxLines(float u, float wPx) {
   float fu = max(fwidth(u), 1e-7);
-  return hatchD(u, sat(wPx * fu * PX_SCALE), fu);
+  float cover = sat(wPx * fu * PX_SCALE);
+  // lines closer than ~3 px are drawn as their mean tone (no moire)
+  return mix(hatchD(u, cover, fu), cover, smoothstep(0.28, 0.5, fu * PX_SCALE * 1.2));
 }
 
 vec3 warm(float b) {
@@ -412,7 +416,7 @@ void main() {
       u = P.y * freqW + 0.38 * snoise(vec2(across * 0.11, P.y * 0.19)) + 0.05 * snoise(vec2(across * 0.8, P.y * 1.5));
     } else {
       // the floor: lines across the view, the dust of the cave floor in a slow warp
-      u = P.z * freqF + 0.3 * snoise(P.xz * 0.15) + 0.04 * snoise(P.xz * 1.2);
+      u = floorLines(P, P.z * freqF + 0.3 * snoise(P.xz * 0.15) + 0.04 * snoise(P.xz * 1.2));
     }
     vec3 Lv = Lc - P; float d = length(Lv); Lv /= d;
     float fall = LI / (1.0 + (d / reach) * (d / reach) * 4.0);
@@ -488,13 +492,13 @@ export class Stage {
    * (the flame first when it stands behind them). The camera must be set; the letters posed and `update()`d.
    */
   render(renderer: THREE.WebGLRenderer, out: THREE.WebGLRenderTarget, t: number, L: StageLight, S: StageSurfaces,
-    o: { flameBehind?: boolean; flameSeed?: number; gust?: number; flameI?: number; rim?: number; noFlame?: boolean } = {}) {
+    o: { flameBehind?: boolean; flameSeed?: number; gust?: number; flameI?: number; rim?: number; noFlame?: boolean; cards?: boolean } = {}) {
     const u = this.bg.u;
     const Lc = this.lightCentre(L);
     this.cam.invVP(u.invVP!.value as THREE.Matrix4);
     (u.camPos!.value as THREE.Vector3).copy(this.cam.cam.position);
     (u.Lc!.value as THREE.Vector3).copy(Lc);
-    u.LI!.value = L.I; u.reach!.value = L.reach; u.rL!.value = L.h * 0.22;
+    u.LI!.value = L.I; u.reach!.value = L.reach; u.rL!.value = L.h * 0.11;
     u.wallMode!.value = S.wall; u.wallZ!.value = S.wallZ ?? -10;
     const cy = S.cyl ?? [0, 0, 8];
     (u.cyl!.value as THREE.Vector3).set(cy[0], cy[1], cy[2]);
@@ -502,7 +506,7 @@ export class Stage {
     // shadow cards (first word's atlas)
     let n = 0;
     const w0 = this.words[0];
-    if (w0) for (const l of w0.letters) {
+    if (w0 && o.cards !== false) for (const l of w0.letters) {
       if (n >= MAX_CARDS || l.on <= 0.001) continue;
       (u.cardM!.value as THREE.Matrix4[])[n]!.copy(this.m4.copy(l.mesh.matrixWorld).invert());
       (u.cardBox!.value as THREE.Vector4[])[n]!.set(...l.box);
