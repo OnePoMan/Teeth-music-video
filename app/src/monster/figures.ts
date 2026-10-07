@@ -2,11 +2,13 @@
 // signed distances in world units (negative inside), feet at the origin, y up. They are puppets' shadows: no
 // faces, only outlines and cut-outs, like the perforations of a shadow puppet or the incised lines of a
 // black-figure vase, through which the lit clay shows.
-//   polyphemus(p, eye, t)            the one-eyed giant, head and shoulders over his flock, club in hand; eye 0 shut, 1 open
-//   circe(p, k)                      the witch with her staff in her cup; a man on all fours at the cup becomes a pig (k)
-//   poseidon(p, k, thrust, tip)      a wave heaving (k) and curling over; a fist drives the trident up through it
-//                                    (thrust); a galley before the wave pitches up (tip)
-//   trojanHorse(p, h1, h2, roll)     the wooden horse on its wheeled platform; two hatches open (h1, h2); roll turns the wheels
+//   polyphemus(p, eye, t)              the one-eyed giant, head and shoulders over his flock, club in hand; eye 0 shut, 1 open
+//   circe(p, k, look)                  the witch with her staff in her cup; a man on all fours at the cup becomes a pig (k)
+//   poseidon(p, k, thrust, tip, look)  a wave heaving (k) and curling over; an arm drives the trident up through it
+//                                      (thrust); a galley before the wave pitches up (tip)
+//   trojanHorse(p, h1, h2, roll, look) the wooden horse on its wheeled platform; its hatch opens (h1), a rope ladder
+//                                      drops (h2); roll turns the wheels
+// look (0..1) opens frontal eyes on us: Circe's, the pig's, the horse's, an eye in the heart of the wave.
 // Needs GLSL_COMMON (sdCircle, sdBox, sdSegment, smin, rot2, snoise).
 export const GLSL_FIGURES = /* glsl */ `
 float sdEll(vec2 p, vec2 r) { float k0 = length(p / r), k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / max(k1, 1e-5); }
@@ -26,6 +28,14 @@ float sdCap(vec2 p, vec2 a, vec2 b, float ra, float rb) {      // a tapered caps
 float incise(float d, float l, float w) { return max(d, w - l); }
 // a figure in front of another, parted from it by a reserved line of clay (the vase painters' convention)
 float before(float back, float front, float gap) { return min(max(back, gap - front), front); }
+// an archaic frontal eye (the vase painters drew eyes from the front even in faces in profile): an almond of
+// half-width w cut through the black and opened by k, its iris black
+float frontEye(float d, vec2 p, vec2 c, float w, float k) {
+  if (k <= 0.001) return d;
+  vec2 e = (p - c) / vec2(1.0, k);
+  float al = max(length(e - vec2(0.0, -0.85 * w)) - 1.31 * w, length(e - vec2(0.0, 0.85 * w)) - 1.31 * w) * min(1.0, k);
+  return min(max(d, -al), max(length(p - c) - 0.38 * w, al));
+}
 
 // ---- a sheep, walking (phase w), facing +x, about 1.3 tall
 float sheep(vec2 p, float w) {
@@ -85,7 +95,7 @@ float polyphemus(vec2 p, float eye, float t) {
 }
 
 // ---- a man on all fours at the cup, facing -x (k 0); a pig (k 1)
-float circeMan(vec2 p, float k) {
+float circeMan(vec2 p, float k, float look) {
   float man = sdSegment(p, vec2(0.72, 1.42), vec2(-0.5, 1.5)) - 0.32;                              // back
   man = smin(man, sdCircle(p - vec2(-1.02, 1.66), 0.27), 0.1);                                     // head, raised to the cup
   man = smin(man, sdSegment(p, vec2(-0.55, 1.4), vec2(-0.82, 0.05)) - 0.12, 0.1);                  // arms
@@ -102,13 +112,14 @@ float circeMan(vec2 p, float k) {
   }
   float a = atan(p.y - 1.28, p.x - 1.33);
   pig = min(pig, max(abs(length(p - vec2(1.33, 1.28)) - 0.17) - 0.045, -(a + 0.6)));              // the curled tail
-  pig = incise(pig, length(p - vec2(-1.07, 1.24)), 0.055);                                         // eye
+  pig = incise(pig, length(p - vec2(-1.07, 1.24)), 0.055 * (1.0 - look));                          // eye
+  pig = frontEye(pig, p, vec2(-1.04, 1.24), 0.17 * (1.0 + 0.5 * look), look);
   pig = incise(pig, abs(p.x + 1.32) + max(0.0, abs(p.y - 1.02) - 0.1), 0.025);                     // the snout's end
   return mix(man, pig, k);
 }
 
 // ---- Circe: robed, her hair down her back, her staff in the cup on its stand; the man (the pig) at the cup
-float circe(vec2 p, float k) {
+float circe(vec2 p, float k, float look) {
   vec2 q = p - vec2(-3.4, 0.0);
   float d = sdTrap(q - vec2(0.05, 1.98), 1.0, 0.3, 1.98);                                          // the skirt, flaring to the floor
   d = smin(d, sdEll(q - vec2(0.02, 4.55), vec2(0.34, 0.66)), 0.12);                               // the body above the belt
@@ -155,7 +166,8 @@ float circe(vec2 p, float k) {
     vec2 w = c - vec2(x0 + 0.18 * sin(c.y * 2.6 + float(i) * 1.7), 0.0);
     d = min(d, max(abs(w.x) - 0.06 * (1.0 - sat((c.y - 3.0) / 2.2)), max(3.0 - c.y, c.y - 5.2)));
   }
-  return min(d, circeMan((p - vec2(2.9, 0.0)) / 1.25, k) * 1.25);
+  d = frontEye(d, p, vec2(-3.15, 5.82), 0.13 * (1.0 + 0.5 * look), look);
+  return min(d, circeMan((p - vec2(2.9, 0.0)) / 1.25, k, look) * 1.25);
 }
 
 // ---- Poseidon: the sea with its running-wave border, one wave heaving (k) and breaking in a scroll (the vases' wave),
@@ -184,7 +196,7 @@ float galley(vec2 p) {
   for (int i = 0; i < 3; i++) d = incise(d, abs(p.x + 0.5 * float(i - 1)) + max(0.0, abs(p.y - 1.9) - 0.6), 0.025);   // the sail's seams
   return d;
 }
-float poseidon(vec2 p, float k, float thrust, float tip) {
+float poseidon(vec2 p, float k, float thrust, float tip, float look) {
   // the sea: a band with a running-wave border along its top
   float d = p.y - (0.8 + 0.06 * sin(p.x * 2.1));
   vec2 cp = vec2(mod(p.x + 0.8, 1.6) - 0.8, p.y - 1.08);
@@ -213,6 +225,7 @@ float poseidon(vec2 p, float k, float thrust, float tip) {
   float arm = sdEll(p - vec2(tx + 0.04, fy), vec2(0.38, 0.32));                                    // the fist round the shaft
   arm = smin(arm, sdCap(p, vec2(tx + 0.1, fy - 0.15), vec2(tx + 0.7, fy - 2.8), 0.27, 0.36), 0.08); // forearm
   for (int i = 0; i < 3; i++) arm = incise(arm, sdSegment(p, vec2(tx - 0.3, fy + 0.13 - 0.15 * float(i)), vec2(tx + 0.36, fy + 0.13 - 0.15 * float(i))), 0.022);
+  if (look > 0.001) d = min(d, length(p - C - vec2(0.02, 0.0)) - 0.17 * k * look);               // the wave's eye, in the heart of its scroll
   d = before(d, min(arm, tri), 0.07 * thrust);
   // the galley before the wave, its bow lifting
   vec2 gp = rot2(0.6 * tip) * (p - vec2(-4.2, 1.15 + 0.3 * k));
@@ -229,7 +242,7 @@ float wheel(vec2 p, float a) {
   d = min(d, max(spokes, r - 0.45));
   return min(d, r - 0.13);
 }
-float trojanHorse(vec2 p, float h1, float h2, float roll) {
+float trojanHorse(vec2 p, float h1, float h2, float roll, float look) {
   float d = sdBox(p - vec2(0.0, 1.07), vec2(3.4, 0.2));                                            // platform
   for (int i = 0; i < 4; i++) d = min(d, wheel(p - vec2(-2.6 + 1.73 * float(i), 0.6), -roll / 0.6));
   for (int i = 0; i < 4; i++) {                                                                     // stiff legs, hooves
@@ -257,7 +270,8 @@ float trojanHorse(vec2 p, float h1, float h2, float roll) {
     float x = mod(p.x + 0.4 + 1.05 * float(i), 2.1) - 1.05;
     d = incise(d, abs(x) + max(0.0, abs(p.y - y0) - 0.21) + max(0.0, abs(p.x + 0.1) - 2.5), 0.02);
   }
-  d = incise(d, length(p - vec2(3.25, 6.3)), 0.09);
+  d = incise(d, length(p - vec2(3.25, 6.3)), 0.09 * (1.0 - look));
+  d = frontEye(d, p, vec2(3.22, 6.3), 0.24 * (1.0 + 0.4 * look), look);
   d = incise(d, sdSegment(p, vec2(3.0, 6.25), vec2(3.95, 5.55)), 0.025);
   // the hatch in the flank: on h1 its door swings down on its hinge and the light shows through; on h2 a rope ladder drops
   vec2 hp = p - vec2(-0.15, 3.02);                                                                   // the hinge, at the hatch's foot

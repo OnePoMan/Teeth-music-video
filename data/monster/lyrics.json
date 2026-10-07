@@ -4,7 +4,7 @@
    "i": 0,
    "text": "How has everything been turned against us?",
    "start": 4.66,
-   "end": 8.161,
+   "end": 8.14,
    "voice": "lead",
    "words": [
     {
@@ -34,20 +34,20 @@
     {
      "w": "turned",
      "start": 6.4,
-     "end": 6.974,
+     "end": 6.97,
      "conf": 0.85
     },
     {
      "w": "against",
-     "start": 6.974,
-     "end": 8.0,
+     "start": 6.97,
+     "end": 7.56,
      "conf": 0.85
     },
     {
      "w": "us?",
-     "start": 8.0,
-     "end": 8.161,
-     "conf": 0.7
+     "start": 7.6,
+     "end": 8.14,
+     "conf": 0.8
     }
    ]
   },

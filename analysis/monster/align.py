@@ -36,7 +36,12 @@ ANCHORS = {}
 
 # Final manual corrections of word boundaries after refinement, only where the plots clearly show the automatic
 # result is wrong. (line, token) -> dict(start=..., end=..., syl=[later subword starts], conf=...)
-FIX = {}
+FIX = {
+    # L0 "against us?": "us" is sung 7.60-8.12 (vocal envelope; the client heard it late at 8.00, where the rising
+    # figure starts). Pilot v5 review.
+    (0, 5): dict(start=6.97, end=7.56),
+    (0, 6): dict(start=7.60, end=8.14),
+}
 
 NOTES = (
     "Timeline = gapless decode of audio/monster.mp3 (ffmpeg; the same as data/monster/audio.json and the browser). "
