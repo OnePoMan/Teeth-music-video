@@ -43,13 +43,13 @@ The work is collaborative: propose, show stills/clips, ask the client (the user)
 
 | entry | file | status |
 |---|---|---|
-| everything 0–9.36 | `scenes/everything.ts` | pilot built; since c633bcf it is also the opening (the flint strikes and the warrior's shadow), replacing the retired `strike` plate |
-| endless 9.36–14.69 | `scenes/endless.ts` | pilot built |
-| symbolon 14.69–19.36 | `scenes/symbolon.ts` | pilot built |
-| change 19.36–25.36 | `scenes/change.ts` | pilot built |
-| souls 25.36–36.02 | `scenes/souls.ts` | pilot built (two set-ups: the ring of SOULS and the shadow crowd; the line and anamorphic LINE) |
-| sea 36.02–43.36 | `scenes/sea.ts` | pilot built (ends on hook 1's frame) |
-| hook1 43.36–46.02 | `scenes/hook.ts` n=1 | built (v2, approved before revision 1) |
+| everything 0–9.36 | `scenes/everything.ts` | v6: the opening is the four monsters' shadows on the clay wall (`figures.ts`, stills sent for the client's recognizability check); line 1: EVERYTHING's shadow is the monster frieze, eyes open on "turned", the rush on 8.00–9.00 |
+| endless 9.36–14.69 | `scenes/endless.ts` | v6: the fuse is the groove glowing as it is cut |
+| symbolon 14.69–19.36 | `scenes/symbolon.ts` | v6: phrases readable on the halves, mirror water, Penelope at her loom and the dawn thread |
+| change 19.36–25.36 | `scenes/change.ts` | v6: A+B (flips to black glaze on the eighths, bigger shadows; the shadow becomes the monsters) |
+| souls 25.36–36.02 | `scenes/souls.ts` | v6: no central flame; the line is the edge of our light |
+| sea 36.02–43.36 | `scenes/sea.ts` | v6: no lamp, mirror water; ends on hook 1's frame |
+| hook1 43.36–46.02 | `scenes/hook.ts` n=1 | v6: lamp and ripple hairlines removed (client OK), MONSTER? centred, wine-dark mirror water |
 | hook2 | `scenes/hook.ts` n=2 | placeholder: same shore with `creep` (orange above the line). Needs its own design with the scale. |
 | hook3 | `scenes/hook.ts` n=3 | draft: clay field, black MONSTER with inset incised contour, ground line, meander band. |
 | mirror, cyclops, circe, poseidon, horse, scale, creed, losses, course, wall, blackfigure, outro | — | not started; designs in `docs/MONSTER.md` (rework each under the revision 1 grammar before building) |
@@ -107,12 +107,16 @@ Proposals sent to the client (recommended first):
 - The no-HMR render server (`PDOOM_NO_HMR=1 bunx vite --port 5190`) does not see newly created scene files: restart it after adding one. It must stay up for a whole `video` render (the page keeps fetching from it), and a background command is killed after 2 h: restart the server before any long render if it has been up for more than ~1.5 h.
 - `Stage` draws letter meshes after the floor/wall pass: a flame that is behind letters must be drawn first (`flameBehind: true`), or it shows through them.
 - Floor engraving at grazing angles aliases; `pxLines` fades lines closer than ~3 px into their mean tone, and hooks should widen their AA by `gPix`.
+- The container can restart mid-turn and kills every background job (server and renders): render long clips in segments (`app/scripts/review-v6.sh` pattern) and restart the server first.
+- GLSL `pow(x, y)` is undefined for x < 0 (SwiftShader returned |x|^y): souls' shades appeared giant while rising. Write cubes and squares as products.
+- A degenerate bevel triangle in an extruded letter has a zero normal; `normalize` gives NaN, which blooms into a white star. It showed only in the mirrored scene render (the glaze reflection sees the letters' undersides). The letter and token shaders now guard normals and NaN/Inf colours; keep that in any new mesh shader.
+- The unseen key light's highlight on black glaze is its mirror image, a flame-like blob: keep `spec` ≈ 0.05 in key-lit shots; glazed letter faces use a narrow dim sheen for the same reason.
 - Never put `pkill -f <pattern>` in the same Bash command as the thing it should not kill: the pattern matches the command's own shell (`pkill -f "[v]ite --port 5190"; ... bunx vite --port 5190` killed itself, exit 144). Kill in one call, start the server in another.
 - Typecheck before committing: `cd app && bunx tsc --noEmit -p . && bunx tsc --noEmit -p tsconfig.scripts.json` (both clean at handoff).
 
 ## Next steps, in order
 
-0. **Current:** build the client's v5 choices (see "Client's choices" above). Order: (a) the four intro silhouettes as stills, sent for a recognizability check (**done, sent**: `app/src/monster/figures.ts` `GLSL_FIGURES`, wired into `everything.ts` `opening()` (0 to "How" 4.66); stills `out/review/opening-stills/*.jpg` at 1.45/2.55/3.55/4.45 s; awaiting the client's verdict; line 1 after 4.66 still has the old flame until (c)); (b) "against us?" timing fix; (c) through-line A (remove every visible flame and the lamp, key light behind the camera); (d) mirror water, wine-dark; (e) symbolon's rim words readable; (f) CHANGE? A+B; (g) estranged A+B with Penelope; then pilot v6. Iterate with the client on ideas before building anything new beyond these.
+0. **Current:** pilot v6 = the client's v5 choices, all built (commits fd3fb6a..712da0a): (a) the four intro silhouettes, stills sent (`out/review/opening-stills/*.jpg`), **awaiting the client's verdict**; (b) "against us?" fixed (align.py FIX, lyrics.json regenerated: only those two words changed); (c) through-line A everywhere in the pilot (`keyLight()`, no sprites, `spec` low); (d) mirror water (`swell`, `wine`); (e) symbolon's phrases; (f) CHANGE? A+B; (g) estranged A+B with Penelope. **Next: finish and send the pilot v6 review clip**: `app/scripts/review-v6.sh` renders 0–46.6 s in five frame-exact segments into `out/review/v6/` (skips finished ones, so re-run it after a restart), then joins them with the audio into `out/review/pilot-v6.mp4`; make the light copy (1600×900, CRF 26) and send it. Earlier plan text, for reference: (b) "against us?" timing fix; (c) through-line A (remove every visible flame and the lamp, key light behind the camera); (d) mirror water, wine-dark; (e) symbolon's rim words readable; (f) CHANGE? A+B; (g) estranged A+B with Penelope; then pilot v6. Iterate with the client on ideas before building anything new beyond these.
 1. (History) Get the client's notes on pilot v2 and apply them. v1 notes and their fixes are in `docs/MONSTER.md` Grammar rules 7–8. After v2 the client proposed ENDLESS as a loading circle or an infinity loop: built as the ∞ (commit `923b0b0`; the spinner was judged too modern for the grave tone, its "chase" kept as the flame's comet tail). Review clip sent to the client: `out/review/pilot-v3-review.mp4` (pilot v2 with the ∞ section spliced in; regenerate with a full `video` render of 3.0–46.6 s, `--only strike,everything,endless,symbolon,change,souls,sea,hook1`). Awaiting the client's notes.
    - After v3 the client noted: the opening felt disjointed and flat, and the souls background lines hurt readability. Done: the new opening inside `everything` (c633bcf), plaster shadow-screen walls (souls 5dc4195, change 84c43f3), Grammar rule 9. Review clip: `out/review/pilot-v4-review.mp4` (full pilot from 0:00).
    - Then the client asked for a better thematic through-line than P(doom)'s lines, and chose **Greek vase painting** (Grammar rule 9; commit `cff1442`): clay walls (shadows = black-figure), black-glaze floors mirroring the room, lines only as reserved decoration. Review clip sent: `out/review/pilot-v5-review.mp4` (0:00–0:46; supersedes v4, which was stopped). Awaiting notes.
