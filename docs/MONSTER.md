@@ -1,6 +1,6 @@
 # Monster — treatment & style bible (draft 1)
 
-A code-rendered, word-synced music video for "Monster" (Jorge Rivera-Herrans, *EPIC: The Musical*, The Underworld Saga), on the P(doom) engine (`docs/ENGINE.md`) and its design rules (`docs/TREATMENT.md`): every frame a pure function of song time, karaoke per word, cuts and hits on the analysed beat grid, one restrained palette, one type system, engraving-style line work, concrete objects treated as visual puns and transformations, never storyboard illustrations of the lines.
+A code-rendered, word-synced music video for "Monster" (Jorge Rivera-Herrans, *EPIC: The Musical*, The Underworld Saga), on the P(doom) engine (`docs/ENGINE.md`) and its design rules (`docs/TREATMENT.md`): every frame a pure function of song time, karaoke per word, cuts and hits on the analysed beat grid, one restrained palette, one type system, concrete objects treated as visual puns and transformations, never storyboard illustrations of the lines. Where P(doom) drew everything as an engraving, Monster's surfaces are Greek vase painting: clay, black glaze, and lines reserved in the clay (Grammar rule 9).
 
 ## The idea in one paragraph
 
@@ -43,7 +43,7 @@ The first build of verse 1 read as subtitles over a quiet scene: two-line couple
 5. **Full-frame engraved detail** with a full value range in every shot; the flame shown big in close-ups.
 6. **A Greek medium per plate** (shadow theatre, red- and black-figure vase painting, carved frieze, stele, sea chart, masonry, bronze), one palette and type system throughout.
 7. **Every word lands on its sung onset** (client note on pilot v1): no fade-ins on word entrances; 3D letters spring up starting 45 ms before the onset so they stand as the syllable sounds (`POP` in `app/src/monster/stage.ts`); camera hits and impacts key to the word onsets, not the nearest beat. The aligned word starts sit on the vocal onsets (median 30 ms early), so the data need no offset.
-9. **Walls are shadow screens, floors are engraved** (client note: the line field behind the souls hurt readability): walls are lime plaster in one continuous lit tone (`toneWall` in `stage.ts`), so every shadow reads as a crisp black silhouette; floors keep the white-line engraving, sparser where text stands over them.
+9. **The surfaces are Greek vase painting** (client choice, replacing P(doom)'s engraved line fields, which hurt readability behind the souls): walls are lit clay, so every shadow on them is black-figure painting (black figures on the clay, after which the palette arc is named); floors are black glaze, glossy, mirroring the flame, the walls and the letters; lines appear only as decoration reserved in the clay (meander bands, rings, the line, painted waves on water), never as an all-over texture. Letters are added white (bone faces) with black-glazed sides. Implemented in `app/src/monster/stage.ts` (the vase path, default on).
 8. **Supporting words are physical too** (client note on pilot v1: "the rest of the words appear somewhat flat and understated"): no flat 2D captions; every word of the line is a thing in the shot (smaller 3D type in Archivo 112.5/600, burned into the frieze, standing on the token's rim, in the ring of souls, floating on the sea), popping on its onset and lit by the flame.
 
 ## Motifs
