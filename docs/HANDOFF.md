@@ -10,6 +10,7 @@ The work is collaborative: propose, show stills/clips, ask the client (the user)
 
 ## Client preferences and decisions (binding)
 
+- **Working style (client, on mobile)**: commit and push to `ccr-af657488-ml8n3a` often, and keep this file and `docs/MONSTER.md` current, so a session can be cleared and handed off at any point without losing work. Send review clips as light copies (1600×900, CRF 26, ~10 MB) via the file-send tool.
 - Communication: concise, utilitarian, no emojis, no filler. Cite a fetched URL for any factual claim attributed to an external source; flag uncertainty and community-consensus guidance explicitly.
 - Concept: **"Shades"**, a shadow play in the land of the dead (full treatment in `docs/MONSTER.md`).
 - Palette: P(doom)'s (ink / bone / signal orange) plus one rare accent, **dawn** `#F4A99B` (Homer's rosy-fingered dawn), only for Penelope, Telemachus and home.
@@ -92,7 +93,8 @@ Pilot v2 (client notes on v1 applied: words on their onsets, supporting words in
 
 ## Next steps, in order
 
-1. Get the client's notes on pilot v2 (`out/review/pilot-v2-review.mp4`) and apply them. v1 notes and their fixes are in `docs/MONSTER.md` Grammar rules 7–8.
+1. Get the client's notes on pilot v2 and apply them. v1 notes and their fixes are in `docs/MONSTER.md` Grammar rules 7–8. After v2 the client proposed ENDLESS as a loading circle or an infinity loop: built as the ∞ (commit `923b0b0`; the spinner was judged too modern for the grave tone, its "chase" kept as the flame's comet tail). Review clip with the ∞ spliced in: `out/review/pilot-v3-review.mp4` (when present; v2 itself was rendered before the ∞).
+   - Open consistency item: hook 1's question ("What if I'm the") is still flat 2D type at top left from before revision 1; under Grammar rule 8 it should become physical (e.g. 3D words afloat by the lamp, as `sea` ends). Ask before changing (hook 1 was approved).
 2. Finish the alignment QA (karaoke split, FIX table), regenerate `data/monster/lyrics.json`, recheck hook timings.
 3. Build `mirror` (rest of chorus 1), then verse 2's four plates (`cyclops`, `circe`, `poseidon`, `horse`), then chorus 2 (`hook` n=2 + `scale`, with the very subtle orange creep), the bridge (`creed`, `losses` with the names, `course` with the dawn accent, `wall` type-only), chorus 3 (`hook` n=3 + `blackfigure`), and `outro` (loop back to the first frame of `strike`).
 4. Collect bench results; give the client render-machine setup steps; final render.
