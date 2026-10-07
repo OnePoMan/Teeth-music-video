@@ -43,8 +43,7 @@ The work is collaborative: propose, show stills/clips, ask the client (the user)
 
 | entry | file | status |
 |---|---|---|
-| strike 0–4.02 | `scenes/strike.ts` | built (pre-revision; meander frame, flint strikes, the flame catches). Exports `FLAME_HOME`, `FRAME_BOX`. |
-| everything 4.02–9.36 | `scenes/everything.ts` | pilot built |
+| everything 0–9.36 | `scenes/everything.ts` | pilot built; since c633bcf it is also the opening (the flint strikes and the warrior's shadow), replacing the retired `strike` plate |
 | endless 9.36–14.69 | `scenes/endless.ts` | pilot built |
 | symbolon 14.69–19.36 | `scenes/symbolon.ts` | pilot built |
 | change 19.36–25.36 | `scenes/change.ts` | pilot built |
@@ -94,6 +93,7 @@ Pilot v2 (client notes on v1 applied: words on their onsets, supporting words in
 ## Next steps, in order
 
 1. Get the client's notes on pilot v2 and apply them. v1 notes and their fixes are in `docs/MONSTER.md` Grammar rules 7–8. After v2 the client proposed ENDLESS as a loading circle or an infinity loop: built as the ∞ (commit `923b0b0`; the spinner was judged too modern for the grave tone, its "chase" kept as the flame's comet tail). Review clip sent to the client: `out/review/pilot-v3-review.mp4` (pilot v2 with the ∞ section spliced in; regenerate with a full `video` render of 3.0–46.6 s, `--only strike,everything,endless,symbolon,change,souls,sea,hook1`). Awaiting the client's notes.
+   - After v3 the client noted: the opening felt disjointed and flat, and the souls background lines hurt readability. Done: the new opening inside `everything` (c633bcf), plaster shadow-screen walls (souls 5dc4195, change 84c43f3), Grammar rule 9. Review clip: `out/review/pilot-v4-review.mp4` (full pilot from 0:00).
    - Open consistency item: hook 1's question ("What if I'm the") is still flat 2D type at top left from before revision 1; under Grammar rule 8 it should become physical (e.g. 3D words afloat by the lamp, as `sea` ends). Ask before changing (hook 1 was approved).
 2. Finish the alignment QA (karaoke split, FIX table), regenerate `data/monster/lyrics.json`, recheck hook timings.
 3. Build `mirror` (rest of chorus 1), then verse 2's four plates (`cyclops`, `circe`, `poseidon`, `horse`), then chorus 2 (`hook` n=2 + `scale`, with the very subtle orange creep), the bridge (`creed`, `losses` with the names, `course` with the dawn accent, `wall` type-only), chorus 3 (`hook` n=3 + `blackfigure`), and `outro` (loop back to the first frame of `strike`).
