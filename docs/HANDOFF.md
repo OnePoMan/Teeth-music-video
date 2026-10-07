@@ -75,6 +75,13 @@ Proposals sent to the client (recommended first):
 - Water: **black mirror water** (no lines, swells shown only by bending reflections; optional wine-dark tint); alternatives: one running-wave band at the far shore only; low mist. Decorative bands (meander in `endless`, ring in `souls`) stay unless the client says otherwise.
 - CHANGE?: **A** from the 21.36 downbeat one letter per eighth note snaps round and comes back black-glazed (done ~23.4), each flip a bigger shadow; **B** then on the figure's notes (24.01/24.35/24.67/25.01) its shadow becomes the four monsters; **C** Archivo width/weight steps per eighth (wide/light to condensed/black); **D** the bone skin cracks off, black letters underneath.
 
+## Next plate proposals (to send with pilot v6; not yet approved)
+
+`mirror` (0:46.5–1:09, rest of chorus 1; lines 9–14: "What if I'm in the wrong? / …the problem that's been hiding all along? / …the one who killed you every time I caved to guilt? / …far too kind to foes, / but a monster to ourselves? / What if I'm the monster?"; dense 'orch' pulse, downbeats 48.02, 50.69, 53.36, 56.02, 58.69, 61.35, 64.02, 66.69; something every 2 beats):
+- **A (recommended)** stay on hook 1's shore: each line's hero word stands on the waterline, lit; its reflection answers in black-figure and grows line by line (the dark double): WRONG? → WRONG; PROBLEM above, HIDING only in the water; GUILT above, the shades lying under the water; a balance painted on the clay field, FOES' pan rising, OURSELVES' sinking into the water; MONSTER? with its reflection now taller than the word. Cuts between low angles and dips through the waterline on the 2-beat grid.
+- **B** back to the cave wall: each hero word's shadow becomes one monster in turn; all four on "a monster to ourselves".
+- **C** a black-figure krater turning, one painted scene per line.
+
 ## Word-timing (alignment) status
 
 - Pipeline in `analysis/monster/` (port of P(doom)'s): `separate.py` (Demucs htdemucs_ft) → `beats.py` (Beat This!) → `whisper_run.py` (faster-whisper large-v3) → `ctc_emissions.py` (MMS_FA + LV60K on vocal mono/L/R) → `vocal_feats.py` → `align.py --plots` (fused Viterbi with margin-scored garbage token, onset/fricative refinement, per-line QA plots in `analysis/qa/monster/line_XX.png`) → `analyze.py`.
