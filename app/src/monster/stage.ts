@@ -39,6 +39,9 @@ export interface Letter {
   x: number; z: number; y: number; yaw: number; hinge: number; s: number;
   /** 0 hidden, 1 shown (hidden letters cast no shadow). */
   on: number;
+  /** Its shadow is cast by the letter scaled by this about its foot (1: true size), unless castShadow is false. */
+  shadowS?: number;
+  castShadow?: boolean;
 }
 
 const LETTER_VERT = /* glsl */ `
@@ -58,7 +61,7 @@ precision highp int;
 in vec3 vW; in vec3 vNW; in vec3 vP; in vec3 vN;
 out vec4 fragColor;
 ${GLSL_COMMON}
-uniform vec3 Lc, camPosL; uniform float LI, reach, glow, lineFreq, rim, amb, vaseL;
+uniform vec3 Lc, camPosL; uniform float LI, reach, glow, lineFreq, rim, amb, vaseL, glaze;
 void main() {
   // (degenerate bevel triangles carry zero normals: guard them, or their NaN blooms into a white star)
   float nl = length(vNW);
@@ -86,8 +89,11 @@ void main() {
   if (vaseL > 0.5) {
     vec3 Vv = normalize(camPosL - vW), Hh = normalize(L + Vv);
     float spec = pow(max(dot(N, Hh), 0.0), 90.0) * fall;
-    vec3 faceC = C_BONE * min(tone, 0.82);
     vec3 sideC = C_INK * (0.5 + 0.5 * tone) + mix(C_EMBER, C_BONE, 0.5) * spec * 1.6;
+    // glaze 1: the face black-glazed too, a sheen across it
+    // (a flat face catches the highlight all at once: keep it a narrow, dim sheen)
+    float sheen = pow(max(dot(N, Hh), 0.0), 600.0) * fall;
+    vec3 faceC = mix(C_BONE * min(tone, 0.82), C_INK * (0.55 + 0.35 * tone) + mix(C_EMBER, C_BONE, 0.5) * sheen * 0.2, glaze);
     col = mix(sideC, faceC, face);
     col += mix(C_SIGNAL, C_EMBER, 0.5) * rim * fall * pow(1.0 - abs(ndl), 6.0) * (1.0 - face) * 1.2;
   }
@@ -207,7 +213,7 @@ export class Word3D {
       glslVersion: THREE.GLSL3, vertexShader: LETTER_VERT, fragmentShader: LETTER_FRAG,
       uniforms: {
         Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, glow: { value: 0 },
-        lineFreq: { value: o.lineFreq ?? 0.12 }, rim: { value: 1 }, amb: { value: 0 }, vaseL: { value: 1 }, camPosL: { value: new THREE.Vector3() },
+        lineFreq: { value: o.lineFreq ?? 0.12 }, rim: { value: 1 }, amb: { value: 0 }, vaseL: { value: 1 }, camPosL: { value: new THREE.Vector3() }, glaze: { value: 0 },
       },
     });
     let ax = 0;
@@ -605,6 +611,7 @@ export class Stage {
   readonly flame = new FlameSprite();
   readonly bg: FSPass;
   private m4 = new THREE.Matrix4();
+  private m5 = new THREE.Matrix4();
   private Lc = new THREE.Vector3();
   private refl: THREE.WebGLRenderTarget | null = null;
   words: Word3D[] = [];
@@ -674,11 +681,14 @@ export class Stage {
     let n = 0;
     if (o.cards !== false) this.casters.forEach((w, k) => {
       for (const l of w.letters) {
-        if (n >= MAX_CARDS || l.on <= 0.001) continue;
-        (u.cardM!.value as THREE.Matrix4[])[n]!.copy(this.m4.copy(l.mesh.matrixWorld).invert());
+        if (n >= MAX_CARDS || l.on <= 0.001 || l.castShadow === false) continue;
+        const ss = l.shadowS ?? 1;
+        this.m4.copy(l.mesh.matrixWorld);
+        if (ss !== 1) this.m4.multiply(this.m5.makeScale(ss, ss, ss));
+        (u.cardM!.value as THREE.Matrix4[])[n]!.copy(this.m4.invert());
         (u.cardBox!.value as THREE.Vector4[])[n]!.set(...l.box);
         (u.cardMap!.value as THREE.Vector4[])[n]!.set(l.ox, l.oy, 1 / w.aw, 1 / w.ah);
-        (u.cardS!.value as number[])[n] = l.s;
+        (u.cardS!.value as number[])[n] = l.s * ss;
         (u.cardAt!.value as number[])[n] = k;
         n++;
       }
