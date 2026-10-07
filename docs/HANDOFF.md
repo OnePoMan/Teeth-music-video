@@ -18,6 +18,7 @@ The work is collaborative: propose, show stills/clips, ask the client (the user)
 - Palette arc: red-figure (lit figure on black) → black-figure (black silhouette on clay orange). Chorus 2 shifts toward it **gradually and very subtly**; chorus 3 is the full flip.
 - **Hook 1 (approved):** "the reflection is the future" with "the shadow answers" layered on: MONSTER? stands lit on a waterline; its reflection in black water is black-figure on clay orange and has **no question mark**.
 - "Don't push the design further" (no more texture/flame/scale pushes unless asked).
+- **Revision 1 grammar (client review of the first verse frames, binding; `docs/MONSTER.md` "Grammar")**: one phrase on screen (1–4 words, as sung, ≤ 0.4 s early) with one hero word per line at frame scale; type as physical things in the flame's world; something happens every bar (every 2 beats in choruses/bridge); full-frame engraved detail; a Greek medium per plate. The client's words: "a lot of words on any given frame… lesser quality than the P Doom video which was a lot of dynamic movement". Verse 1 was rebuilt as the pilot under these rules; review it before building more plates.
 - Final render: the **command-line pipeline** (headless Chrome + x264 CRF 16, as P(doom)) on a GPU machine the client will provide. If none works, pivot at the end (a browser render page was discussed and rejected for quality reasons: hardware/WebCodecs encoders are less efficient than x264 at equal bitrate).
 
 ## Repo state
@@ -25,7 +26,8 @@ The work is collaborative: propose, show stills/clips, ask the client (the user)
 - Branch `ccr-af657488-ml8n3a` (pushed). `main` is the untouched P(doom) repo. Other remote branches (`ccr-1136d28b-26bx1n`, `video-1080p60`) hold an earlier "Teeth" video the client wants left out of this work.
 - Multi-song engine: `?song=monster` (default) or `?song=pdoom` in the preview; `--song` in `scripts/render.ts`. P(doom) still renders (checked).
 - Engine changes (small, shared): `Lyrics.load`/`AudioData.load` take a data folder; `Line.voice` ('lead' | 'ensemble'); `dawn` in the palette (`C_DAWN` in GLSL); `halationTint` post parameter; `Layer2D.upload()` forces a fresh canvas snapshot (SwiftShader returned stale content otherwise); `render.ts` takes `--song`, `--browser`, `--swiftshader`.
-- Monster code: `app/src/song.ts`, `app/src/monster/timeline.ts` (18 entries anchored to lyric lines, see the plate table), `app/src/monster/motifs.ts` (flame sprite + `flameState` (breathes with the vocal, flares on 'orch' hits), wall/floor shadow GLSL, meander path generator, `drawLamp2D`), `app/src/monster/scenes/*.ts`.
+- Monster code: `app/src/song.ts`, `app/src/monster/timeline.ts` (entries anchored to lyric lines, see the plate table), `app/src/monster/motifs.ts` (flame sprite + `flameState` (breathes with the vocal, flares on 'orch' hits), wall/floor shadow GLSL, meander path generator, `drawLamp2D`), `app/src/monster/scenes/*.ts`.
+- **`app/src/monster/stage.ts` (the shadow-theatre kit, used by every verse 1 shot)**: `Word3D` (letters extruded from the font outlines, one mesh and one shadow card each; pose per letter: x, z, y, yaw, hinge (fold up from the floor), s; `glow` and `amb` uniforms), `StageCam` (`set`, `setQ`, `look`, `project`, `pxHeight`), `Stage` (fullscreen floor + wall (plane or cylinder) shader: camera rays, the flame's light, exact soft card shadows from the letters via the glyph atlas, white-line engraving in screen-constant hairlines (`pxLines`), the shadow's blood fringe; then the flame sprite and the meshes; `flameBehind`, `cards`, `noFlame` options). Scene hooks (GLSL passed to `new Stage({ hooks, uniforms })`): `carve(xz)` grooves in the floor, `floorLines(P, u)` the floor's line field, `extraShadow(P, wall)` shadows cast by nothing, `surfaceTint(P, wall, b, col)` last word on the colour; `gPix` (pixel footprint) is available to hooks for AA. `drawPhrase` (the small voice: Archivo 112.5/500 56 px, words appear as sung) and `vkeys` (vector keyframes).
 - Data: `data/monster/lyrics.json` (word timings, `voice` per line, `syl` for respelled words, `extras`), `data/monster/audio.json` (grid, envelopes, onsets incl. `orch`). `lyrics/monster.src.json` = line text + approximate starts (seeded from LRCLIB record 25547554).
 - **The audio is not committed** (`audio/monster.mp3` is gitignored). The client must put their copy there (3:38.71, 48 kHz MP3; the timing data were made from it). In this session it came from an upload; a new session needs the client to re-upload it.
 - Render bench: `app/bench.html`, `app/src/bench.ts`, `app/vite.bench.config.ts`, `app/scripts/bench-pack.ts`, `app/scripts/bench-run.ts`. Published privately at https://claude.ai/artifact/Qsvcg6ni6xs9USZhBHZSME (db collection `runs`; the cloud container's run is seeded). Read results with the ArtifactData tool (`list`, collection `runs`).
@@ -40,22 +42,19 @@ The work is collaborative: propose, show stills/clips, ask the client (the user)
 
 | entry | file | status |
 |---|---|---|
-| strike 0–4.02 | `scenes/strike.ts` | built: meander frame draws, flint strikes on the orch figure, flame catches on the line. Exports `FLAME_HOME`, `FRAME_BOX`. |
-| questions 4.02–25.36 | `scenes/questions.ts` | built: camera cranes up from ground level; Q1 words turn their unlit backs on "turned"; Q2 meander path in one-point perspective from the viewer through the flame to the horizon, scrolls on "endless"; Q3 tracking closes on "reunite", opens on "estranged?" while the horizon splits; Q4 "change?" steps through Archivo widths/weights (wide-light → condensed-black) while the flame gutters. Ledger labels (MEANDER, TRACKING, ARCHIVO instance). Not yet seen as a moving clip. |
-| shades 25.36–43.36 | (not written) | designed, see below |
-| hook1 43.36–46.02 | `scenes/hook.ts` n=1 | built (v2, approved): shore, floating clay lamp at left, MONSTER? on the waterline, black-figure reflection without "?", camera dip, WATERLINE label. Preview clip was sent to the client. |
+| strike 0–4.02 | `scenes/strike.ts` | built (pre-revision; meander frame, flint strikes, the flame catches). Exports `FLAME_HOME`, `FRAME_BOX`. |
+| everything 4.02–9.36 | `scenes/everything.ts` | pilot built |
+| endless 9.36–14.69 | `scenes/endless.ts` | pilot built |
+| symbolon 14.69–19.36 | `scenes/symbolon.ts` | pilot built |
+| change 19.36–25.36 | `scenes/change.ts` | pilot built |
+| souls 25.36–36.02 | `scenes/souls.ts` | pilot built (two set-ups: the ring of SOULS and the shadow crowd; the line and anamorphic LINE) |
+| sea 36.02–43.36 | `scenes/sea.ts` | pilot built (ends on hook 1's frame) |
+| hook1 43.36–46.02 | `scenes/hook.ts` n=1 | built (v2, approved before revision 1) |
 | hook2 | `scenes/hook.ts` n=2 | placeholder: same shore with `creep` (orange above the line). Needs its own design with the scale. |
 | hook3 | `scenes/hook.ts` n=3 | draft: clay field, black MONSTER with inset incised contour, ground line, meander band. |
-| mirror, cyclops, circe, poseidon, horse, scale, creed, losses, course, wall, blackfigure, outro | — | not started; designs in `docs/MONSTER.md` |
+| mirror, cyclops, circe, poseidon, horse, scale, creed, losses, course, wall, blackfigure, outro | — | not started; designs in `docs/MONSTER.md` (rework each under the revision 1 grammar before building) |
 
-### `shades` design (next to build)
-
-Must start where `questions` ends (camH 0.85, horizon 0.6H, flame at (W/2, 0.6H + 1100·0.85/7), the horizon split with a gap) and end exactly where hook 1 starts (waterline 0.71H; lamp body centred at (0.135W, 0.71H + 64), flame via `lampFlame()`; flame height `LAMP.h`=104 × `fl.h`).
-1. "I'm surrounded by the souls of those I've lost" (25.97–29.68): long human-shaped shadows appear one by one on the lit ground beyond the flame, radiating away from it, with nobody casting them (shadow-only silhouettes: legs, torso, shoulders, head, in ground coordinates, perspective-foreshortened; they waver with the flame's gusts).
-2. "I'm the only one whose line I haven't crossed" (31.31–34.76): on "line" a line draws across the ground between the flame and the shadows (all the shadows lie beyond it); the split horizon heals.
-3. "What if the greatest threat we'll find across the sea" (36.59–40.38): the near ground (the flame's side) turns to black water from the line toward the camera; the shadows fade into the dark far shore; the flame sits into its lamp (fade in `drawLamp2D`) and drifts left/closer on the water; the camera lowers (camH → ~0.05) and tilts (horizon → 0.71H) so the line becomes the waterline.
-4. "Is me?" (42.31–42.94): set in the verse style; the water holds still; cut to hook 1 on the beat at 43.36.
-Lyrics in the verse style: Archivo width 125 weight 300, 78 px, top left (x 140, first baseline 250), unsung words at 16% bone.
+Verse 1 pilot review clip: `out/review/pilot-v1.mp4` (3.0–46.6 s, 30 fps, 1 sample, SwiftShader; not committed, regenerate with the command under "Render facts"). Shot designs: `docs/MONSTER.md` plate table.
 
 ## Word-timing (alignment) status
 
@@ -86,11 +85,14 @@ Lyrics in the verse style: Archivo width 125 weight 300, 78 px, top left (x 140,
 - The artifact host refuses XML files with a DOCTYPE (bench-pack strips it from the stroke-font SVG copies).
 - faster-whisper's own decoder breaks with newer PyAV: pass an array (done in `whisper_run.py`).
 - A wait loop like `until ! pgrep -f "render.ts video"` matches its own command line and never exits: use `pgrep -f "[r]ender.ts video"`.
+- The no-HMR render server (`PDOOM_NO_HMR=1 bunx vite --port 5190`) does not see newly created scene files: restart it after adding one.
+- `Stage` draws letter meshes after the floor/wall pass: a flame that is behind letters must be drawn first (`flameBehind: true`), or it shows through them.
+- Floor engraving at grazing angles aliases; `pxLines` fades lines closer than ~3 px into their mean tone, and hooks should widen their AA by `gPix`.
 - Typecheck before committing: `cd app && bunx tsc --noEmit -p . && bunx tsc --noEmit -p tsconfig.scripts.json` (both clean at handoff).
 
 ## Next steps, in order
 
-1. Build `shades` (design above), render stills and a clip of `questions` → `shades` → `hook1` across both cuts; check continuity.
+1. Get the client's notes on the verse 1 pilot clip and apply them (known polish items: `symbolon`'s light and estranged placement, `change`'s shadow readability during the eighth-note jumps, `sea`'s THREAT tone, letter-face hatching on mid-tones).
 2. Finish the alignment QA (karaoke split, FIX table), regenerate `data/monster/lyrics.json`, recheck hook timings.
 3. Build `mirror` (rest of chorus 1), then verse 2's four plates (`cyclops`, `circe`, `poseidon`, `horse`), then chorus 2 (`hook` n=2 + `scale`, with the very subtle orange creep), the bridge (`creed`, `losses` with the names, `course` with the dawn accent, `wall` type-only), chorus 3 (`hook` n=3 + `blackfigure`), and `outro` (loop back to the first frame of `strike`).
 4. Collect bench results; give the client render-machine setup steps; final render.

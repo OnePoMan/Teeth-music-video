@@ -8,9 +8,7 @@ import * as THREE from 'three';
 import { FSPass, rtScale } from '../engine/gl';
 import { rgba } from '../engine/palette';
 import type { AudioData } from '../engine/audio';
-import type { Line, Word } from '../engine/lyrics';
-import { F, font, layout, measure, type TextLayout } from '../engine/type';
-import { clamp, hash, noise1, prog } from '../engine/util';
+import { clamp, hash, noise1 } from '../engine/util';
 
 // ---------------------------------------------------------------- the flame
 /**
