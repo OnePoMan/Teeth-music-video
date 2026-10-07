@@ -72,7 +72,10 @@ Unchanged from `docs/TREATMENT.md`: every line readable and synced per word (a w
 - Extras: the names of the dead (Polites, Athena, Anticlea) carved on the stele in `losses`; small EPIC easter eggs hidden in plates (an owl feather for Athena, the bag of winds, the stake).
 - No Greek inscriptions; no dry footnotes.
 - The "infant" line is handled with type only, no figure.
+- The palette moves toward black-figure gradually and very subtly across chorus 2; the full flip is chorus 3.
+- Final render: the command-line pipeline (headless Chrome + x264, as P(doom)) on a GPU machine.
 
 ## Open questions
 
-1. Where the final render happens (GPU machine at 4K60 with adaptive motion blur, or this CPU-only container): the render bench (`app/src/bench.ts`) measures each candidate device.
+1. Which machine renders (the render bench, `app/src/bench.ts`, measures each candidate) and so how heavy the 3D plates can be.
+2. Hook 1: the current treatment or one of three alternatives (under review).
