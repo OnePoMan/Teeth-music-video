@@ -7,15 +7,14 @@
 // reads from where we stand. Every shadow is beyond the line; his side is empty. The camera cranes up to see it.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
-import { Layer2D } from '../../engine/gl';
 import { F, font, layout } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
-import { ease, keys, lerp, mulberry32, prog, pulse, springStep } from '../../engine/util';
+import { ease, keys, lerp, mulberry32, prog, pulse } from '../../engine/util';
 import { flameState } from '../motifs';
-import { Stage, Word3D, drawPhrase, vkeys } from '../stage';
+import { Stage, Word3D, popHinge, popWords, row, vkeys, type Letter } from '../stage';
 
 /** The chamber's radius, the ring SOULS stands on, cap height, the flame's home and height. */
-const R = 6.5, RING = 3.4, CAP = 1.05, HOME = new THREE.Vector3(0, 0, 0.6), FLAME_H = 0.7;
+const R = 6.5, RING = 3.4, CAP = 1.05, VCAP = 0.5, HOME = new THREE.Vector3(0, 0, 0.6), FLAME_H = 0.7;
 /** The line in the floor (z) and its groove half-width; the anamorphic LINE's floor rectangle (near side). */
 const Z_LINE = -0.25, LINE_W = 0.085;
 const MAXF = 16;
@@ -75,6 +74,7 @@ float extraShadow(vec3 P, bool wall) {
   }
   return occ;
 }
+vec3 skyTint(vec3 D, vec3 col) { return col; }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   if (wall) return col;
   float onLine = 1.0 - smoothstep(lineW * 0.35, lineW * 1.2 + gPix, abs(P.z - zLine));
@@ -89,7 +89,6 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
 export default class Souls extends Scene {
   private st!: Stage;
   private word!: Word3D;
-  private txt = new Layer2D();
   private l1!: Line;
   private l2!: Line;
   private figs: { a: number; h: number; v: number; t: number }[] = [];
@@ -115,32 +114,52 @@ export default class Souls extends Scene {
         figT: { value: new Array(MAXF).fill(1e9) }, nFig: { value: 0 }, tNow: { value: 0 }, sway: { value: 0 }, cylR: { value: R },
         zLine: { value: Z_LINE }, lineW: { value: LINE_W }, flameX: { value: 0 }, lineOn: { value: 0 }, revealX: { value: -99 },
         home: { value: new THREE.Vector2(HOME.x, HOME.z) }, word: { value: this.lineTex },
-        wordRect: { value: new THREE.Vector4(0.33, 0.045, 0.67, 0.225) }, anaVP: { value: new THREE.Matrix4() },
+        wordRect: { value: new THREE.Vector4(0.34, 0.02, 0.66, 0.165) }, anaVP: { value: new THREE.Matrix4() },
       },
     });
     this.word = new Word3D('SOULS', F.archivo(100, 900), { size: 220 });
     this.st.add(this.word);
     this.l1 = this.ctx.lyrics.get("I'm surrounded");
     this.l2 = this.ctx.lyrics.get("I'm the only one");
-    // the shades: one stands for each word; SOULS' letters each cast one; all of them beyond the line (z < 0)
+    const ws = this.l1.words, si = ws.findIndex((w) => w.w.toLowerCase().startsWith('souls'));
+    const voice = F.archivo(112.5, 600);
+    this.pre = new Word3D(ws.slice(0, si).map((w) => w.w).join(' '), voice, { size: 200 });
+    this.post = new Word3D(ws.slice(si + 1).map((w) => w.w).join(' '), voice, { size: 200 });
+    const voice2 = F.archivo(100, 600);
+    this.only = new Word3D(this.l2.words.slice(0, this.l2.words.findIndex((w) => w.w.toLowerCase() === 'line')).map((w) => w.w).join(' '), voice2, { size: 200 });
+    this.crossed = new Word3D(this.l2.words.slice(this.l2.words.findIndex((w) => w.w.toLowerCase() === 'line') + 1).map((w) => w.w).join(' '), voice2, { size: 200 });
+    for (const w of [this.pre, this.post, this.only]) this.st.add(w, { shadows: false });
+    this.st.add(this.crossed, { shadows: false });
+    // the ring: every word of the line stands on it, read from the flame outward; SOULS centred on the far side
+    const s = CAP / this.word.cap, sv = VCAP / this.pre.cap;
+    const As = this.word.width * s, gap = 0.45;
+    this.ringPre = (penX: number) => -Math.PI / 2 + (-As / 2 - gap - (this.pre.width - penX) * sv) / RING;
+    this.ringSouls = (penX: number) => -Math.PI / 2 + ((penX - this.word.width / 2) * s) / RING;
+    this.ringPost = (penX: number) => -Math.PI / 2 + (As / 2 + gap + penX * sv) / RING;
+    // the shades: one stands up behind each word as it is sung, one behind each letter of SOULS
     const r = mulberry32(17);
-    const ws = this.l1.words;
-    const soulsW = ws.find((w) => w.w.toLowerCase().startsWith('souls'))!;
-    const s = CAP / this.word.cap;
-    const ang = (penX: number) => -Math.PI / 2 + ((penX - this.word.width / 2) * s) / RING;
-    const free = [-2.25, -0.95, -2.6, -0.55, -2.85, -0.3, -2.42, -0.75];
-    let fi = 0;
-    for (const w of ws) {
-      if (w === soulsW) {
-        this.word.letters.forEach((l, k) => this.figs.push({ a: ang(l.penX), h: 3.4 + r() * 0.5, v: r(), t: soulsW.start + (k / 4) * Math.min(0.5, soulsW.end - soulsW.start) }));
-      } else {
-        this.figs.push({ a: free[fi++ % free.length]!, h: 3.0 + r() * 0.7, v: r(), t: w.start });
-      }
-    }
+    const soulsW = ws[si]!;
+    this.pre.words.forEach((w, i) => this.figs.push({ a: this.ringPre(w.x0 + w.w / 2), h: 3.0 + r() * 0.7, v: r(), t: ws[i]!.start }));
+    this.word.letters.forEach((l, k) => this.figs.push({ a: this.ringSouls(l.penX), h: 3.4 + r() * 0.5, v: r(), t: soulsW.start + (k / 4) * Math.min(0.42, soulsW.end - soulsW.start) }));
+    this.post.words.forEach((w, i) => this.figs.push({ a: this.ringPost(w.x0 + w.w / 2), h: 3.0 + r() * 0.7, v: r(), t: ws[si + 1 + i]!.start }));
+    // the camera's targets: the angle of each word in sung order
+    this.wordAngles = [
+      ...this.pre.words.map((w, i) => ({ t: ws[i]!.start, a: this.ringPre(w.x0 + w.w / 2) })),
+      { t: soulsW.start, a: -Math.PI / 2 },
+      ...this.post.words.map((w, i) => ({ t: ws[si + 1 + i]!.start, a: this.ringPost(w.x0 + w.w / 2) })),
+    ];
   }
+  private pre!: Word3D;
+  private post!: Word3D;
+  private only!: Word3D;
+  private crossed!: Word3D;
+  private ringPre!: (penX: number) => number;
+  private ringSouls!: (penX: number) => number;
+  private ringPost!: (penX: number) => number;
+  private wordAngles: { t: number; a: number }[] = [];
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
-    const t = f.t, { renderer, comp, audio } = this.ctx;
+    const t = f.t, { renderer, audio } = this.ctx;
     const T0 = this.ctx.start, T1 = this.ctx.end;
     const w1 = this.l1.words, w2 = this.l2.words;
     const souls = w1.find((w) => w.w.toLowerCase().startsWith('souls'))!;
@@ -163,15 +182,30 @@ export default class Souls extends Scene {
     const wd = this.word, n = wd.letters.length, s = CAP / wd.cap;
     for (let k = 0; k < n; k++) {
       const l = wd.letters[k]!;
-      const th = -Math.PI / 2 + ((l.penX - wd.width / 2) * s) / RING;
+      const th = this.ringSouls(l.penX);
       l.x = RING * Math.cos(th); l.z = RING * Math.sin(th); l.y = 0; l.s = s;
       l.yaw = Math.atan2(-l.x, -l.z);
-      const tk = souls.start + (k / (n - 1)) * Math.min(0.5, souls.end - souls.start);
-      l.on = t >= tk - 0.02 ? 1 : 0;
-      l.hinge = (Math.PI / 2) * (1 - springStep(t - tk, 2.4, 0.4));
-      l.mat.uniforms.glow!.value = 0.3 * pulse(t, tk, 0.2) * l.on;
+      const tk = souls.start + (k / (n - 1)) * Math.min(0.42, souls.end - souls.start);
+      // SOULS stands until the sub-cut, then lies down with the rest of the line
+      const up = popHinge(t, tk), gone = prog(t, tCut - 0.3 + k * 0.01, tCut - 0.08 + k * 0.01, ease.inCubic);
+      l.hinge = up + (Math.PI / 2 - up) * gone;
+      l.on = l.hinge < Math.PI / 2 - 1e-4 ? 1 : 0;
+      l.mat.uniforms.glow!.value = 0.45 * pulse(t, tk, 0.16) * (t >= tk ? 1 : 0) * l.on;
     }
     wd.update();
+    const si = w1.indexOf(souls), sv = VCAP / this.pre.cap;
+    const onRing = (f: (penX: number) => number) => (l: Letter) => {
+      const th = f(l.penX);
+      l.x = RING * Math.cos(th); l.z = RING * Math.sin(th); l.y = 0; l.s = sv; l.yaw = Math.atan2(-l.x, -l.z);
+    };
+    popWords(this.pre, w1.slice(0, si).map((w) => w.start), t, onRing(this.ringPre), { exit: tCut - 0.3 });
+    popWords(this.post, w1.slice(si + 1).map((w) => w.start), t, onRing(this.ringPost), { exit: tCut - 0.3 });
+    // the second set-up: his words on his side of the line
+    const li2 = w2.indexOf(lineW);
+    // one phrase at a time, standing just on his side of the line, centred in the frame
+    const os = 0.3 / this.only.cap, cs = 0.36 / this.crossed.cap;
+    popWords(this.only, w2.slice(0, li2).map((w) => w.start), t, row(-0.4 - (this.only.width * os) / 2, Z_LINE + 0.35, 0, os), { exit: lineW.start - 0.02 });
+    popWords(this.crossed, w2.slice(li2 + 1).map((w) => w.start), t, row(-0.4 - (this.crossed.width * cs) / 2, Z_LINE + 0.35, 0, cs));
 
     // ---- the flame: at home; in the second set-up it runs left, then sweeps across on "line", burning it in
     const fx = second ? keys(t, [[tCut, 0], [lineW.start - 0.08, -5.4, ease.inOutCubic], [lineW.end, 5.4, ease.inOutQuad], [T1, 1.2, ease.inOutCubic]]) : 0;
@@ -185,14 +219,23 @@ export default class Souls extends Scene {
     // ---- the camera: circling above in the first set-up; at floor level in the second, then craning up
     let pos: THREE.Vector3, at: THREE.Vector3, fov = 40;
     if (!second) {
-      const a = lerp(1.2, 1.95, prog(t, T0, tCut, ease.inOutQuad));
-      const rad = keys(t, [[T0, 5.2], [souls.start, 4.6, ease.inOutCubic], [tCut, 4.3, ease.linear]]);
-      pos = new THREE.Vector3(rad * Math.cos(a), keys(t, [[T0, 2.6], [souls.start, 2.9, ease.inOutCubic], [tCut, 3.0]]), rad * Math.sin(a));
-      at = new THREE.Vector3(0, keys(t, [[T0, 2.2], [souls.start, 1.5, ease.inOutCubic]]), -2.6);
+      // the camera swings round the ring to each word as it is sung, looking across the flame at it
+      const wa = this.wordAngles;
+      let a = wa[0]!.a;
+      for (let i = 0; i < wa.length; i++) {
+        const k = wa[i]!;
+        if (t < k.t - 0.12) break;
+        const prev = i > 0 ? wa[i - 1]!.a : wa[0]!.a + 0.35;
+        a = lerp(prev, k.a, prog(t, k.t - 0.12, k.t + 0.28, ease.inOutCubic));
+      }
+      if (t < wa[0]!.t - 0.12) a = wa[0]!.a + 0.35 * (1 - prog(t, T0, wa[0]!.t - 0.12, ease.inOutQuad)) + 0.35 * 0;
+      const ca = a + Math.PI, rad = keys(t, [[T0, 5.0], [souls.start, 4.7, ease.inOutCubic], [tCut, 4.4, ease.linear]]);
+      pos = new THREE.Vector3(rad * Math.cos(ca), keys(t, [[T0, 2.4], [souls.start, 2.6, ease.inOutCubic], [tCut, 2.8]]), rad * Math.sin(ca));
+      at = new THREE.Vector3(RING * 0.9 * Math.cos(a), keys(t, [[T0, 1.9], [souls.start, 1.4, ease.inOutCubic]]), RING * 0.9 * Math.sin(a));
     } else {
       pos = vkeys(t, [[tCut, [-1.2, 0.95, 4.9]], [crossed.end, [-0.6, 0.95, 4.6], ease.linear], [T1, [0.4, 6.8, 6.4], ease.inOutCubic]]);
       at = vkeys(t, [[tCut, [0.6, 1.1, -4.5]], [crossed.end, [0.6, 1.1, -4.5], ease.linear], [T1, [0.0, 0.0, -1.2], ease.inOutCubic]]);
-      fov = lerp(40, 46, prog(t, crossed.end, T1));
+      fov = lerp(44, 48, prog(t, crossed.end, T1));
     }
     this.st.cam.set(pos, at, fov);
     // the anamorphic word is drawn from the camera as it stands when the line is burned
@@ -200,7 +243,7 @@ export default class Souls extends Scene {
       const ap = vkeys(lineW.start, [[tCut, [-1.2, 0.95, 4.9]], [crossed.end, [-0.6, 0.95, 4.6], ease.linear]]);
       const aat = new THREE.Vector3(0.6, 1.1, -4.5);
       const cam = this.anaCam;
-      cam.fov = 40; cam.aspect = 16 / 9; cam.updateProjectionMatrix();
+      cam.fov = 44; cam.aspect = 16 / 9; cam.updateProjectionMatrix();
       cam.position.copy(ap); cam.lookAt(aat); cam.updateMatrixWorld(true);
       (u.anaVP!.value as THREE.Matrix4).multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     }
@@ -209,16 +252,6 @@ export default class Souls extends Scene {
       { wall: 2, cyl: [0, 0, R], freqWall: 6.5, freqFloor: 6 },
       { cards: false, gust: fl.gust * 0.6 + (sweeping ? -1.2 : 0), rim: 1.2 });
 
-    // ---- the small voice
-    const c = this.txt.ctx;
-    this.txt.clear();
-    const si = w1.indexOf(souls);
-    drawPhrase(c, w1.slice(0, si), t, 160, 990, { exit: prog(t, souls.start, souls.start + 0.25) });
-    drawPhrase(c, w1.slice(si + 1), t, 160, 990, { exit: prog(t, tCut - 0.35, tCut - 0.05) });
-    const li = w2.indexOf(lineW);
-    drawPhrase(c, w2.slice(0, li), t, 160, 150, { exit: prog(t, lineW.start, lineW.start + 0.25) });
-    drawPhrase(c, w2.slice(li + 1), t, 160, 150, { exit: prog(t, T1 - 0.5, T1 - 0.1) });
-    comp.draw(renderer, this.txt.upload(), out);
     return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6, halation: 0.35 };
   }
 }

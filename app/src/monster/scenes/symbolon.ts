@@ -6,14 +6,12 @@
 // water, and the word "estranged?" spreads its letters across the gap.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
-import { Layer2D, W } from '../../engine/gl';
 import { GLSL_COMMON } from '../../engine/glsl/common';
 import { F, font, layout } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
-import { rgba } from '../../engine/palette';
 import { ease, keys, lerp, mulberry32, prog, pulse } from '../../engine/util';
 import { flameState } from '../motifs';
-import { Stage, VOICE, drawPhrase, vkeys } from '../stage';
+import { Stage, Word3D, popHinge, popWords, vkeys, type Letter } from '../stage';
 
 /** Token radius and thickness (world units); the word's cap height on it. */
 const RD = 1.6, TH = 0.2, CAPW = 0.36;
@@ -26,6 +24,7 @@ float floorLines(vec3 P, float u) {
   return u + 0.3 * sin(P.x * 1.6 + 0.8 * sin(P.z * 1.1 + tSea * 0.4) + tSea * 0.8) + 0.05 * sin(P.x * 4.1 - tSea * 1.3);
 }
 float extraShadow(vec3 P, bool wall) { return 0.0; }
+vec3 skyTint(vec3 D, vec3 col) { return col; }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) { return col * 0.85; }`;
 
 const TOKEN_VERT = /* glsl */ `
@@ -74,8 +73,11 @@ void main() {
 
 export default class Symbolon extends Scene {
   private st!: Stage;
-  private txt = new Layer2D();
   private line!: Line;
+  /** "How am I to" on the left half's rim, "with my" on the right's, "estranged?" afloat between them. */
+  private rimL!: Word3D;
+  private rimR!: Word3D;
+  private estr!: Word3D;
   private halves: { grp: THREE.Group; mat: THREE.RawShaderMaterial }[] = [];
   private face!: THREE.CanvasTexture;
 
@@ -134,6 +136,11 @@ export default class Symbolon extends Scene {
       return { grp, mat };
     };
     this.halves = [mk(leftShape), mk(rightShape)];
+    const ws = this.line.words, voice = F.archivo(112.5, 600);
+    this.rimL = new Word3D(ws.slice(0, 4).map((w) => w.w).join(' '), voice, { size: 200 });
+    this.rimR = new Word3D(ws.slice(5, 7).map((w) => w.w).join(' '), voice, { size: 200 });
+    this.estr = new Word3D(ws[7]!.w, F.archivo(100, 800), { size: 200 });
+    for (const w of [this.rimL, this.rimR, this.estr]) this.st.add(w, { shadows: false });
   }
 
   private w(s: string): Word {
@@ -141,14 +148,14 @@ export default class Symbolon extends Scene {
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
-    const t = f.t, { renderer, comp, audio } = this.ctx;
+    const t = f.t, { renderer, audio } = this.ctx;
     const [how, am, i, to] = this.line.words as [Word, Word, Word, Word];
     const reunite = this.w('reunite'), withW = this.w('with'), my = this.w('my'), estr = this.w('estranged');
     const T0 = this.ctx.start, T1 = this.ctx.end;
-    const tImp = audio.nearestBeat(reunite.start + 0.12);
+    const tImp = reunite.start;                           // the halves slam shut as "reunite" sounds
     const split = prog(t, estr.start - 0.02, T1, ease.outCubic);
     // ---- the halves: apart and drifting together, slammed shut on "reunite", parted on "estranged?"
-    const gap = keys(t, [[T0, 0.95], [reunite.start - 0.05, 0.55, ease.inOutQuad], [tImp, 0, ease.inCubic]]);
+    const gap = keys(t, [[T0, 0.95], [tImp - 0.22, 0.6, ease.inOutQuad], [tImp, 0, ease.inCubic]]);
     const imp = pulse(t, tImp, 0.12) * (t >= tImp ? 1 : 0);
     const [hl, hr] = this.halves as [typeof this.halves[0], typeof this.halves[0]];
     hl.grp.position.set(-gap / 2 - 0.5 * split, 0, 0.12 * split);
@@ -172,26 +179,40 @@ export default class Symbolon extends Scene {
       u.LI!.value = LI; u.reach!.value = 9;
     }
     this.st.bg.u.tSea!.value = t;
-    this.st.render(renderer, out, t, { base: Lbase, h: 1.2, I: LI * 0.8, reach: 9 }, { wall: 0, freqFloor: 5.2 }, { noFlame: true });
 
-    // ---- the small voice; "estranged?" spreads its letters across the widening gap
-    const c = this.txt.ctx;
-    this.txt.clear();
-    drawPhrase(c, [how, am, i, to], t, 160, 990, { exit: prog(t, tImp, tImp + 0.3) });
-    drawPhrase(c, [withW, my], t, 160, 990, { exit: prog(t, estr.start, estr.start + 0.25) });
-    if (t >= estr.start - 0.02) {
-      const pl = this.st.cam.project(hl.grp.position), pr = this.st.cam.project(hr.grp.position);
-      const cx = (pl.x + pr.x) / 2, cy = Math.max(pl.y, pr.y) + 250;
-      const fam = VOICE.fam(), size = 64;
-      const track = lerp(2, 70, split);
-      const lay = layout('estranged?', fam, size, track);
-      const a = prog(t, estr.start - 0.02, estr.start + 0.12);
-      c.font = font(fam, size); c.letterSpacing = `${track}px`; c.textBaseline = 'alphabetic';
-      c.fillStyle = rgba('bone', a);
-      c.fillText('estranged?', Math.min(W - 120 - lay.width, Math.max(120, cx - lay.width / 2)), Math.min(1000, cy));
-      c.letterSpacing = '0px';
+    // ---- the words: on the halves' far rims, facing the disc's centre (so, from the front, they read along the rim)
+    const onRim = (grp: THREE.Group, w: Word3D, th0: number, cap: number) => {
+      const sc = cap / w.cap, R = RD * 0.8, ry = grp.rotation.y;
+      return (l: Letter) => {
+        const th = th0 - (l.penX * sc) / R;
+        const lx = R * Math.cos(th), lz = -R * Math.sin(th);
+        l.x = grp.position.x + lx * Math.cos(ry) + lz * Math.sin(ry);
+        l.z = grp.position.z - lx * Math.sin(ry) + lz * Math.cos(ry);
+        l.y = TH; l.s = sc;
+        l.yaw = Math.atan2(-Math.cos(th), Math.sin(th)) + ry;
+      };
+    };
+    popWords(this.rimL, [how.start, am.start, i.start, to.start], t, onRim(hl.grp, this.rimL, 3.55, 0.26), { glow: 0.6 });
+    popWords(this.rimR, [withW.start, my.start], t, onRim(hr.grp, this.rimR, 1.32, 0.26), { glow: 0.6 });
+    // "estranged?": letters afloat in the gap, spreading as it widens, each landing on its share of the word
+    const ew = this.estr, ne = ew.letters.length, es = 0.5 / ew.cap;
+    const camP = this.st.cam.cam.position;
+    for (let k = 0; k < ne; k++) {
+      const l = ew.letters[k]!;
+      const u = (k + 0.5) / ne;
+      const xl = hl.grp.position.x + 0.2, xr = hr.grp.position.x - 0.9;
+      l.x = lerp(-((ew.width * es) / 2), (ew.width * es) / 2, u) * (1 - split) + lerp(xl, xr, u) * split;
+      l.z = lerp(1.9, lerp(hl.grp.position.z, hr.grp.position.z, u) + 1.4, split);
+      l.y = 0.02 * Math.sin(t * 2.3 + k * 1.7);
+      l.s = es;
+      l.yaw = Math.atan2(camP.x - l.x, camP.z - l.z);
+      const tk = estr.start + (k / (ne - 1)) * Math.max(0.2, estr.end - estr.start - 0.05);
+      l.hinge = popHinge(t, tk);
+      l.on = l.hinge < Math.PI / 2 - 1e-4 ? 1 : 0;
+      l.mat.uniforms.glow!.value = 0.5 * pulse(t, tk, 0.16) * (t >= tk ? 1 : 0) * l.on;
     }
-    comp.draw(renderer, this.txt.upload(), out);
+    ew.update();
+    this.st.render(renderer, out, t, { base: Lbase, h: 1.2, I: LI * 0.8, reach: 9 }, { wall: 0, freqFloor: 5.2 }, { noFlame: true, cards: false });
 
     return { bloom: 0.6, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0, 0.006 * imp] };
   }

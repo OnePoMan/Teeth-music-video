@@ -16,7 +16,9 @@ import { rgba } from '../engine/palette';
 import { prog, ease, clamp } from '../engine/util';
 import { FlameSprite } from './motifs';
 
-export const MAX_CARDS = 16;
+export const MAX_CARDS = 40;
+/** Atlases (Word3D runs) one stage can cast shadows from. */
+export const MAX_ATLAS = 4;
 
 // ---------------------------------------------------------------- letters
 export interface Letter {
@@ -67,8 +69,10 @@ void main() {
   // cut stone: the face bone in the light, the sides a step darker; where the light falls away, a black-line
   // engraving (horizontal on the face, along the depth on the sides) carries the shading
   vec3 base = mix(C_BONE * 0.72, C_BONE * 1.02, face);
-  float u = face > 0.5 ? vP.y * lineFreq : vP.z * lineFreq * 1.6;
-  float lines = hatch(u, sat(0.62 - tone) * 1.1) * smoothstep(0.08, 0.25, tone);
+  // faces: a fine engraving only in the shade; sides: coarser lines along the depth
+  float lines = face > 0.5
+    ? hatch(vP.y * lineFreq * 1.7, sat(0.36 - tone) * 1.3) * smoothstep(0.04, 0.14, tone)
+    : hatch(vP.z * lineFreq * 1.6, sat(0.62 - tone) * 1.1) * smoothstep(0.08, 0.25, tone);
   // bone type stays crisp: the lit face tops out just under the bloom threshold
   vec3 col = base * min(tone, 0.82) * (1.0 - 0.85 * lines);
   // turned from the light, a letter is a silhouette: ink with a graphite hairline engraving and a burning rim
@@ -240,12 +244,14 @@ export class Word3D {
     }
   }
 
+  /** Scales the light this run receives (0: a black silhouette, whatever the flame does). */
+  lightMul = 1;
   /** Sets the light uniforms on every letter. */
   light(Lc: THREE.Vector3, LI: number, reach: number, rim = 1) {
     for (const l of this.letters) {
       const u = l.mat.uniforms;
       (u.Lc!.value as THREE.Vector3).copy(Lc);
-      u.LI!.value = LI; u.reach!.value = reach; u.rim!.value = rim;
+      u.LI!.value = LI * this.lightMul; u.reach!.value = reach; u.rim!.value = rim * this.lightMul;
     }
   }
 }
@@ -334,7 +340,8 @@ export const STAGE_HOOKS_DEFAULT = /* glsl */ `
 float carve(vec2 xz) { return 0.0; }
 float floorLines(vec3 P, float u) { return u; }
 float extraShadow(vec3 P, bool wall) { return 0.0; }
-vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) { return col; }`;
+vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) { return col; }
+vec3 skyTint(vec3 D, vec3 col) { return col; }`;
 
 const BG_FRAG = (hooks: string) => /* glsl */ `
 uniform mat4 invVP; uniform vec3 camPos;
@@ -342,7 +349,14 @@ uniform vec3 Lc; uniform float LI, reach, rL;
 uniform int wallMode; uniform float wallZ; uniform vec3 cyl;
 uniform float freqF, freqW, floorOn;
 uniform mat4 cardM[${MAX_CARDS}]; uniform vec4 cardBox[${MAX_CARDS}]; uniform vec4 cardMap[${MAX_CARDS}];
-uniform float cardS[${MAX_CARDS}]; uniform int nCards; uniform sampler2D atlas;
+uniform float cardS[${MAX_CARDS}]; uniform float cardAt[${MAX_CARDS}]; uniform int nCards;
+uniform sampler2D atlas0, atlas1, atlas2, atlas3;
+float atlasA(float k, vec2 uv, float lod) {
+  if (k < 0.5) return textureLod(atlas0, uv, lod).a;
+  if (k < 1.5) return textureLod(atlas1, uv, lod).a;
+  if (k < 2.5) return textureLod(atlas2, uv, lod).a;
+  return textureLod(atlas3, uv, lod).a;
+}
 
 float cardShadow(vec3 P) {
   float lit = 1.0;
@@ -358,7 +372,7 @@ float cardShadow(vec3 P) {
     float m = rpx + 2.0;
     if (h.x < b.x - m || h.x > b.z + m || h.y < b.y - m || h.y > b.w + m) continue;
     vec2 uv = vec2(cardMap[i].x + h.x, cardMap[i].y - h.y) * cardMap[i].zw;
-    float occ = textureLod(atlas, uv, log2(max(1.0, 2.0 * rpx))).a;
+    float occ = atlasA(cardAt[i], uv, log2(max(1.0, 2.0 * rpx)));
     lit *= 1.0 - occ;
   }
   return 1.0 - lit;
@@ -449,6 +463,8 @@ void main() {
     // where the wall meets the floor: one engraved line
     if (wall) col += warm(light) * pxLine(abs(P.y) / max(fwidth(P.y), 1e-5), 0.6, 1.4) * 0.7 * min(light * 1.5, 1.0);
     col = surfaceTint(P, wall, b, col);
+  } else {
+    col = skyTint(D, col);
   }
   fragColor = vec4(col, 1.0);
 }`;
@@ -473,16 +489,22 @@ export class Stage {
       wallMode: { value: 0 }, wallZ: { value: -10 }, cyl: { value: new THREE.Vector3(0, 0, 8) },
       freqF: { value: 7 }, freqW: { value: 5 }, floorOn: { value: 1 },
       cardM: { value: arr(() => new THREE.Matrix4()) }, cardBox: { value: arr(() => new THREE.Vector4()) },
-      cardMap: { value: arr(() => new THREE.Vector4()) }, cardS: { value: arr(() => 1) }, nCards: { value: 0 },
-      atlas: { value: null },
+      cardMap: { value: arr(() => new THREE.Vector4()) }, cardS: { value: arr(() => 1) }, cardAt: { value: arr(() => 0) }, nCards: { value: 0 },
+      atlas0: { value: null }, atlas1: { value: null }, atlas2: { value: null }, atlas3: { value: null },
     });
   }
 
-  add(w: Word3D) {
+  /** Adds a run of letters to the stage; the first MAX_ATLAS runs cast shadows (pass `shadows: false` to skip one). */
+  add(w: Word3D, o: { shadows?: boolean } = {}) {
     this.words.push(w);
     this.scene.add(w.group);
-    if (this.words.length === 1) this.bg.u.atlas!.value = w.atlas;
+    if (o.shadows === false) return;
+    const k = this.casters.length;
+    if (k >= MAX_ATLAS) return;
+    this.casters.push(w);
+    for (let j = 0; j < MAX_ATLAS; j++) if (j >= k) this.bg.u[`atlas${j}`]!.value = w.atlas;   // unused slots keep a valid texture
   }
+  private casters: Word3D[] = [];
 
   /** The light's centre for a flame foot and height. */
   lightCentre(L: StageLight) { return this.Lc.set(L.base.x, L.base.y + L.h * 0.33, L.base.z); }
@@ -503,17 +525,19 @@ export class Stage {
     const cy = S.cyl ?? [0, 0, 8];
     (u.cyl!.value as THREE.Vector3).set(cy[0], cy[1], cy[2]);
     u.freqF!.value = S.freqFloor ?? 7; u.freqW!.value = S.freqWall ?? 5; u.floorOn!.value = S.floor ?? 1;
-    // shadow cards (first word's atlas)
+    // shadow cards: every shown letter of every casting run
     let n = 0;
-    const w0 = this.words[0];
-    if (w0 && o.cards !== false) for (const l of w0.letters) {
-      if (n >= MAX_CARDS || l.on <= 0.001) continue;
-      (u.cardM!.value as THREE.Matrix4[])[n]!.copy(this.m4.copy(l.mesh.matrixWorld).invert());
-      (u.cardBox!.value as THREE.Vector4[])[n]!.set(...l.box);
-      (u.cardMap!.value as THREE.Vector4[])[n]!.set(l.ox, l.oy, 1 / w0.aw, 1 / w0.ah);
-      (u.cardS!.value as number[])[n] = l.s;
-      n++;
-    }
+    if (o.cards !== false) this.casters.forEach((w, k) => {
+      for (const l of w.letters) {
+        if (n >= MAX_CARDS || l.on <= 0.001) continue;
+        (u.cardM!.value as THREE.Matrix4[])[n]!.copy(this.m4.copy(l.mesh.matrixWorld).invert());
+        (u.cardBox!.value as THREE.Vector4[])[n]!.set(...l.box);
+        (u.cardMap!.value as THREE.Vector4[])[n]!.set(l.ox, l.oy, 1 / w.aw, 1 / w.ah);
+        (u.cardS!.value as number[])[n] = l.s;
+        (u.cardAt!.value as number[])[n] = k;
+        n++;
+      }
+    });
     u.nCards!.value = n;
     this.bg.render(renderer, out);
     for (const w of this.words) w.light(Lc, L.I, L.reach, o.rim ?? 1);
@@ -530,6 +554,53 @@ export class Stage {
     renderer.render(this.scene, this.cam.cam);
     if (!o.flameBehind) drawFlame();
   }
+}
+
+// ---------------------------------------------------------------- the pop
+/**
+ * Every word lands on its onset: its letters spring up from the floor fast (upright ~45 ms after the spring
+ * starts), so the spring starts POP.lead before the sung onset and the letter is up as the syllable sounds.
+ */
+export const POP = { lead: 0.045, freq: 5.5, damp: 0.42, ripple: 0.014 };
+
+/** Fold-up angle (pi/2 flat, 0 standing) for a letter whose word is sung at `onset`; `k` its index in the word. */
+export function popHinge(t: number, onset: number, k = 0) {
+  const t0 = onset - POP.lead + k * POP.ripple;
+  return t < t0 ? Math.PI / 2 : (Math.PI / 2) * (1 - springStepFast(t - t0));
+}
+function springStepFast(x: number) {
+  const w = 2 * Math.PI * POP.freq, z = POP.damp;
+  return 1 - Math.exp(-z * w * x) * Math.cos(w * Math.sqrt(1 - z * z) * x);
+}
+
+/**
+ * Poses a run of lyric words (a Word3D built from the words joined by spaces) and animates it: each word pops
+ * up on its onset (letters rippling 14 ms apart), flashes ember, and after `exit` falls back flat and vanishes.
+ * `place(l, i)` sets each letter's x, z, yaw, s (and y if needed).
+ */
+export function popWords(w: Word3D, onsets: number[], t: number, place: (l: Letter, i: number) => void,
+  o: { exit?: number; exitDur?: number; glow?: number; amb?: number } = {}) {
+  const exit = o.exit ?? 1e9, dur = o.exitDur ?? 0.22;
+  const kInWord = new Map<number, number>();
+  w.letters.forEach((l, i) => {
+    place(l, i);
+    const k = kInWord.get(l.word) ?? 0;
+    kInWord.set(l.word, k + 1);
+    const on = onsets[Math.min(l.word, onsets.length - 1)]!;
+    const up = popHinge(t, on, k);
+    const gone = prog(t, exit + k * 0.01, exit + k * 0.01 + dur, ease.inCubic);
+    l.hinge = up + (Math.PI / 2 - up) * gone;
+    l.on = t >= on - POP.lead + k * POP.ripple && gone < 0.999 ? 1 : 0;
+    l.mat.uniforms.glow!.value = (o.glow ?? 0.45) * Math.pow(0.5, Math.max(0, t - on) / 0.16) * (t >= on - 0.02 ? 1 : 0) * l.on;
+    if (o.amb !== undefined) l.mat.uniforms.amb!.value = o.amb;
+  });
+  w.update();
+}
+
+/** Places letters in a straight row standing on the floor: the row starts at (x0, z0), letters face `yaw`. */
+export function row(x0: number, z0: number, yaw: number, s: number, y = 0) {
+  const dx = Math.cos(yaw), dz = -Math.sin(yaw);
+  return (l: Letter) => { l.x = x0 + dx * l.penX * s; l.z = z0 + dz * l.penX * s; l.y = y; l.yaw = yaw; l.s = s; };
 }
 
 // ---------------------------------------------------------------- the small voice

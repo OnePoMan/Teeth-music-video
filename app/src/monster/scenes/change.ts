@@ -6,19 +6,18 @@
 // last downbeat the flame all but goes out.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
-import { Layer2D } from '../../engine/gl';
 import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
-import { ease, lerp, mulberry32, prog, pulse, springStep } from '../../engine/util';
+import { ease, lerp, mulberry32, prog, pulse } from '../../engine/util';
 import { flameState } from '../motifs';
-import { Stage, Word3D, drawPhrase, vkeys } from '../stage';
+import { Stage, Word3D, popHinge, popWords, row, vkeys } from '../stage';
 
 const CAP = 1.15, ROW_Z = -2.3, WALL_Z = -5.6, FLAME_H = 0.62;
 
 export default class Change extends Scene {
   private st = new Stage();
   private word!: Word3D;
-  private txt = new Layer2D();
+  private ask!: Word3D;
   private line!: Line;
   /** the gutter's eighth-note places (x, z, height multiplier) */
   private jumps: [number, number, number][] = [];
@@ -27,12 +26,14 @@ export default class Change extends Scene {
     this.word = new Word3D('CHANGE?', F.archivo(100, 900), { size: 220 });
     this.st.add(this.word);
     this.line = this.ctx.lyrics.get('Do I need to change');
+    this.ask = new Word3D(this.line.words.slice(0, 4).map((w) => w.w).join(' '), F.archivo(112.5, 600), { size: 200 });
+    this.st.add(this.ask);
     const r = mulberry32(7);
-    for (let i = 0; i < 12; i++) this.jumps.push([(r() - 0.5) * 2.6, (r() - 0.5) * 1.2 + 0.2, 0.55 + r() * 0.9]);
+    for (let i = 0; i < 12; i++) this.jumps.push([(r() - 0.5) * 3.0, -1.25 + (r() - 0.5) * 0.45, 0.6 + r() * 0.8]);
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
-    const t = f.t, { renderer, comp, audio } = this.ctx;
+    const t = f.t, { renderer, audio } = this.ctx;
     const [doW, iW, need, to, change] = this.line.words as [Word, Word, Word, Word, Word];
     const T0 = this.ctx.start, T1 = this.ctx.end;
     const beat = audio.beatAt(t);
@@ -68,27 +69,26 @@ export default class Change extends Scene {
     for (let k = 0; k < n; k++) {
       const l = wd.letters[k]!;
       l.x = (l.penX - wd.width / 2) * s; l.z = ROW_Z; l.y = 0; l.yaw = 0; l.s = s;
-      const tk = change.start + (k / (n - 1)) * Math.min(0.45, change.end - change.start);
-      l.on = t >= tk - 0.02 ? 1 : 0;
-      l.hinge = (Math.PI / 2) * (1 - springStep(t - tk, 2.6, 0.38));
-      l.mat.uniforms.glow!.value = 0.35 * pulse(t, tk, 0.18) * l.on;
+      const tk = change.start + (k / (n - 1)) * Math.min(0.42, change.end - change.start);
+      l.hinge = popHinge(t, tk);
+      l.on = l.hinge < Math.PI / 2 - 1e-4 ? 1 : 0;
+      l.mat.uniforms.glow!.value = 0.45 * pulse(t, tk, 0.16) * (t >= tk ? 1 : 0) * l.on;
     }
     wd.update();
+    // "Do I need to": standing where CHANGE? will stand, just behind its row; it falls back as CHANGE? rises
+    const as = 0.62 / this.ask.cap;
+    popWords(this.ask, [doW.start, iW.start, need.start, to.start], t, row(-(this.ask.width * as) / 2, ROW_Z - 0.7, 0, as), { exit: change.start - 0.02, exitDur: 0.2 });
 
     // ---- the camera: a three-quarter view of word and wall; under the looming shadow it pushes in and looks up
-    const pos = vkeys(t, [[T0, [3.4, 1.5, 6.6]], [change.start, [2.9, 1.45, 6.0], ease.inOutQuad], [audio.timeOfBeat(bEnd + 0.5), [2.4, 1.3, 5.4], ease.linear],
+    const pos = vkeys(t, [[T0, [3.4, 1.5, 6.6]], [change.start, [2.7, 0.85, 6.2], ease.outCubic], [audio.timeOfBeat(bEnd + 0.5), [2.3, 0.8, 5.5], ease.linear],
       [audio.timeOfBeat(bOut), [1.5, 0.75, 3.6], ease.inOutCubic], [T1, [1.35, 0.7, 3.3], ease.linear]]);
-    const at = vkeys(t, [[T0, [0.0, 1.6, -3.5]], [change.start, [0.0, 1.7, -3.6], ease.inOutQuad], [audio.timeOfBeat(bEnd + 0.5), [0.0, 1.9, -3.8], ease.linear],
+    const at = vkeys(t, [[T0, [0.0, 1.6, -3.5]], [change.start, [0.0, 2.5, -4.5], ease.outCubic], [audio.timeOfBeat(bEnd + 0.5), [0.0, 2.6, -4.6], ease.linear],
       [audio.timeOfBeat(bOut), [0.0, 3.1, -5.5], ease.inOutCubic], [T1, [0.0, 3.2, -5.5], ease.linear]]);
     this.st.cam.set(pos, at, lerp(38, 46, creep));
 
-    this.st.render(renderer, out, t, { base, h: flH, I: LI, reach: lerp(15, 18, creep) }, { wall: 1, wallZ: WALL_Z, freqFloor: 6.5, freqWall: 7.0 },
+    this.st.render(renderer, out, t, { base, h: flH, I: LI, reach: lerp(15, 18, creep) }, { wall: 1, wallZ: WALL_Z, freqFloor: 4.5, freqWall: 4.2 },
       { gust: fl.gust * 0.6 + (beat >= bChange && beat < bEnd + 0.5 ? 0.6 * Math.sin(e8 * 2.1) : 0), rim: 1.3 });
 
-    const c = this.txt.ctx;
-    this.txt.clear();
-    drawPhrase(c, [doW, iW, need, to], t, 160, 990, { exit: prog(t, change.end + 0.2, change.end + 0.5) });
-    comp.draw(renderer, this.txt.upload(), out);
     return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5 + 0.2 * creep, grain: 0.06, ca: 0.6, halation: 0.35 };
   }
 }
