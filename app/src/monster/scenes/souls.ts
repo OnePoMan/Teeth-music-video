@@ -10,7 +10,7 @@ import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F, font, layout } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, keys, lerp, mulberry32, prog, pulse } from '../../engine/util';
-import { flameState } from '../motifs';
+import { flameState, GLSL_KEY_DIST } from '../motifs';
 import { Stage, Word3D, popHinge, popWords, row, vkeys, type Letter } from '../stage';
 
 /** The chamber's radius, the ring SOULS stands on, cap height, the flame's home and height. */
@@ -20,6 +20,7 @@ const Z_LINE = -0.25, LINE_W = 0.085;
 const MAXF = 16;
 
 const HOOKS = /* glsl */ `
+${GLSL_KEY_DIST}
 uniform float figA[${MAXF}], figH[${MAXF}], figV[${MAXF}], figT[${MAXF}];
 uniform int nFig; uniform float tNow, sway, cylR, zLine, lineW, flameX, lineOn, revealX;
 uniform vec2 home; uniform sampler2D word; uniform vec4 wordRect; uniform mat4 anaVP;
@@ -44,8 +45,21 @@ float figure(vec2 q, float v) {
   d = mix(d, smin(d, drape, 0.03), cloak);
   return d;
 }
+// the floor is the inside of a cup: black glaze with a meander border round the foot of the wall, reserved in the clay
+float border(vec2 xz) {
+  float r = length(xz), band = 0.42, r1 = cylR - 0.18, r0 = r1 - band;
+  if (r < r0 - 0.1 || r > r1 + 0.1) return 0.0;
+  float cell = band / 4.0;
+  float a = atan(xz.y, xz.x) * cylR / cell;                    // cells along the rim
+  vec2 p = vec2(mod(a, 5.0), (r - r0) / cell);
+  float d = keyDist(p) * cell;
+  float key = 1.0 - smoothstep(0.012 - gPix, 0.024 + gPix, d);
+  float rims = max(1.0 - smoothstep(0.01, 0.02 + gPix, abs(r - r0 + 0.07)), 1.0 - smoothstep(0.01, 0.02 + gPix, abs(r - r1 - 0.07)));
+  return max(key, rims);
+}
 float carve(vec2 xz) {
   float g = (1.0 - smoothstep(lineW * 0.5 - gPix, lineW + gPix, abs(xz.y - zLine))) * step(xz.x, revealX) * lineOn;
+  g = max(g, border(xz));
   return g;
 }
 // LINE in anamorphosis: the floor point as seen by the camera at the moment of the burn, read in screen space

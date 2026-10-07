@@ -8,7 +8,7 @@
 // Units: world units, y up, the floor at y = 0; letters are modelled in font px and scaled into the world.
 import * as THREE from 'three';
 import type { PathCommand } from 'opentype.js';
-import { FSPass, W, H } from '../engine/gl';
+import { FSPass, makeRT, W, H } from '../engine/gl';
 import { GLSL_COMMON } from '../engine/glsl/common';
 import { F, font, layout, ot } from '../engine/type';
 import type { Word } from '../engine/lyrics';
@@ -57,7 +57,7 @@ precision highp int;
 in vec3 vW; in vec3 vNW; in vec3 vP; in vec3 vN;
 out vec4 fragColor;
 ${GLSL_COMMON}
-uniform vec3 Lc; uniform float LI, reach, glow, lineFreq, rim, amb;
+uniform vec3 Lc, camPosL; uniform float LI, reach, glow, lineFreq, rim, amb, vaseL;
 void main() {
   vec3 N = normalize(vNW);
   vec3 L = Lc - vW; float d = length(L); L /= d;
@@ -79,6 +79,15 @@ void main() {
   float back = sat(-ndl);
   col += C_GRAPHITE * 0.018 * (1.0 - tone) * (1.0 - hatch(vP.y * lineFreq, 0.35));
   col += mix(C_SIGNAL, C_EMBER, 0.5) * rim * fall * pow(1.0 - abs(ndl), 6.0) * (1.0 - face) * 1.4;
+  // the vase style: the face is added white on the pot (bone, unhatched), the sides black glaze with a sheen
+  if (vaseL > 0.5) {
+    vec3 Vv = normalize(camPosL - vW), Hh = normalize(L + Vv);
+    float spec = pow(max(dot(N, Hh), 0.0), 90.0) * fall;
+    vec3 faceC = C_BONE * min(tone, 0.82);
+    vec3 sideC = C_INK * (0.5 + 0.5 * tone) + mix(C_EMBER, C_BONE, 0.5) * spec * 1.6;
+    col = mix(sideC, faceC, face);
+    col += mix(C_SIGNAL, C_EMBER, 0.5) * rim * fall * pow(1.0 - abs(ndl), 6.0) * (1.0 - face) * 1.2;
+  }
   // afterglow: a sung letter keeps a little warm light of its own
   col += mix(C_BONE, C_EMBER, 0.3) * amb * (0.35 + 0.65 * face) * (1.0 - 0.5 * lines);
   col = mix(col, C_EMBER * 2.2, glow * (0.6 + 0.4 * face));
@@ -194,7 +203,7 @@ export class Word3D {
       glslVersion: THREE.GLSL3, vertexShader: LETTER_VERT, fragmentShader: LETTER_FRAG,
       uniforms: {
         Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, glow: { value: 0 },
-        lineFreq: { value: o.lineFreq ?? 0.12 }, rim: { value: 1 }, amb: { value: 0 },
+        lineFreq: { value: o.lineFreq ?? 0.12 }, rim: { value: 1 }, amb: { value: 0 }, vaseL: { value: 1 }, camPosL: { value: new THREE.Vector3() },
       },
     });
     let ax = 0;
@@ -247,10 +256,11 @@ export class Word3D {
   /** Scales the light this run receives (0: a black silhouette, whatever the flame does). */
   lightMul = 1;
   /** Sets the light uniforms on every letter. */
-  light(Lc: THREE.Vector3, LI: number, reach: number, rim = 1) {
+  light(Lc: THREE.Vector3, LI: number, reach: number, rim = 1, camPos?: THREE.Vector3) {
     for (const l of this.letters) {
       const u = l.mat.uniforms;
       (u.Lc!.value as THREE.Vector3).copy(Lc);
+      if (camPos) (u.camPosL!.value as THREE.Vector3).copy(camPos);
       u.LI!.value = LI * this.lightMul; u.reach!.value = reach; u.rim!.value = rim * this.lightMul;
     }
   }
@@ -333,9 +343,15 @@ export interface StageSurfaces {
   freqWall?: number;
   /** 0..1: how much of the floor is drawn (the light's own pool fades in with it). */
   floor?: number;
-  /** 0 engraved lines, 1 a continuous lit tone (plaster), for the wall and the floor. */
+  /** 0 engraved lines, 1 a continuous lit tone (plaster), for the wall and the floor (engraving style only). */
   toneWall?: number;
   toneFloor?: number;
+  /** The vase style (default): clay walls, black-glaze floors. false: P(doom)'s engraving. */
+  vase?: boolean;
+  /** Vase style: how much of the floor's line field (floorLines) is painted, e.g. water's waves (default 0). */
+  floorLines?: number;
+  /** Vase style: how much the glaze mirrors the room (default 0.36). */
+  gloss?: number;
 }
 
 /** Default surface hooks: no grooves, no extra shadows (scenes pass their own, see `Stage` options). */
@@ -351,6 +367,11 @@ uniform mat4 invVP; uniform vec3 camPos;
 uniform vec3 Lc; uniform float LI, reach, rL;
 uniform int wallMode; uniform float wallZ; uniform vec3 cyl;
 uniform float freqF, freqW, floorOn, toneW, toneF;
+// the vase style: walls of lit clay (their shadows are black-figure), floors of black glaze that mirror the room,
+// lines only as decoration reserved in the clay
+uniform float vase, floorLineAmt, gloss, reflOn, flameOn, flameHpx;
+uniform vec2 flamePx;
+uniform sampler2D reflTex;
 uniform mat4 cardM[${MAX_CARDS}]; uniform vec4 cardBox[${MAX_CARDS}]; uniform vec4 cardMap[${MAX_CARDS}];
 uniform float cardS[${MAX_CARDS}]; uniform float cardAt[${MAX_CARDS}]; uniform int nCards;
 uniform sampler2D atlas0, atlas1, atlas2, atlas3;
@@ -402,7 +423,37 @@ vec3 warm(float b) {
 // the current pixel's footprint on the surface (world units), for the hooks' anti-aliasing
 float gPix = 0.01;
 
+/** The clay's orange, lit by b (a touch of white heat in the flame's own pool). */
+vec3 clayCol(float b) {
+  vec3 clay = mix(mix(C_BLOOD, C_SIGNAL, 0.75), C_EMBER, 0.2) * 0.8;
+  return clay * (0.02 + 0.8 * sat(b)) + C_BONE * 0.08 * smoothstep(0.9, 1.8, b);
+}
+/** Where a ray from o along r meets the wall (1e9: never). */
+float wallHit(vec3 o, vec3 r) {
+  if (wallMode == 1 && r.z < -1e-6) return (wallZ - o.z) / r.z;
+  if (wallMode == 2) {
+    vec2 oo = o.xz - cyl.xy, d = r.xz;
+    float a = dot(d, d), b = dot(oo, d), c = dot(oo, oo) - cyl.z * cyl.z;
+    float disc = b * b - a * c;
+    if (disc > 0.0 && a > 1e-8) return (-b + sqrt(disc)) / a;
+  }
+  return 1e9;
+}
+
 ${hooks}
+
+/** A point of the clay wall, lit and shadowed (for the wall and for its mirror image in the glaze). */
+vec3 clayWall(vec3 P, vec3 N, out float occ) {
+  vec3 Lv = Lc - P; float d = length(Lv); Lv /= d;
+  float fall = LI / (1.0 + (d / reach) * (d / reach) * 4.0);
+  float light = fall * (0.3 + 0.7 * max(dot(N, Lv), 0.0));
+  occ = 1.0 - (1.0 - cardShadow(P)) * (1.0 - extraShadow(P, true));
+  float across = wallMode == 1 ? P.x : atan(P.z - cyl.y, P.x - cyl.x) * cyl.z;
+  vec2 sp = vec2(across, P.y);
+  float grain = 0.92 + 0.06 * snoise(sp * 1.1) + 0.04 * snoise(sp * 19.0);
+  return clayCol(light * (1.0 - occ)) * grain;
+}
+vec3 wallNormal(vec3 P) { return wallMode == 1 ? vec3(0.0, 0.0, 1.0) : vec3(cyl.x - P.x, 0.0, cyl.y - P.z) / cyl.z; }
 
 void main() {
   vec2 ndc = FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)}) * 2.0 - 1.0;
@@ -451,6 +502,38 @@ void main() {
     float light = fall * (wall ? (0.3 + 0.7 * ndl) : (0.45 + 0.55 * ndl));
     float occ = 1.0 - (1.0 - cardShadow(P)) * (1.0 - extraShadow(P, wall));
     float b = light * (1.0 - occ);
+    if (vase > 0.5) {
+      if (wall) {
+        float o2;
+        col = clayWall(P, N, o2);
+      } else {
+        // black glaze: a little warmth where the flame is near, its highlight, and the room mirrored in it
+        vec3 Nf = vec3(0.0, 1.0, 0.0), V = -D;
+        float fres = 0.04 + 0.96 * pow(1.0 - max(V.y, 0.0), 5.0);
+        vec3 R = reflect(D, Nf);
+        float tR = wallHit(P, R);
+        vec3 refl = C_INK;
+        if (tR < 1e8) { float o3; vec3 PR = P + R * tR; refl = PR.y > 0.0 ? clayWall(PR, wallNormal(PR), o3) : C_INK; }
+        else refl = skyTint(R, C_INK);
+        if (reflOn > 0.0) { vec4 rt = texture(reflTex, FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)})); refl = mix(refl, rt.rgb, rt.a); }
+        vec3 Hh = normalize(Lv + V);
+        float spec = pow(max(Hh.y, 0.0), 260.0) * fall * (1.0 - occ);
+        col = C_INK * 0.9 + clayCol(b) * 0.05 + refl * fres * gloss + mix(C_EMBER, C_BONE, 0.45) * spec * 2.5;
+        // the flame mirrored: a broken column under it
+        if (flameOn > 0.0) {
+          float dx = abs(FRAG_PX.x - flamePx.x), below = flamePx.y - FRAG_PX.y;
+          float colm = exp(-dx / (4.0 + 0.04 * max(below, 0.0))) * smoothstep(0.0, 6.0, below) * exp(-max(below, 0.0) / (flameHpx * 1.6));
+          col += mix(C_SIGNAL, C_EMBER, 0.6) * colm * flameOn * (0.4 + 0.6 * fres) * 1.2;
+        }
+        // decoration: grooves and bands reserved in the clay, and (for water) an optional painted line field
+        float dec = carve(P.xz);
+        if (floorLineAmt > 0.0) dec = max(dec, floorLineAmt * pxLines(u, 0.9 + 1.2 * sat(b)) * smoothstep(0.01, 0.06, b + 0.03));
+        col = mix(col, clayCol(b * 1.15 + 0.06), sat(dec));
+      }
+      col = surfaceTint(P, wall, b, col);
+      fragColor = vec4(col, 1.0);
+      return;
+    }
     // white-line engraving: hairlines that swell a little in the light and stop in the shadow
     float ink = pxLines(u, 0.6 + 1.9 * sat(b * 0.85)) * smoothstep(0.015, 0.09, b);
     col = mix(C_INK, warm(b) * min(1.0, 0.35 + b), ink);
@@ -488,6 +571,7 @@ export class Stage {
   readonly bg: FSPass;
   private m4 = new THREE.Matrix4();
   private Lc = new THREE.Vector3();
+  private refl: THREE.WebGLRenderTarget | null = null;
   words: Word3D[] = [];
   /** `hooks`: GLSL defining carve(xz), extraShadow(P, wall) and surfaceTint(P, wall, b, col) (see STAGE_HOOKS_DEFAULT),
    *  with their own uniforms passed in `uniforms`. */
@@ -499,6 +583,8 @@ export class Stage {
       Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, rL: { value: 0.1 },
       wallMode: { value: 0 }, wallZ: { value: -10 }, cyl: { value: new THREE.Vector3(0, 0, 8) },
       freqF: { value: 7 }, freqW: { value: 5 }, floorOn: { value: 1 }, toneW: { value: 0 }, toneF: { value: 0 },
+      vase: { value: 1 }, floorLineAmt: { value: 0 }, gloss: { value: 0.36 }, reflOn: { value: 0 }, reflTex: { value: null },
+      flameOn: { value: 0 }, flameHpx: { value: 60 }, flamePx: { value: new THREE.Vector2() },
       cardM: { value: arr(() => new THREE.Matrix4()) }, cardBox: { value: arr(() => new THREE.Vector4()) },
       cardMap: { value: arr(() => new THREE.Vector4()) }, cardS: { value: arr(() => 1) }, cardAt: { value: arr(() => 0) }, nCards: { value: 0 },
       atlas0: { value: null }, atlas1: { value: null }, atlas2: { value: null }, atlas3: { value: null },
@@ -525,7 +611,11 @@ export class Stage {
    * (the flame first when it stands behind them). The camera must be set; the letters posed and `update()`d.
    */
   render(renderer: THREE.WebGLRenderer, out: THREE.WebGLRenderTarget, t: number, L: StageLight, S: StageSurfaces,
-    o: { flameBehind?: boolean; flameSeed?: number; gust?: number; flameI?: number; rim?: number; noFlame?: boolean; cards?: boolean } = {}) {
+    o: { flameBehind?: boolean; flameSeed?: number; gust?: number; flameI?: number; rim?: number; noFlame?: boolean; cards?: boolean;
+      /** Vase style: mirror the scene in the glaze (default true). */
+      reflect?: boolean;
+      /** Where the flame stands on screen (logical px, y down) and its height, for scenes that draw their own. */
+      flameScreen?: { x: number; y: number; h: number } } = {}) {
     const u = this.bg.u;
     const Lc = this.lightCentre(L);
     this.cam.invVP(u.invVP!.value as THREE.Matrix4);
@@ -537,6 +627,9 @@ export class Stage {
     (u.cyl!.value as THREE.Vector3).set(cy[0], cy[1], cy[2]);
     u.freqF!.value = S.freqFloor ?? 7; u.freqW!.value = S.freqWall ?? 5; u.floorOn!.value = S.floor ?? 1;
     u.toneW!.value = S.toneWall ?? 0; u.toneF!.value = S.toneFloor ?? 0;
+    u.vase!.value = S.vase === false ? 0 : 1;
+    u.floorLineAmt!.value = S.floorLines ?? 0;
+    u.gloss!.value = S.gloss ?? 0.36;
     // shadow cards: every shown letter of every casting run
     let n = 0;
     if (o.cards !== false) this.casters.forEach((w, k) => {
@@ -551,8 +644,28 @@ export class Stage {
       }
     });
     u.nCards!.value = n;
+    for (const w of this.words) w.light(Lc, L.I, L.reach, o.rim ?? 1, this.cam.cam.position);
+    // the glaze mirrors the room: the scene rendered upside down about the floor, read back by the floor shader
+    const vase = S.vase !== false;
+    if (vase && o.reflect !== false && this.scene.children.length) {
+      this.refl ??= makeRT();
+      renderer.setRenderTarget(this.refl);
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear(true, true, true);
+      this.scene.scale.y = -1; this.scene.updateMatrixWorld(true);
+      renderer.render(this.scene, this.cam.cam);
+      this.scene.scale.y = 1; this.scene.updateMatrixWorld(true);
+      u.reflTex!.value = this.refl.texture; u.reflOn!.value = 1;
+    } else u.reflOn!.value = 0;
+    // the flame's mirror column
+    const fs = o.flameScreen ?? (() => {
+      const p = this.cam.project(L.base);
+      return p.depth > 0.05 ? { x: p.x, y: p.y, h: this.cam.pxHeight(L.base, L.h) } : null;
+    })();
+    if (fs && !(o.noFlame && !o.flameScreen)) {
+      (u.flamePx!.value as THREE.Vector2).set(fs.x, H - fs.y); u.flameHpx!.value = fs.h; u.flameOn!.value = o.flameI ?? 1;
+    } else u.flameOn!.value = 0;
     this.bg.render(renderer, out);
-    for (const w of this.words) w.light(Lc, L.I, L.reach, o.rim ?? 1);
     const drawFlame = () => {
       if (o.noFlame) return;
       const p = this.cam.project(L.base);

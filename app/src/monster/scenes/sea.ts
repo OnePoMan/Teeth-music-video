@@ -6,7 +6,7 @@
 // and "Is me?" is asked where hook 1's question will stand.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
-import { Layer2D, makeRT, W, H } from '../../engine/gl';
+import { Layer2D, W, H } from '../../engine/gl';
 import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, lerp, noise1, prog, pulse } from '../../engine/util';
@@ -19,7 +19,7 @@ const SHORE = -16, CAP = 2.1;
 const END = { y: 0.25, z: 9.5, pitch: 0.152 };
 
 const HOOKS = /* glsl */ `
-uniform sampler2D refl; uniform float tSea, shoreZ; uniform vec2 flamePx; uniform float flameHpx;
+uniform float tSea, shoreZ;
 float carve(vec2 xz) { return 0.0; }
 float floorLines(vec3 P, float u) {
   return u + 0.3 * sin(P.x * 1.4 + 0.8 * sin(P.z * 0.9 + tSea * 0.35) + tSea * 0.7) + 0.05 * sin(P.x * 3.7 - tSea * 1.2);
@@ -39,21 +39,6 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   float lineG = exp(-abs(P.z - shoreZ) / max(0.06, gPix * 1.5));
   col = mix(col, C_INK, beyond);
   col += mix(C_BLOOD, C_EMBER, 0.55) * lineG * 1.1;
-  if (beyond > 0.99) return col;
-  // reflections, broken into ripple bands with depth
-  vec2 uv = FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)});
-  float rip = 0.5 * sin(P.z * 9.0 + tSea * 2.2) + 0.5 * sin(P.x * 5.0 - tSea * 1.6);
-  float band = 0.55 + 0.45 * sin(FRAG_PX.y * 0.9 + tSea * 3.0 + rip * 2.0);
-  vec4 r = texture(refl, uv + vec2(0.004 * rip, 0.0));
-  // the sky's glow mirrored in the water, the words' reflections black against it
-  vec3 Dv = normalize(P - camPos);
-  vec3 sk = skyGlow(reflect(Dv, vec3(0.0, 1.0, 0.0))) * 0.55 * band;
-  col += (sk * (1.0 - r.a) + r.rgb * 0.6 * band) * (1.0 - beyond);
-  // the flame's own reflection: a broken column under it
-  float dx = abs(FRAG_PX.x - flamePx.x);
-  float below = flamePx.y - FRAG_PX.y;
-  float colm = exp(-dx / (5.0 + 0.05 * max(below, 0.0))) * smoothstep(0.0, 10.0, below) * exp(-max(below, 0.0) / (flameHpx * 2.6));
-  col += mix(C_SIGNAL, C_EMBER, 0.6) * colm * band * 1.5;
   return col;
 }`;
 
@@ -62,7 +47,6 @@ export default class Sea extends Scene {
   private word!: Word3D;
   private txt = new Layer2D();
   private flame = new FlameSprite();
-  private refl = makeRT();
   private l1!: Line;
   private l2!: Line;
   /** The floating phrases: "What if the greatest", "we'll find", "across the sea" (tracked wide), "Is me?". */
@@ -71,7 +55,7 @@ export default class Sea extends Scene {
   override async init() {
     this.st = new Stage({
       hooks: HOOKS,
-      uniforms: { refl: { value: this.refl.texture }, tSea: { value: 0 }, shoreZ: { value: SHORE }, flamePx: { value: new THREE.Vector2() }, flameHpx: { value: 60 }, skyI: { value: 1 } },
+      uniforms: { tSea: { value: 0 }, shoreZ: { value: SHORE }, skyI: { value: 1 } },
     });
     this.word = new Word3D('THREAT', F.archivo(75, 900), { size: 220 });
     this.word.lightMul = 0.12;                            // black against the burning shore
@@ -154,22 +138,13 @@ export default class Sea extends Scene {
     const flH = LAMP.h * k * fl.h;
     const fpx = { x: lx + (fp.x - lx) * k, y: ly + (fp.y - ly) * k };
 
-    // ---- reflections: the word mirrored in the water, rendered from the same camera
-    renderer.setRenderTarget(this.refl);
-    renderer.setClearColor(0x000000, 0);
-    renderer.clear(true, true, true);
-    for (const w of this.st.words) { w.group.scale.y = -1; w.group.updateMatrixWorld(true); }
-    renderer.render(this.st.scene, this.st.cam.cam);
-    for (const w of this.st.words) { w.group.scale.y = 1; w.group.updateMatrixWorld(true); }
-
     const u = this.st.bg.u;
     u.tSea!.value = t;
     u.skyI!.value = 0.55 + 0.45 * prog(t, threat.start - 0.3, threat.start + 0.2) - 0.35 * settle;
-    (u.flamePx!.value as THREE.Vector2).set(fpx.x, H - fpx.y);
-    u.flameHpx!.value = flH;
     // the light sits in the lamp's flame (world: just above the water at the lamp)
     const Lbase = new THREE.Vector3(lampW.x + 0.35, 0.05, lampW.z);
-    this.st.render(renderer, out, t, { base: Lbase, h: 0.45 * fl.h, I: fl.I * 1.35, reach: 6.5 }, { wall: 0, freqFloor: 4.2 }, { noFlame: true, cards: false, rim: 1.4 });
+    this.st.render(renderer, out, t, { base: Lbase, h: 0.45 * fl.h, I: fl.I * 1.35, reach: 6.5 }, { wall: 0, freqFloor: 3.0, floorLines: 0.5, gloss: 0.55 },
+      { noFlame: true, cards: false, rim: 1.4, flameScreen: { x: fpx.x, y: fpx.y, h: flH } });
 
     // ---- the lamp, its flame, the small voice
     const c = this.txt.ctx;

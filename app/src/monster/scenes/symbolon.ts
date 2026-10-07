@@ -212,7 +212,7 @@ export default class Symbolon extends Scene {
       l.mat.uniforms.glow!.value = 0.5 * pulse(t, tk, 0.16) * (t >= tk ? 1 : 0) * l.on;
     }
     ew.update();
-    this.st.render(renderer, out, t, { base: Lbase, h: 1.2, I: LI * 0.8, reach: 9 }, { wall: 0, freqFloor: 5.2 }, { noFlame: true, cards: false });
+    this.st.render(renderer, out, t, { base: Lbase, h: 1.2, I: LI * 0.8, reach: 9 }, { wall: 0, freqFloor: 3.2, floorLines: 0.55 }, { noFlame: true, cards: false });
 
     return { bloom: 0.6, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0, 0.006 * imp] };
   }
