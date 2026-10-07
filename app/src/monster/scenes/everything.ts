@@ -12,60 +12,39 @@ import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
-import { ease, hash, lerp, prog, pulse } from '../../engine/util';
-import { LineBatch } from '../../engine/lines';
-import { sparkParticles } from '../../scenes/_motifs';
+import { ease, lerp, noise1, prog, pulse } from '../../engine/util';
 import { flameState } from '../motifs';
+import { GLSL_FIGURES } from '../figures';
 import { Stage, Word3D, popHinge, popWords, row, vkeys } from '../stage';
 
-/** The warrior's shadow on the wall (cast by the striker, never seen), in units of its height; m: 0 a man, 1 a monster. */
-const WARRIOR_HOOKS = /* glsl */ `
-uniform float warOn, warH, warM, warX, wallZ0;
-float warrior(vec2 q, float m) {
-  float hunch = 0.16 * m;
-  vec2 hc = vec2(0.03 + 0.15 * m, 0.885 - hunch);                                  // head, thrust forward and down
-  float d = length((q - hc) * vec2(1.0, 0.9)) - 0.062;
-  // the helmet's crest: a fan over the head, back to front; with m its edge breaks into spikes
-  vec2 cq = q - (hc + vec2(-0.015, 0.03));
-  float ca = atan(cq.x, cq.y);
-  // spines: five, long, raking back
-  float spikes = m * 0.12 * pow(max(0.0, sin(ca * 6.0 - 0.6 + 0.8 * m)), 3.0) * smoothstep(-1.2, 0.6, ca);
-  float crest = max(length(cq * vec2(0.85, 1.0)) - (0.115 + spikes), -cq.y + 0.005);
-  d = min(d, max(crest, abs(cq.x) - 0.14));
-  d = smin(d, sdSegment(q, vec2(0.0, 0.8 - hunch), hc) - 0.03, 0.02);              // neck
-  float sh = 0.12 + 0.07 * m;
-  d = smin(d, sdSegment(q, vec2(-sh, 0.79 - hunch * 0.3), vec2(sh, 0.8 - hunch * 0.5)) - (0.045 + 0.02 * m), 0.04);
-  d = smin(d, sdSegment(q, vec2(0.0, 0.5), vec2(0.0, 0.78 - hunch)) - (0.085 + 0.035 * m), 0.05);   // torso, cuirass
-  d = smin(d, max(abs(q.x) - (0.1 + 0.03 * m), abs(q.y - 0.47) - 0.06), 0.03);      // kilt
-  d = smin(d, sdSegment(q, vec2(-0.045, 0.45), vec2(-0.09 - 0.03 * m, 0.02)) - 0.038, 0.03);
-  d = smin(d, sdSegment(q, vec2(0.045, 0.45), vec2(0.1 + 0.03 * m, 0.02)) - 0.038, 0.03);
-  // the shield on the left arm
-  d = min(d, length(q - vec2(-sh - 0.06, 0.6)) - (0.14 + 0.02 * m));
-  // the spear arm: the hand drops and the forearm stretches with m; fingers become claws
-  vec2 hand = vec2(sh + 0.07 + 0.06 * m, 0.6 - 0.28 * m);
-  d = smin(d, sdSegment(q, vec2(sh, 0.79 - hunch * 0.5), hand) - 0.03, 0.03);
-  for (int i = 0; i < 3; i++) {
-    float a = -0.5 + 0.5 * float(i);
-    d = min(d, sdSegment(q, hand, hand + m * 0.13 * vec2(sin(a) + 0.3, -cos(a))) - 0.014 * m);
-  }
-  // the spear: upright in the hand, longer with m, a leaf blade at the top
-  float top = 1.3 + 0.35 * m;
-  d = min(d, sdSegment(q, vec2(hand.x + 0.01, 0.02), vec2(hand.x + 0.02, top)) - 0.012);
-  vec2 bq = q - vec2(hand.x + 0.02, top + 0.06);
-  d = min(d, max(abs(bq.x) * 2.2 + abs(bq.y) - 0.11, 0.0) - 0.0);
-  return d;
+/** The opening's shadow theatre on the clay wall (src/monster/figures.ts): the four monsters, one per musical event,
+ *  morphing into each other (weights figW), with their animation (figA, figB) and placement (figT). */
+const HOOKS = GLSL_FIGURES + /* glsl */ `
+uniform vec4 figW, figA, figB, figT;
+uniform float figOn;
+float monsters(vec2 p) {
+  vec2 q = (p - figT.xy) / figT.z;
+  if (abs(q.x) > 13.0 || q.y > 10.5 || q.y < -1.0) return 1e3;
+  float d = 0.0;
+  if (figW.x > 0.001) d += figW.x * polyphemus(q, figA.x, figB.y);
+  if (figW.y > 0.001) d += figW.y * circe(q, figA.y);
+  if (figW.z > 0.001) d += figW.z * poseidon(q, figA.z, figB.w, figB.x);
+  if (figW.w > 0.001) d += figW.w * trojanHorse(q - vec2(figB.z, 0.0), figA.w, figT.w, figB.z);
+  return d / max(dot(figW, vec4(1.0)), 1e-3) * figT.z;
 }
 float carve(vec2 xz) { return 0.0; }
 float floorLines(vec3 P, float u) { return u; }
 float extraShadow(vec3 P, bool wall) {
-  if (!wall || warOn <= 0.0) return 0.0;
-  vec2 q = vec2(P.x - warX, P.y) / warH;
-  if (abs(q.x) > 0.6 || q.y > 1.6) return 0.0;
-  float d = warrior(q, warM) * warH;
-  return warOn * (1.0 - smoothstep(-0.03, 0.05, d));
+  if (!wall || figOn <= 0.0) return 0.0;
+  float w = max(gPix * 0.75, 0.01);
+  return figOn * (1.0 - smoothstep(-w, w, monsters(P.xy)));
 }
 vec3 skyTint(vec3 D, vec3 col) { return col; }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) { return col; }`;
+
+/** The opening's events: Polyphemus on the swell, Circe on the bass note, Poseidon on the rising figure, the horse
+ *  on its last notes (audio.json: bass 1.75-2.75, 'orch' 3.01, 3.34, 3.67, 3.84, 4.18). */
+const OPEN = { circe: 1.7, poseidon: 2.7, horse: 3.67, morph: 0.16 };
 
 /** The word stands on a shallow arc (centre z, radius) facing the camera; cap height; the wall; the flame's height. */
 const ARC = { cz: 4.5, R: 11 }, CAP = 1.75, WALL_Z = -10.6, FLAME_H = 0.78;
@@ -75,10 +54,15 @@ const BEHIND = new THREE.Vector3(0, 0, -8.7);
 const VOICE3D = () => F.archivo(112.5, 600);
 
 export default class Everything extends Scene {
-  private st = new Stage({ hooks: WARRIOR_HOOKS, uniforms: { warOn: { value: 0 }, warH: { value: 3 }, warM: { value: 0 }, warX: { value: 0 }, wallZ0: { value: WALL_Z } } });
-  private sparks = new LineBatch(20000);
-  /** The flint's strikes (the bass note, then the rising figure's notes) and the strike that catches. */
-  private strikes: number[] = [];
+  private st = new Stage({
+    hooks: HOOKS,
+    uniforms: {
+      figW: { value: new THREE.Vector4(1, 0, 0, 0) }, figA: { value: new THREE.Vector4() }, figB: { value: new THREE.Vector4() },
+      figT: { value: new THREE.Vector4(0, 0, 1, 0) }, figOn: { value: 0 },
+    },
+  });
+  /** The rising figure's notes ('orch' onsets), for the opening's events. */
+  private hits: number[] = [];
   private tCatch = 3.84;
   private hero!: Word3D;
   private howHas!: Word3D;
@@ -87,11 +71,8 @@ export default class Everything extends Scene {
   private line!: Line;
 
   override async init() {
-    const au = this.ctx.audio;
-    const hits = au.events('orch', 2.5, 4.1).map(([t]) => t);
-    const pre = [au.timeOfBeat(3), ...hits.filter((t) => t < 3.75)].filter((t, i, a) => i === 0 || t - a[i - 1]! > 0.12);
-    this.tCatch = hits.find((t) => t >= 3.75) ?? 3.84;
-    this.strikes = [...pre, this.tCatch];
+    this.hits = this.ctx.audio.events('orch', 2.5, 4.5).map(([t]) => t);
+    this.tCatch = this.hits.find((t) => t >= 3.75) ?? 3.84;
     this.line = this.ctx.lyrics.get('How has everything');
     const ws = this.line.words;
     this.hero = new Word3D('EVERYTHING', F.archivo(87.5, 900), { size: 220 });
@@ -105,6 +86,54 @@ export default class Everything extends Scene {
     return this.line.words.find((x) => x.w.toLowerCase().replace(/[^a-z]/g, '') === s)!;
   }
 
+  /**
+   * The opening (0 to the first word): a fire behind us lights the clay wall of the cave and throws the monsters'
+   * shadows on it, one per musical event, each turning into the next: Polyphemus over his flock (his eye opens at
+   * the top of the swell), Circe at her cup (the man at it becomes a pig on the bass note), Poseidon (the wave
+   * heaves, the trident is driven up through it on the first note of the figure, the galley pitches up on the
+   * second), the wooden horse (rolls in on the third, its hatches open on the fourth and fifth).
+   */
+  private opening(t: number, out: THREE.WebGLRenderTarget): PostOverrides {
+    const { renderer, audio } = this.ctx;
+    const h = this.hits, hit = (i: number, d: number) => h[i] ?? d;
+    const m = OPEN.morph;
+    const toC = prog(t, OPEN.circe - m / 2, OPEN.circe + m / 2, ease.inOutCubic);
+    const toP = prog(t, OPEN.poseidon - m / 2, OPEN.poseidon + m / 2, ease.inOutCubic);
+    const toH = prog(t, OPEN.horse - 0.02, OPEN.horse + m, ease.inOutCubic);
+    const w = [1 - toC, toC - toP, toP - toH, toH] as const;
+    const u = this.st.bg.u;
+    const eye = prog(t, 0.95, 1.4, ease.outCubic);
+    const pig = prog(t, 1.95, 2.45, ease.inOutCubic);
+    const wave = lerp(prog(t, OPEN.poseidon - 0.05, hit(0, 3.01), ease.outCubic), 0, prog(t, OPEN.horse, OPEN.horse + 0.25, ease.inCubic));
+    const thrust = prog(t, hit(0, 3.01) - 0.06, hit(0, 3.01) + 0.07, ease.outCubic);
+    const tip = prog(t, hit(1, 3.34) - 0.04, hit(1, 3.34) + 0.32, ease.outBack);
+    // the horse rolls in from the left and stops on the fourth note; its hatches open on the fourth and fifth
+    const roll = -9 * (1 - prog(t, OPEN.horse - 0.02, hit(3, 3.84), ease.outCubic));
+    const h1 = prog(t, hit(3, 3.84) - 0.02, hit(3, 3.84) + 0.2, ease.outCubic);
+    const h2 = prog(t, hit(4, 4.18) - 0.02, hit(4, 4.18) + 0.2, ease.outCubic);
+    // placement: each figure framed on its own (x, scale), blended through the morphs; the fire's flicker sways them
+    const fl = flameState(audio, t, 0);
+    const pl = [[0, 1], [0.2, 1.18], [0.2, 1.0], [-0.2, 1.12]] as const;
+    let px = 0, ps = 0;
+    w.forEach((wi, i) => { px += wi * pl[i]![0]; ps += wi * pl[i]![1]; });
+    const sway = 1 + 0.006 * noise1(t * 6.1, 41);
+    (u.figW!.value as THREE.Vector4).set(...w);
+    (u.figA!.value as THREE.Vector4).set(eye, pig, wave, h1);
+    (u.figB!.value as THREE.Vector4).set(tip, t, roll, thrust);
+    (u.figT!.value as THREE.Vector4).set(px + 0.03 * noise1(t * 5.3, 43), 0, ps * sway, h2);
+    u.figOn!.value = 1;
+    // the camera faces the wall, drifting in
+    const pos = new THREE.Vector3(0, 3.6, lerp(7.6, 6.4, prog(t, 0, this.line.words[0]!.start, ease.inOutQuad)));
+    this.st.cam.set(pos, new THREE.Vector3(0, 4.2, WALL_Z), 40);
+    // the fire: behind us, over the right shoulder; it comes up with the swell and flares on the figure's notes
+    const up = prog(t, 0, 1.25, ease.inOutQuad);
+    const Lc = new THREE.Vector3(pos.x + 2.4, pos.y + 2.4, pos.z + 3.2);
+    for (const wd of this.st.words) { for (const l of wd.letters) l.on = 0; wd.update(); }
+    this.st.render(renderer, out, t, { base: Lc, h: 0.6, I: (0.06 + 0.94 * up) * fl.I * 1.9, reach: 40 }, { wall: 1, wallZ: WALL_Z },
+      { noFlame: true, cards: false, reflect: false });
+    return { bloom: 0.5, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3 };
+  }
+
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const t = f.t, { renderer, audio } = this.ctx;
     const [how, has] = this.line.words as [Word, Word];
@@ -112,21 +141,10 @@ export default class Everything extends Scene {
     const tThrow = ev.start - 0.03;                   // the camera is thrown back as "everything" sounds
     const tLand = us.start;                           // the flame lands behind the word on "us?"
 
-    // ---- the opening: flint strikes in the dark, each lighting the cave for an instant; the last one catches
-    const tc = this.tCatch;
-    let flash = 0, si = -1;
-    this.strikes.forEach((ts, i) => {
-      if (t >= ts) { const p = Math.pow(0.5, (t - ts) / (i === this.strikes.length - 1 ? 0.18 : 0.085)); if (p > flash) flash = p; si = i; }
-    });
-    const born = prog(t, tc, tc + 0.35, ease.outCubic);
-    // the shadow on the wall: one per strike before the catch, larger and less a man each time
-    const ns = this.strikes.length - 1;
-    const wu = this.st.bg.u;
-    const k = Math.max(0, Math.min(si, ns - 1));
-    wu.warOn!.value = si >= 0 && si < ns ? 1 : 0;
-    wu.warH!.value = 4.4 + 1.1 * k;
-    wu.warM!.value = ns > 1 ? k / (ns - 1) : 1;
-    wu.warX!.value = -0.6 + 0.35 * k;
+    // ---- the opening: the monsters' shadows on the clay wall, until the first word
+    if (t < how.start) return this.opening(t, out);
+    const tc = this.tCatch, born = 1, flash = 0;
+    this.st.bg.u.figOn!.value = 0;
 
     // ---- the flame: at home, then a leap over the word (a parabola in the vertical plane), landing behind it
     const fl = flameState(audio, t, 0);
@@ -169,7 +187,7 @@ export default class Everything extends Scene {
 
     // ---- the camera: close on the flame; thrown back on the word; drifts in as the shadows come
     // in the dark the camera stands back to see the wall, stepping in on every strike; on the catch it rushes in
-    const stepIn = this.strikes.slice(0, -1).reduce((a, ts) => a + 0.45 * prog(t, ts, ts + 0.3, ease.outExpo), 0);
+    const stepIn = 0;
     const pos = vkeys(t, [
       [0, [0.0, 1.9, 5.6 - stepIn]],
       [tc, [0.0, 1.8, 5.6 - stepIn], ease.linear],
@@ -201,17 +219,6 @@ export default class Everything extends Scene {
     this.st.render(renderer, out, t, { base: fb, h: flH, I: LI * 1.15, reach }, { wall: 1, wallZ: WALL_Z, freqFloor: 6.5, freqWall: 4.2, toneWall: 1 },
       // the walls are shadow screens: plaster in one lit tone; the floor stays engraved
       { flameBehind: behind, noFlame: born <= 0, flameI: lerp(1, 0.5, close) * lerp(1.8, 1, born), gust: fl.gust * 0.6 - 0.8 * Math.cos(Math.PI * leap) * prog(t, turned.start, tLand) * (1 - prog(t, tLand - 0.2, tLand)), rim: 1.2 });
-
-    // the flint's sparks, drawn over the frame at the strike point
-    const lb = this.sparks;
-    lb.clear();
-    const flint = this.st.cam.project({ x: 0.05, y: 0.08, z: 0.2 });
-    this.strikes.forEach((ts, i) => {
-      if (t < ts || t > ts + 0.7) return;
-      const head = (tb: number) => (tb >= ts && tb < ts + 0.05 ? { x: flint.x + (hash(i, 3) - 0.5) * 8, y: flint.y } : null);
-      sparkParticles(lb, t, head, { rate: 1100, life: 0.55, speed: 520 + 140 * hash(i, 5), gravity: 1100, intensity: 1.3, seed: 17 + i * 13 });
-    });
-    lb.render(renderer, out);
 
     return { bloom: lerp(0.75, 0.45, close), bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6, halation: 0.35, shake: [0, 0.004 * land] };
   }

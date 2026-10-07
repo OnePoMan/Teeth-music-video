@@ -500,13 +500,14 @@ void main() {
     }
     float ndl = max(dot(N, Lv), 0.0);
     float light = fall * (wall ? (0.3 + 0.7 * ndl) : (0.45 + 0.55 * ndl));
-    float occ = 1.0 - (1.0 - cardShadow(P)) * (1.0 - extraShadow(P, wall));
-    float b = light * (1.0 - occ);
+    float occ, b;
     if (vase > 0.5) {
       if (wall) {
-        float o2;
-        col = clayWall(P, N, o2);
+        col = clayWall(P, N, occ);
+        b = light * (1.0 - occ);
       } else {
+        occ = 1.0 - (1.0 - cardShadow(P)) * (1.0 - extraShadow(P, wall));
+        b = light * (1.0 - occ);
         // black glaze: a little warmth where the flame is near, its highlight, and the room mirrored in it
         vec3 Nf = vec3(0.0, 1.0, 0.0), V = -D;
         float fres = 0.04 + 0.96 * pow(1.0 - max(V.y, 0.0), 5.0);
@@ -534,6 +535,8 @@ void main() {
       fragColor = vec4(col, 1.0);
       return;
     }
+    occ = 1.0 - (1.0 - cardShadow(P)) * (1.0 - extraShadow(P, wall));
+    b = light * (1.0 - occ);
     // white-line engraving: hairlines that swell a little in the light and stop in the shadow
     float ink = pxLines(u, 0.6 + 1.9 * sat(b * 0.85)) * smoothstep(0.015, 0.09, b);
     col = mix(C_INK, warm(b) * min(1.0, 0.35 + b), ink);
