@@ -23,8 +23,13 @@ export function makeTimeline(ly: Lyrics, au: AudioData): TimelineEntry[] {
   const outro = au.sections.find((x) => x.name === 'outro')?.start ?? cut('Penelope', 1);
 
   const b = {
-    questions: cut('How has everything'),
-    shades: cut("I'm surrounded"),
+    everything: cut('How has everything'),
+    endless: cut('How did suffering'),
+    symbolon: cut('How am I to reunite'),
+    change: cut('Do I need to change'),
+    souls: cut("I'm surrounded"),
+    line: cut("I'm the only one"),
+    sea: cut('What if the greatest threat'),
     hook1: cut("What if I'm the monster", 0),
     mirror: cut("What if I'm in the wrong"),
     cyclops: cut('Is the cyclops'),
@@ -47,9 +52,15 @@ export function makeTimeline(ly: Lyrics, au: AudioData): TimelineEntry[] {
     ({ id, load: scene(file), start, end, ...extra });
 
   return [
-    E('strike', 'strike', 0, b.questions),
-    E('questions', 'questions', b.questions, b.shades),
-    E('shades', 'shades', b.shades, b.hook1),
+    E('strike', 'strike', 0, b.everything),
+    // verse 1 (revision 1 pilot): one shot per line, cut on the beat before each line
+    E('everything', 'everything', b.everything, b.endless),
+    E('endless', 'endless', b.endless, b.symbolon),
+    E('symbolon', 'symbolon', b.symbolon, b.change),
+    E('change', 'change', b.change, b.souls),
+    E('souls', 'souls', b.souls, b.line),
+    E('line', 'line', b.line, b.sea),
+    E('sea', 'sea', b.sea, b.hook1),
     E('hook1', 'hook', b.hook1, b.mirror, { params: { n: 1 } }),
     E('mirror', 'mirror', b.mirror, b.cyclops),
     E('cyclops', 'cyclops', b.cyclops, b.circe),

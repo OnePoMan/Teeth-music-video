@@ -32,6 +32,17 @@ A code-rendered, word-synced music video for "Monster" (Jorge Rivera-Herrans, *E
 
 Unchanged from `docs/TREATMENT.md`: every line readable and synced per word (a word appears or lights at its `start`, completes by its `end`, never ahead of the voice); each plate integrates the lyric graphically and differently; title-safe margins. New: lines with `voice: "ensemble"` (the chorus' "Monster" interjections) are set apart from Odysseus' lines (they are the shades answering him).
 
+## Grammar (revision 1, after the client's review of the first verse frames)
+
+The first build of verse 1 read as subtitles over a quiet scene: two-line couplets in one setting at top left, unsung words shown for seconds, one slow crane for 40 s, an empty frame with a small flame. P(doom)'s own rules forbid all of it (`docs/TREATMENT.md`: words are part of the image, anticipation ~0.4 s, something always moving). Every plate now follows these rules (client-approved):
+
+1. **One phrase on screen**: 1–4 words, each appearing as it is sung (≤ 0.4 s anticipation); the phrase is pushed out on the next beat. No couplets, no ghosted unsung text.
+2. **One hero word per line** at frame scale (Archivo condensed/black, or carved), the rest of the line small.
+3. **The type is a physical thing in the flame's world**: letters that stand and cast shadows, carved, painted on clay, floating, burned in by the flame. The lit word is what he sings; its shadow is what it means.
+4. **Something happens every bar** (2.67 s; every 2 beats in the choruses and the bridge): sub-cuts, whips, orbits, pushes, snaps, easing into downbeats. The flame travels like P(doom)'s spark, so the shadows sweep.
+5. **Full-frame engraved detail** with a full value range in every shot; the flame shown big in close-ups.
+6. **A Greek medium per plate** (shadow theatre, red- and black-figure vase painting, carved frieze, stele, sea chart, masonry, bronze), one palette and type system throughout.
+
 ## Motifs
 
 1. **The flame** and its shadow: the through-line, like the spark. Every shadow in the video is cast by it.
@@ -76,6 +87,7 @@ Unchanged from `docs/TREATMENT.md`: every line readable and synced per word (a w
 - The palette moves toward black-figure gradually and very subtly across chorus 2; the full flip is chorus 3.
 - Final render: the command-line pipeline (headless Chrome + x264, as P(doom)) on a GPU machine.
 - Hook 1: the reflection is the future (black-figure, in the water) and has no question mark.
+- Revision 1 grammar (above): one phrase + hero word, an event every bar (2 beats when loud), a Greek medium per plate. Verse 1 is rebuilt first as the pilot and reviewed as a clip before any other plate.
 
 ## Open questions
 
