@@ -37,16 +37,31 @@ float frontEye(float d, vec2 p, vec2 c, float w, float k) {
   return min(max(d, -al), max(length(p - c) - 0.38 * w, al));
 }
 
-// ---- a sheep, walking (phase w), facing +x, about 1.3 tall
-float sheep(vec2 p, float w) {
-  float d = sdEll(p - vec2(0.0, 0.8), vec2(0.7, 0.4));
-  for (int i = 0; i < 5; i++) d = min(d, sdCircle(p - vec2(-0.55 + 0.28 * float(i), 1.06 + 0.06 * sin(float(i) * 2.3)), 0.21));   // fleece
-  d = smin(d, sdEll(rot2(0.45) * (p - vec2(0.86, 0.86)), vec2(0.3, 0.17)), 0.1);                    // head, a little lowered
-  d = min(d, sdEll(rot2(-0.35) * (p - vec2(0.7, 1.06)), vec2(0.15, 0.06)));                          // ear
-  d = min(d, sdCircle(p - vec2(-0.74, 0.92), 0.11));                                                 // tail
-  for (int i = 0; i < 4; i++) {
-    float x = -0.45 + 0.3 * float(i), sw = 0.12 * sin(w + float(i) * 1.6);
-    d = min(d, sdSegment(p, vec2(x, 0.55), vec2(x + sw, 0.0)) - 0.07);
+// ---- a sheep, walking, facing +x, about 1.8 tall: a white fleece like a cloud, and a black face and black legs
+float sheepFleece(vec2 p) {
+  vec2 c = p - vec2(-0.05, 1.12);
+  float d = sdEll(c, vec2(0.8, 0.44));
+  for (int i = 0; i < 13; i++) {                                                                     // the wool's scalloped edge
+    float a = 6.2831853 * float(i) / 13.0;
+    d = min(d, sdCircle(c - vec2(0.8 * cos(a), 0.44 * sin(a)), 0.2 + 0.035 * sin(float(i) * 2.7)));
+  }
+  return min(d, sdCircle(p - vec2(-1.02, 1.22), 0.13));                                             // the tail, woolly
+}
+float sheepCurls(vec2 p) {
+  // a few curls of wool, drawn black on the white fleece
+  float d = 1e3;
+  for (int i = 0; i < 6; i++) {
+    vec2 c = p - vec2(-0.62 + 0.25 * float(i), 1.12 + 0.17 * sin(float(i) * 2.1));
+    d = min(d, max(abs(length(c) - 0.085) - 0.022, -c.y - 0.02));
+  }
+  return d;
+}
+float sheepRest(vec2 p, float w) {
+  float d = sdEll(rot2(0.6) * (p - vec2(1.0, 1.06)), vec2(0.33, 0.17));                             // the face, long, lowered
+  d = min(d, sdEll(rot2(-0.25) * (p - vec2(0.8, 1.3)), vec2(0.2, 0.065)));                           // the ear, out sideways
+  for (int i = 0; i < 4; i++) {                                                                      // the legs, walking
+    float x = (i < 2) ? -0.55 + 0.22 * float(i) : 0.36 + 0.22 * float(i - 2), sw = 0.13 * sin(w + float(i) * 1.6);
+    d = min(d, sdSegment(p, vec2(x, 0.75), vec2(x + sw, 0.0)) - 0.09);
   }
   return d;
 }
@@ -55,7 +70,7 @@ float sheep(vec2 p, float w) {
 float polyphemus(vec2 p, float eye, float t) {
   vec2 h = p - vec2(0.0, 6.4);
   float d = sdEll(h, vec2(1.85, 2.25)) + 0.11 * snoise(p * 1.6) * smoothstep(-0.5, 1.8, h.y);   // shaggy head
-  d = smin(d, sdEll(p - vec2(0.0, 5.0), vec2(1.6, 1.2)) + 0.13 * snoise(p * 2.2), 0.3);           // jaw and beard
+  d = smin(d, sdEll(p - vec2(0.0, 5.2), vec2(1.55, 1.1)) + 0.1 * snoise(p * 2.2), 0.3);            // cheeks and jaw
   d = min(d, sdEll(p - vec2(-1.92, 6.25), vec2(0.3, 0.52)));                                       // ears
   d = min(d, sdEll(p - vec2(1.92, 6.25), vec2(0.3, 0.52)));
   d = smin(d, sdBox(p - vec2(0.0, 4.1), vec2(1.0, 0.7)), 0.4);                                     // neck
@@ -69,29 +84,34 @@ float polyphemus(vec2 p, float eye, float t) {
     float f = 0.5 + 0.15 * float(i), s = (i == 1) ? -1.0 : 1.0;
     d = min(d, sdCircle(p - mix(c0, c1, f) - s * cn * (0.26 + 0.36 * f) * 0.85, 0.17));
   }
-  // incisions: a scowling brow, the beard's strands, the fingers round the club
+  // the beard: shaggy, from the jaw down over his chest, parted from the chest by a line of clay that fades out at
+  // the chin (no line across the face)
+  float beard = min(sdEll(p - vec2(0.0, 4.55), vec2(1.3, 0.95)), sdEll(p - vec2(0.0, 3.85), vec2(1.0, 0.85))) + 0.11 * snoise(p * 3.2) + 0.05 * snoise(p * 7.0);
+  float gap = 0.06 * smoothstep(4.75, 4.4, p.y);
+  d = min(mix(d, max(d, gap - beard), smoothstep(0.0, 0.03, gap)), beard);
+  // incisions: a scowling brow, the fingers round the club
   d = incise(d, sdSegment(p, vec2(-1.35, 7.62), vec2(-0.14, 7.25)), 0.065);
   d = incise(d, sdSegment(p, vec2(1.35, 7.62), vec2(0.14, 7.25)), 0.065);
-  d = incise(d, max(abs(length((p - vec2(0.0, 6.45)) * vec2(0.82, 1.0)) - 1.28), p.y - 5.75), 0.045);   // the beard's edge
-  for (int i = 0; i < 7; i++) {                                                                     // its strands, fanning down
-    float f = -1.0 + 2.0 * float(i) / 6.0;
-    vec2 a0 = vec2(0.0, 6.45) + vec2(f * 1.0, -1.28 * sqrt(max(1.0 - f * f * 0.62, 0.0)) - 0.12);
-    d = incise(d, sdSegment(p, a0, a0 + vec2(f * 0.45, -0.95 + 0.2 * abs(f))), 0.028);
-  }
   for (int i = 0; i < 3; i++) d = incise(d, sdSegment(p, vec2(3.3, 3.25 + 0.22 * float(i)), vec2(4.3, 3.45 + 0.22 * float(i))), 0.03);
-  // the eye: one almond through the brow, opening (the lit clay shows through it), its iris black
-  float ey = max(eye, 0.001);
-  vec2 e = (p - vec2(0.0, 6.75)) / vec2(1.0, ey);
-  float almond = max(length(e - vec2(0.0, -0.66)) - 1.02, length(e - vec2(0.0, 0.66)) - 1.02) * min(1.0, ey);
+  // the eye: one almond through the brow, opening (the lit clay shows through it), its iris black; shut, a slit
+  vec2 e = p - vec2(0.0, 6.75);
+  float almond = max(max(length(e - vec2(0.0, -0.66)) - 1.02, length(e - vec2(0.0, 0.66)) - 1.02), abs(e.y) - 0.36 * eye - 0.012);
   d = max(d, -almond);
-  d = min(d, max(sdCircle(p - vec2(0.0, 6.73), 0.27), almond));
-  // the flock crossing before him: reserved in the clay where they cross his shadow, black beyond it
-  float fl = 1e3;
+  d = min(d, max(sdCircle(p - vec2(0.0, 6.73), 0.27), almond + 0.02 * (1.0 - smoothstep(0.2, 0.5, eye))));
+  // the flock crossing before him: the fleece is reserved in the clay (white wool, a few black curls in it), the black
+  // faces and legs are parted from him by a line of clay
+  float fl = 1e3, curls = 1e3, rest = 1e3;
   for (int i = 0; i < 3; i++) {
-    float x = -5.2 + 2.6 * float(i) + 1.4 * t;
-    fl = min(fl, sheep(p - vec2(x, 0.0), t * 9.0 + float(i) * 2.1));
+    vec2 sp = p - vec2(-5.6 + 3.0 * float(i) + 1.4 * t, 0.0);
+    fl = min(fl, sheepFleece(sp));
+    curls = min(curls, sheepCurls(sp));
+    rest = min(rest, sheepRest(sp, t * 9.0 + float(i) * 2.1));
   }
-  return max(min(d, fl), -max(d, fl));
+  // (the wool is white wherever a sheep walks, on his chest or past it: reserved in the clay with a black outline)
+  d = max(d, -fl);
+  d = min(d, abs(fl) - 0.05);
+  d = min(d, max(curls, fl));
+  return before(d, rest, 0.04);
 }
 
 // ---- a man on all fours at the cup, facing -x (k 0); a pig (k 1)

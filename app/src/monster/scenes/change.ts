@@ -2,7 +2,8 @@
 // The shadow play proper, lit by the fire behind us (never seen): CHANGE? stands in a row before the clay wall, its
 // shadow on it. From the downbeat after the word, on every eighth note one letter snaps round and comes back
 // black-glazed, and each one throws a bigger shadow than the last. Then, on the notes of the rising figure, the
-// shadow becomes the four monsters of verse 2, one by one: Polyphemus, Circe, Poseidon, the horse.
+// shadow gives way to the four monsters of verse 2, one by one, a frieze above the word with room between them
+// (client note: the first version crowded them): Polyphemus, Circe, Poseidon, the horse.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F } from '../../engine/type';
@@ -15,13 +16,15 @@ import { Stage, Word3D, popHinge, popWords, row, vkeys } from '../stage';
 const CAP = 1.15, ROW_Z = -2.3, WALL_Z = -6.2;
 /** The fire behind us (world). */
 const FIRE = new THREE.Vector3(7.0, 1.7, 10.5);
-/** The letters (by index in CHANGE?) whose shadow each monster takes, and its natural height and centre (figure units). */
+/** Each monster's natural height, width and centre (figure units). */
 const GROUPS = [
-  { letters: [0, 1], h: 9.2, cx: 0.0 },
-  { letters: [2, 3], h: 6.6, cx: -0.1 },
-  { letters: [4, 5], h: 8.9, cx: 0.7 },
-  { letters: [6], h: 7.3, cx: 0.3 },
+  { h: 9.2, w: 10.0, cx: 0.15 },
+  { h: 6.6, w: 9.1, cx: 0.1 },
+  { h: 8.9, w: 6.2, cx: 0.7 },
+  { h: 7.3, w: 7.4, cx: 0.3 },
 ] as const;
+/** The frieze: its height on the wall, how high it stands (clear of the word), the room between figures, its centre x. */
+const FRIEZE = { h: 3.7, y: 1.5, gap: 1.0, cx: -2.1 };
 
 const HOOKS = GLSL_FIGURES + /* glsl */ `
 uniform vec4 mX, mY, mS, mOn;                       // each monster: feet on the wall (x, y), scale, shown (0..1)
@@ -112,29 +115,20 @@ export default class Change extends Scene {
     const L = { base: FIRE, h: 0.8, I: fl.I * 2.3, reach: 40 };
     const Lc = this.st.lightCentre(L).clone();
 
-    // ---- the shadow becomes the monsters, one per note: each takes its letters' shadow and grows out of it
+    // ---- on the first note the word's shadow gives way to the monsters, one per note, each in its own place in a
+    // frieze above the word: all of a height, side by side with room between them
     const u = this.st.bg.u;
-    // the monsters stand as one frieze, all of a height: half as tall again as the word's shadow at its tallest
-    let hF = 0;
-    for (const l of wd.letters) hF = Math.max(hF, this.onWall(new THREE.Vector3(l.x, CAP * (l.shadowS ?? 1), l.z), Lc).y);
-    hF *= 1.25;
+    for (const l of wd.letters) l.castShadow = t < this.notes[0]! - 0.01;
+    const scs = GROUPS.map((g) => FRIEZE.h / g.h), ws = GROUPS.map((g, i) => g.w * scs[i]!);
+    let x = FRIEZE.cx - (ws.reduce((a, b) => a + b, 0) + FRIEZE.gap * (GROUPS.length - 1)) / 2;
     GROUPS.forEach((g, i) => {
-      const tn = this.notes[i]!;
+      const tn = this.notes[i]!, sc = scs[i]!;
       const on = ease.outBack(prog(t, tn - 0.02, tn + 0.18));
-      let x0 = Infinity, x1 = -Infinity;
-      for (const k of g.letters) {
-        const l = wd.letters[k]!, ss = l.shadowS ?? 1, half = 0.5 * (l.box[2] - l.box[0]) * s * ss;
-        const a = this.onWall(new THREE.Vector3(l.x - half, 0, l.z), Lc), b = this.onWall(new THREE.Vector3(l.x + half, CAP * ss, l.z), Lc);
-        x0 = Math.min(x0, a.x); x1 = Math.max(x1, b.x);
-        l.castShadow = t < tn - 0.01;
-      }
-      // as tall again as the shadow it takes, standing on the floor line
-      const sc = hF / g.h;
-      const cx = (x0 + x1) / 2, mid = this.onWall(new THREE.Vector3(0, 0, ROW_Z), Lc).x;
-      (u.mX!.value as THREE.Vector4).setComponent(i, mid + (cx - mid) * 1.6 - g.cx * sc);
-      (u.mY!.value as THREE.Vector4).setComponent(i, 0);
+      (u.mX!.value as THREE.Vector4).setComponent(i, x + ws[i]! / 2 - g.cx * sc);
+      (u.mY!.value as THREE.Vector4).setComponent(i, FRIEZE.y);
       (u.mS!.value as THREE.Vector4).setComponent(i, sc);
       (u.mOn!.value as THREE.Vector4).setComponent(i, t >= tn - 0.02 ? Math.max(on, 0.001) : 0);
+      x += ws[i]! + FRIEZE.gap;
     });
     u.mT!.value = t;
     wd.update();
@@ -142,9 +136,9 @@ export default class Change extends Scene {
     // ---- the camera: a three-quarter view of word and wall, drawing back as the shadow grows, pushing in at the end
     const bEnd = audio.beatAt(flipAt(n - 1));
     const pos = vkeys(t, [[T0, [3.4, 1.5, 6.6]], [change.start, [2.7, 0.85, 6.2], ease.outCubic], [flipAt(0), [2.6, 0.9, 6.3], ease.linear],
-      [audio.timeOfBeat(bEnd + 0.5), [2.4, 1.1, 7.6], ease.inOutCubic], [this.notes[0]!, [2.3, 1.1, 7.8], ease.linear], [T1, [2.1, 1.05, 7.9], ease.inOutCubic]]);
+      [audio.timeOfBeat(bEnd + 0.5), [2.4, 1.1, 7.6], ease.inOutCubic], [this.notes[0]!, [2.3, 1.1, 7.8], ease.linear], [T1, [1.6, 1.15, 9.4], ease.inOutCubic]]);
     const at = vkeys(t, [[T0, [0.0, 1.6, -3.5]], [change.start, [0.0, 2.2, -4.5], ease.outCubic], [flipAt(0), [-0.3, 2.3, -4.6], ease.linear],
-      [audio.timeOfBeat(bEnd + 0.5), [-0.9, 2.6, -5.0], ease.inOutCubic], [T1, [-1.0, 2.7, -5.2], ease.linear]]);
+      [audio.timeOfBeat(bEnd + 0.5), [-0.9, 2.6, -5.0], ease.inOutCubic], [T1, [-1.4, 2.9, -5.2], ease.inOutCubic]]);
     const kick = this.notes.reduce((a, tn) => a + pulse(t, tn, 0.08), 0);
     pos.y += 0.02 * kick;
     this.st.cam.set(pos, at, 42);
