@@ -1,20 +1,21 @@
 // `souls` — verse 1b, lines 1–2 (docs/MONSTER.md, revision 1), one round chamber, two set-ups.
-// "I'm surrounded by the souls of those I've lost": a round cave, the flame in the middle. On every word a shadow
-// of a man stands up on the wall, and nobody casts it. SOULS folds up in a ring round the flame as it is sung, its
+// "I'm surrounded by the souls of those I've lost": a round cave lit by the fire behind us (never seen). On every
+// word a shadow of a man stands up on the wall, and nobody casts it. SOULS folds up in a ring as it is sung, its
 // letters lit, and what they throw on the wall is not letters: each casts a person. The camera circles above.
-// "I'm the only one whose line I haven't crossed": down at floor level. The flame runs to the left and, on "line",
-// sweeps across the chamber burning a line into the floor; LINE is burned in beside it, drawn in anamorphosis so it
-// reads from where we stand. Every shadow is beyond the line; his side is empty. The camera cranes up to see it.
+// "I'm the only one whose line I haven't crossed": down at floor level. On "line" a white-hot point sweeps across the
+// chamber cutting a line into the floor, and the line becomes the edge of our light: beyond it the floor goes dark.
+// LINE is burned in on our side, drawn in anamorphosis so it reads from where we stand. Every shadow is beyond the
+// line; his side is empty. The camera cranes up to see it.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F, font, layout } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, keys, lerp, mulberry32, prog, pulse } from '../../engine/util';
 import { flameState, GLSL_KEY_DIST } from '../motifs';
-import { Stage, Word3D, popHinge, popWords, row, vkeys, type Letter } from '../stage';
+import { Stage, Word3D, keyLight, popHinge, popWords, row, vkeys, type Letter } from '../stage';
 
-/** The chamber's radius, the ring SOULS stands on, cap height, the flame's home and height. */
-const R = 6.5, RING = 3.4, CAP = 1.05, VCAP = 0.5, HOME = new THREE.Vector3(0, 0, 0.6), FLAME_H = 0.7;
+/** The chamber's radius, the ring SOULS stands on, cap heights, the ring's centre. */
+const R = 6.5, RING = 3.4, CAP = 1.05, VCAP = 0.5, HOME = new THREE.Vector3(0, 0, 0.6);
 /** The line in the floor (z) and its groove half-width; the anamorphic LINE's floor rectangle (near side). */
 const Z_LINE = -0.25, LINE_W = 0.085;
 const MAXF = 16;
@@ -22,7 +23,7 @@ const MAXF = 16;
 const HOOKS = /* glsl */ `
 ${GLSL_KEY_DIST}
 uniform float figA[${MAXF}], figH[${MAXF}], figV[${MAXF}], figT[${MAXF}];
-uniform int nFig; uniform float tNow, sway, cylR, zLine, lineW, flameX, lineOn, revealX;
+uniform int nFig; uniform float tNow, sway, cylR, zLine, lineW, flameX, lineOn, revealX, headOn;
 uniform vec2 home; uniform sampler2D word; uniform vec4 wordRect; uniform mat4 anaVP;
 // a standing figure as a shadow: proportions in units of its height, feet at the origin, y up. v varies the build,
 // the stance, the cloak (a himation from the shoulders to the shins) and a bowed head.
@@ -82,7 +83,8 @@ float extraShadow(vec3 P, bool wall) {
     if (i >= nFig) break;
     float rise = sat((tNow - figT[i]) / 0.4);
     if (rise <= 0.0) continue;
-    rise = 1.0 + 2.70158 * pow(rise - 1.0, 3.0) + 1.70158 * pow(rise - 1.0, 2.0);   // out-back: they stand up
+    float r1 = rise - 1.0;                                            // out-back: they stand up (no pow: its base is negative)
+    rise = 1.0 + 2.70158 * r1 * r1 * r1 + 1.70158 * r1 * r1;
     float da = a - figA[i]; da = da - 6.2831853 * floor((da + 3.14159265) / 6.2831853);
     float h = figH[i] * rise;
     vec2 p = vec2(da * cylR, P.y);
@@ -97,6 +99,12 @@ float extraShadow(vec3 P, bool wall) {
 vec3 skyTint(vec3 D, vec3 col) { return col; }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   if (wall) return col;
+  // the line is the edge of our light: beyond it (once it is cut) the floor is dark, its mirror gone
+  float beyond = smoothstep(zLine - 0.02, zLine - 0.1 - gPix, P.z) * step(P.x, revealX) * lineOn;
+  col *= 1.0 - 0.82 * beyond;
+  // the cutting point, white-hot
+  float dh = length(P.xz - vec2(flameX, zLine));
+  col += mix(C_EMBER, C_BONE, 0.65) * (2.4 * exp(-dh / 0.04) + 0.6 * exp(-dh / 0.3)) * headOn;
   float onLine = 1.0 - smoothstep(lineW * 0.35, lineW * 1.2 + gPix, abs(P.z - zLine));
   float tr = exp(-max(flameX - P.x, 0.0) / 4.0) * step(P.x, revealX) * onLine * lineOn;
   col += mix(C_BLOOD, C_EMBER, tr) * (0.35 + tr) * onLine * step(P.x, revealX) * lineOn;
@@ -132,7 +140,7 @@ export default class Souls extends Scene {
       uniforms: {
         figA: { value: new Array(MAXF).fill(0) }, figH: { value: new Array(MAXF).fill(0) }, figV: { value: new Array(MAXF).fill(0) },
         figT: { value: new Array(MAXF).fill(1e9) }, nFig: { value: 0 }, tNow: { value: 0 }, sway: { value: 0 }, cylR: { value: R },
-        zLine: { value: Z_LINE }, lineW: { value: LINE_W }, flameX: { value: 0 }, lineOn: { value: 0 }, revealX: { value: -99 },
+        zLine: { value: Z_LINE }, lineW: { value: LINE_W }, flameX: { value: 0 }, lineOn: { value: 0 }, revealX: { value: -99 }, headOn: { value: 0 },
         home: { value: new THREE.Vector2(HOME.x, HOME.z) }, word: { value: this.lineTex },
         wordRect: { value: new THREE.Vector4(0.34, 0.02, 0.66, 0.165) }, anaVP: { value: new THREE.Matrix4() },
       },
@@ -198,7 +206,7 @@ export default class Souls extends Scene {
     });
     u.nFig!.value = nf;
 
-    // ---- SOULS: a ring round the flame, facing it, folding up as sung
+    // ---- SOULS: a ring, facing its centre, folding up as sung
     const wd = this.word, n = wd.letters.length, s = CAP / wd.cap;
     for (let k = 0; k < n; k++) {
       const l = wd.letters[k]!;
@@ -227,19 +235,17 @@ export default class Souls extends Scene {
     popWords(this.only, w2.slice(0, li2).map((w) => w.start), t, row(-0.4 - (this.only.width * os) / 2, Z_LINE + 0.35, 0, os), { exit: lineW.start - 0.02 });
     popWords(this.crossed, w2.slice(li2 + 1).map((w) => w.start), t, row(-0.4 - (this.crossed.width * cs) / 2, Z_LINE + 0.35, 0, cs));
 
-    // ---- the flame: at home; in the second set-up it runs left, then sweeps across on "line", burning it in
-    const fx = second ? keys(t, [[tCut, 0], [lineW.start - 0.08, -5.4, ease.inOutCubic], [lineW.end, 5.4, ease.inOutQuad], [T1, 1.2, ease.inOutCubic]]) : 0;
-    const fz = second ? keys(t, [[tCut, HOME.z], [lineW.start - 0.08, Z_LINE, ease.inOutCubic], [lineW.end, Z_LINE, ease.linear], [T1, HOME.z + 0.3, ease.inOutCubic]]) : HOME.z;
-    const base = new THREE.Vector3(fx, 0, fz);
+    // ---- the cutting point: on "line" it sweeps across the chamber, cutting the line in
+    const fx = keys(t, [[lineW.start - 0.08, -5.4], [lineW.end, 5.4, ease.inOutQuad]]);
     const sweeping = t >= lineW.start - 0.08 && t <= lineW.end + 0.05;
-    u.flameX!.value = fx;
+    u.flameX!.value = fx; u.headOn!.value = sweeping ? 1 : 0;
     u.lineOn!.value = t >= lineW.start - 0.1 ? 1 : 0;
     u.revealX!.value = t < lineW.start - 0.1 ? -99 : t <= lineW.end ? fx : 99;
 
     // ---- the camera: circling above in the first set-up; at floor level in the second, then craning up
     let pos: THREE.Vector3, at: THREE.Vector3, fov = 40;
     if (!second) {
-      // the camera swings round the ring to each word as it is sung, looking across the flame at it
+      // the camera swings round the ring to each word as it is sung, looking across the ring at it
       const wa = this.wordAngles;
       let a = wa[0]!.a;
       for (let i = 0; i < wa.length; i++) {
@@ -268,10 +274,9 @@ export default class Souls extends Scene {
       (u.anaVP!.value as THREE.Matrix4).multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     }
 
-    this.st.render(renderer, out, t, { base, h: FLAME_H * fl.h * (sweeping ? 1.25 : 1), I: fl.I * 1.7, reach: 15 },
-      // the wall is a shadow-theatre screen: plaster in one continuous lit tone, so the shades read crisp and black
+    this.st.render(renderer, out, t, keyLight(this.st.cam, audio, t, { seed: 13, I: 1.5, reach: 25 }),
       { wall: 2, cyl: [0, 0, R], freqWall: 6.5, freqFloor: 6, toneWall: 1, toneFloor: 0.45 },
-      { cards: false, gust: fl.gust * 0.6 + (sweeping ? -1.2 : 0), rim: 1.2 });
+      { cards: false, noFlame: true, rim: 0.8, spec: 0.05 });
 
     return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6, halation: 0.35 };
   }

@@ -270,7 +270,7 @@ export default class Everything extends Scene {
     const L = this.fire(t);
     L.I *= 1 - 0.7 * prog(t, R[2]!, R[3]! + 0.3, ease.inOutQuad);
     // the glaze mirrors the wall only: here the word's dark double is its shadow
-    this.st.render(renderer, out, t, L, { wall: 1, wallZ: WALL_Z }, { noFlame: true, cards: false, reflect: false, rim: 0.6 });
+    this.st.render(renderer, out, t, L, { wall: 1, wallZ: WALL_Z }, { noFlame: true, cards: false, reflect: false, rim: 0.6, spec: 0.05 });
     return { bloom: 0.55, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0, 0.003 * jolt] };
   }
 }

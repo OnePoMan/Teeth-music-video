@@ -14,7 +14,8 @@ import { F, font, layout, ot } from '../engine/type';
 import type { Word } from '../engine/lyrics';
 import { rgba } from '../engine/palette';
 import { prog, ease, clamp } from '../engine/util';
-import { FlameSprite } from './motifs';
+import type { AudioData } from '../engine/audio';
+import { FlameSprite, flameState } from './motifs';
 
 export const MAX_CARDS = 40;
 /** Atlases (Word3D runs) one stage can cast shadows from. */
@@ -352,6 +353,11 @@ export interface StageSurfaces {
   floorLines?: number;
   /** Vase style: how much the glaze mirrors the room (default 0.36). */
   gloss?: number;
+  /** Water: swell amplitude (0 still glaze, 1 the sea's swells; they only bend the reflections), its wine-dark tint
+   *  (0..1), and how far the swells push the mirrored scene (screen fraction per unit of tilt). */
+  swell?: number;
+  wine?: number;
+  reflBend?: number;
 }
 
 /** Default surface hooks: no grooves, no extra shadows (scenes pass their own, see `Stage` options). */
@@ -369,7 +375,9 @@ uniform int wallMode; uniform float wallZ; uniform vec3 cyl;
 uniform float freqF, freqW, floorOn, toneW, toneF;
 // the vase style: walls of lit clay (their shadows are black-figure), floors of black glaze that mirror the room,
 // lines only as decoration reserved in the clay
-uniform float vase, floorLineAmt, gloss, reflOn, flameOn, flameHpx;
+uniform float vase, floorLineAmt, gloss, reflOn, flameOn, flameHpx, specK;
+// water: swells that only bend what the surface mirrors (no lines on it), and Homer's wine-dark tint
+uniform float swell, wine, reflBend, stageT;
 uniform vec2 flamePx;
 uniform sampler2D reflTex;
 uniform mat4 cardM[${MAX_CARDS}]; uniform vec4 cardBox[${MAX_CARDS}]; uniform vec4 cardMap[${MAX_CARDS}];
@@ -428,6 +436,16 @@ vec3 clayCol(float b) {
   vec3 clay = mix(mix(C_BLOOD, C_SIGNAL, 0.75), C_EMBER, 0.2) * 0.8;
   return clay * (0.02 + 0.8 * sat(b)) + C_BONE * 0.08 * smoothstep(0.9, 1.8, b);
 }
+/** The water's swells: the gradient of a height field of three long swells and a finer chop, each term fading where
+ *  it would alias. Nothing is drawn of them; they only bend the reflections. */
+vec2 swellGrad(vec2 xz, float t) {
+  vec2 d1 = vec2(0.287, 0.958), d2 = vec2(-0.514, 0.857), d3 = vec2(0.970, 0.243), g = vec2(0.0);
+  g += d1 * 0.08 * cos(dot(xz, d1) * 0.8 + t * 0.9) * exp(-gPix * 3.2);
+  g += d2 * 0.077 * cos(dot(xz, d2) * 1.7 - t * 1.3) * exp(-gPix * 6.8);
+  g += d3 * 0.043 * cos(dot(xz, d3) * 3.6 + t * 2.1) * exp(-gPix * 14.4);
+  return g;
+}
+const vec3 C_WINE = vec3(0.028, 0.0006, 0.0062);
 /** Where a ray from o along r meets the wall (1e9: never). */
 float wallHit(vec3 o, vec3 r) {
   if (wallMode == 1 && r.z < -1e-6) return (wallZ - o.z) / r.z;
@@ -510,16 +528,21 @@ void main() {
         b = light * (1.0 - occ);
         // black glaze: a little warmth where the flame is near, its highlight, and the room mirrored in it
         vec3 Nf = vec3(0.0, 1.0, 0.0), V = -D;
-        float fres = 0.04 + 0.96 * pow(1.0 - max(V.y, 0.0), 5.0);
+        if (swell > 0.0) { vec2 sg = swellGrad(P.xz, stageT) * swell; Nf = normalize(vec3(-sg.x, 1.0, -sg.y)); }
+        float fres = 0.04 + 0.96 * pow(1.0 - max(dot(V, Nf), 0.0), 5.0);
         vec3 R = reflect(D, Nf);
+        R.y = abs(R.y);
         float tR = wallHit(P, R);
         vec3 refl = C_INK;
         if (tR < 1e8) { float o3; vec3 PR = P + R * tR; refl = PR.y > 0.0 ? clayWall(PR, wallNormal(PR), o3) : C_INK; }
         else refl = skyTint(R, C_INK);
-        if (reflOn > 0.0) { vec4 rt = texture(reflTex, FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)})); refl = mix(refl, rt.rgb, rt.a); }
+        if (reflOn > 0.0) {
+          vec2 ruv = FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)}) + vec2(Nf.x, -Nf.z) * reflBend;
+          vec4 rt = texture(reflTex, ruv); refl = mix(refl, rt.rgb, rt.a);
+        }
         vec3 Hh = normalize(Lv + V);
-        float spec = pow(max(Hh.y, 0.0), 260.0) * fall * (1.0 - occ);
-        col = C_INK * 0.9 + clayCol(b) * 0.05 + refl * fres * gloss + mix(C_EMBER, C_BONE, 0.45) * spec * 2.5;
+        float spec = pow(max(dot(Nf, Hh), 0.0), 260.0) * fall * (1.0 - occ);
+        col = mix(C_INK * 0.9, C_WINE, wine) + clayCol(b) * 0.05 + refl * fres * gloss + mix(C_EMBER, C_BONE, 0.45) * spec * 2.5 * specK;
         // the flame mirrored: a broken column under it
         if (flameOn > 0.0) {
           float dx = abs(FRAG_PX.x - flamePx.x), below = flamePx.y - FRAG_PX.y;
@@ -587,7 +610,8 @@ export class Stage {
       wallMode: { value: 0 }, wallZ: { value: -10 }, cyl: { value: new THREE.Vector3(0, 0, 8) },
       freqF: { value: 7 }, freqW: { value: 5 }, floorOn: { value: 1 }, toneW: { value: 0 }, toneF: { value: 0 },
       vase: { value: 1 }, floorLineAmt: { value: 0 }, gloss: { value: 0.36 }, reflOn: { value: 0 }, reflTex: { value: null },
-      flameOn: { value: 0 }, flameHpx: { value: 60 }, flamePx: { value: new THREE.Vector2() },
+      flameOn: { value: 0 }, flameHpx: { value: 60 }, flamePx: { value: new THREE.Vector2() }, specK: { value: 1 },
+      swell: { value: 0 }, wine: { value: 0 }, reflBend: { value: 0.3 }, stageT: { value: 0 },
       cardM: { value: arr(() => new THREE.Matrix4()) }, cardBox: { value: arr(() => new THREE.Vector4()) },
       cardMap: { value: arr(() => new THREE.Vector4()) }, cardS: { value: arr(() => 1) }, cardAt: { value: arr(() => 0) }, nCards: { value: 0 },
       atlas0: { value: null }, atlas1: { value: null }, atlas2: { value: null }, atlas3: { value: null },
@@ -617,6 +641,8 @@ export class Stage {
     o: { flameBehind?: boolean; flameSeed?: number; gust?: number; flameI?: number; rim?: number; noFlame?: boolean; cards?: boolean;
       /** Vase style: mirror the scene in the glaze (default true). */
       reflect?: boolean;
+      /** The light's highlight on the glaze (default 1; keep it low for the unseen key light: its mirror image is a flame). */
+      spec?: number;
       /** Where the flame stands on screen (logical px, y down) and its height, for scenes that draw their own. */
       flameScreen?: { x: number; y: number; h: number } } = {}) {
     const u = this.bg.u;
@@ -633,6 +659,8 @@ export class Stage {
     u.vase!.value = S.vase === false ? 0 : 1;
     u.floorLineAmt!.value = S.floorLines ?? 0;
     u.gloss!.value = S.gloss ?? 0.36;
+    u.specK!.value = o.spec ?? 1;
+    u.swell!.value = S.swell ?? 0; u.wine!.value = S.wine ?? 0; u.reflBend!.value = S.reflBend ?? 0.3; u.stageT!.value = t;
     // shadow cards: every shown letter of every casting run
     let n = 0;
     if (o.cards !== false) this.casters.forEach((w, k) => {
@@ -682,6 +710,22 @@ export class Stage {
     renderer.render(this.scene, this.cam.cam);
     if (!o.flameBehind) drawFlame();
   }
+}
+
+// ---------------------------------------------------------------- the key light
+/**
+ * The unseen key light (through-line A, docs/MONSTER.md): a fire behind the camera, over its right shoulder, never
+ * in frame. It breathes and flares on the 'orch' hits as the flame did (flameState). Offsets are in the camera's
+ * frame (right, back) and the world's (up); `I` scales its brightness.
+ */
+export function keyLight(cam: StageCam, au: AudioData, t: number,
+  o: { right?: number; up?: number; back?: number; I?: number; reach?: number; seed?: number } = {}): StageLight {
+  const m = cam.cam.matrixWorld;
+  const right = new THREE.Vector3().setFromMatrixColumn(m, 0), back = new THREE.Vector3().setFromMatrixColumn(m, 2);
+  const base = cam.cam.position.clone().addScaledVector(right, o.right ?? 1.8).addScaledVector(back, o.back ?? 3.0);
+  base.y += o.up ?? 1.2;
+  const fl = flameState(au, t, o.seed ?? 0);
+  return { base, h: 0.6, I: (o.I ?? 1) * fl.I, reach: o.reach ?? 30 };
 }
 
 // ---------------------------------------------------------------- the pop

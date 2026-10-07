@@ -1,18 +1,18 @@
 // `endless` — verse 1, line 2: "How did suffering become so endless?" (docs/MONSTER.md, revision 1).
-// From above: a Greek-key frieze cut in the cave floor, an inscription band over it, and one straight groove
-// between them that the flame runs along like a fuse, burning behind it. "suffering" is burned into the band as
-// the flame passes under each letter (never ahead of the voice). On "so" the camera corkscrews down and the line
-// bends into an infinity loop burned in the floor: the flame runs the loop like a fuse with a comet's tail (the
-// "loading" chase), and "endless?" stands up on it letter by letter as the flame reaches each on its syllable:
-// E-N-D-L on the near arc of the left lobe, E-S-S-? on the far arc of the right, so every lap passes them in
-// reading order. The lap closes as the shot cuts.
+// From above: a Greek-key frieze in the black-glazed floor, an inscription band over it, and one straight groove
+// between them, glowing as it is cut: its white-hot head runs along with the voice and the groove cools behind it.
+// "suffering" is burned into the band as the head passes under each letter (never ahead of the voice). On "so" the
+// camera corkscrews down and the groove bends into an infinity loop: the head runs the loop with a comet's tail
+// (the "loading" chase), and "endless?" stands up on it letter by letter as the head reaches each on its
+// syllable: E-N-D-L on the near arc of the left lobe, E-S-S-? on the far arc of the right, so every lap passes
+// them in reading order. The lap closes as the shot cuts. The light is the unseen fire behind us (keyLight).
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F, font, layout } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, keys, lerp, prog, pulse } from '../../engine/util';
-import { flameState, GLSL_KEY_DIST } from '../motifs';
-import { Stage, StageCam, Word3D, popHinge } from '../stage';
+import { GLSL_KEY_DIST } from '../motifs';
+import { Stage, StageCam, Word3D, keyLight, popHinge } from '../stage';
 
 /** Frieze geometry (world units): cell size; z of the flame's line, of the lower border; groove half-width. */
 const C = 0.3, Z_LINE = -4.9 * C, Z_LOW = 0.9 * C, LINE_W = 0.06;
@@ -28,7 +28,6 @@ const lem = (u: number, cx: number, cz: number, a: number) => {
 };
 /** Where the hero's letters stand on the loop (parameter u). */
 const LETTER_U = (k: number) => (k < 4 ? Math.PI + 0.42 + k * 0.33 : 1.5 * Math.PI + 0.3 + (k - 4) * 0.33);
-const FLAME_H = 0.5;
 
 const HOOKS = /* glsl */ `
 ${GLSL_KEY_DIST}
@@ -36,6 +35,7 @@ uniform float cellW, zLine, zLow, zTopB, lineW, flameX, trailL, revealX, xEnd;
 uniform sampler2D insc; uniform vec4 inscRect;
 uniform vec4 inf;                                   // the loop: centre x, z, half-width, shown
 uniform vec2 trail[${INF.trailN}];
+uniform vec2 head;                                  // the cutting point (x, z)
 // distance to the lemniscate (x^2 + z^2)^2 = a^2 (x^2 - z^2), first order (good at the crossing too)
 float lemD(vec2 xz) {
   vec2 p = xz - inf.xy; float a2 = inf.z * inf.z, r2 = dot(p, p);
@@ -75,7 +75,7 @@ float extraShadow(vec3 P, bool wall) { return 0.0; }
 vec3 skyTint(vec3 D, vec3 col) { return col; }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   if (wall) return col;
-  // the flame's line burns behind it like a fuse
+  // the groove glows behind its cutting point and cools
   float onLine = 1.0 - smoothstep(lineW * 0.35, lineW * 1.1 + gPix, abs(P.z - zLine));
   float tr = exp(-max(flameX - P.x, 0.0) / trailL) * step(P.x, flameX) * onLine * step(P.x, inf.x - inf.z + 0.02);
   col += mix(C_BLOOD, C_EMBER, tr) * tr * 1.4;
@@ -86,6 +86,9 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
     for (int i = 0; i < ${INF.trailN}; i++) tl = max(tl, exp(-length(P.xz - trail[i]) / 0.2) * (1.0 - float(i) / ${INF.trailN.toFixed(1)}));
     col += mix(C_BLOOD, C_EMBER, tl) * (0.3 + 1.3 * tl) * onInf;
   }
+  // the cutting point: white-hot, a small glow round it
+  float dh = length(P.xz - head);
+  col += mix(C_EMBER, C_BONE, 0.65) * (2.2 * exp(-dh / 0.035) + 0.5 * exp(-dh / 0.22));
   // the inscription glows where it has just been burned in
   float m = smoothstep(0.3, 0.7, inscM(P.xz));
   // ...and keeps a cooling ember glow, so the burned words stay readable behind the flame
@@ -138,7 +141,7 @@ export default class Endless extends Scene {
       hooks: HOOKS,
       uniforms: {
         cellW: { value: C }, zLine: { value: Z_LINE }, zLow: { value: Z_LOW }, zTopB: { value: INSC.zBase - INSC.cap - 1.0 * C }, lineW: { value: LINE_W },
-        flameX: { value: 0 }, trailL: { value: 2 }, revealX: { value: -99 }, xEnd: { value: 99 },
+        flameX: { value: 0 }, trailL: { value: 2 }, revealX: { value: -99 }, xEnd: { value: 99 }, head: { value: new THREE.Vector2(-999, -999) },
         inf: { value: new THREE.Vector4(0, Z_LINE, INF.a, 0) }, trail: { value: Array.from({ length: INF.trailN }, () => new THREE.Vector2(-999, -999)) },
         insc: { value: this.insc }, inscRect: { value: new THREE.Vector4(-pad * k, zTop, (cv.width - pad) * k, zBot) },
       },
@@ -164,7 +167,7 @@ export default class Endless extends Scene {
     const tk = (k: number) => endless.start + (k / (nH - 1)) * Math.max(0.3, endless.end - endless.start - 0.05);
     const tEntry = endless.start - 0.1;
 
-    // ---- the flame: along its line under the inscription with the voice, a dash to the loop, then round and round
+    // ---- the cutting point: along its line under the inscription with the voice, a dash to the loop, then round and round
     const wx = this.wx;
     const lineX = (tt: number) => keys(tt, [
       [T0, -2.6],
@@ -184,12 +187,11 @@ export default class Endless extends Scene {
     };
     const fp = flameAt(t);
     const fx = t < tEntry ? fp.x : tipX;
-    const fl = flameState(audio, t, 3);
-    const base = new THREE.Vector3(fp.x, 0, fp.z);
     const reveal = t < ws[0]!.start - 0.03 ? -99 : Math.min(fx, W0 + 1);
     const onLoop = prog(t, tEntry - 0.05, tEntry + 0.05);
     const u = this.st.bg.u;
     u.flameX!.value = fx; u.revealX!.value = reveal; u.trailL!.value = 1.8;
+    (u.head!.value as THREE.Vector2).set(fp.x, fp.z);
     u.xEnd!.value = W0 + 0.5;
     (u.inf!.value as THREE.Vector4).set(cx, cz, INF.a, onLoop);
     (u.trail!.value as THREE.Vector2[]).forEach((v, i) => {
@@ -224,8 +226,8 @@ export default class Endless extends Scene {
     }
     hw.update();
 
-    this.st.render(renderer, out, t, { base, h: FLAME_H * fl.h * (1 + 0.25 * onLoop), I: fl.I * 1.1, reach: lerp(4.2, 6.5, onLoop) }, { wall: 0, freqFloor: lerp(9, 5.5, u2) },
-      { gust: fl.gust * 0.5, rim: 1.2 });
+    this.st.render(renderer, out, t, keyLight(this.st.cam, audio, t, { seed: 3, I: 1.1 }), { wall: 0, freqFloor: lerp(9, 5.5, u2) },
+      { noFlame: true, rim: 0.8, spec: 0.05 });
 
     return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6, halation: 0.35 };
   }

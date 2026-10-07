@@ -1,18 +1,16 @@
 // `sea` — verse 1b, lines 3–4: "What if the greatest threat we'll find across the sea / Is me?" (docs/MONSTER.md,
-// revision 1). His side of the line has become the sea: black water in engraved swells, the flame afloat in its clay
-// lamp, and far off the line itself, now a shore. On "threat" the word stands up on the far shore, black against the
-// burning line, its reflection broken in the swell. "across the sea": the camera is pulled back across the water and
-// the word goes small; it sinks; the water settles into hook 1's frame (the waterline at 0.71 H, the lamp at the left),
-// and "Is me?" is asked where hook 1's question will stand.
+// revision 1). His side of the line has become the sea: black mirror water with Homer's wine-dark tint, its swells
+// shown only by how they bend what it mirrors, lit by the fire behind us (never seen); far off, the line itself, now
+// a burning shore. On "threat" the word stands up on the far shore, black against the burning line, its reflection
+// broken by the swell. "across the sea": the camera is pulled back across the water and the word goes small; it
+// sinks; the water settles into hook 1's frame (the waterline at 0.71 H), and "Is me?" is asked where hook 1's
+// question will stand.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
-import { Layer2D, W, H } from '../../engine/gl';
 import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
-import { ease, lerp, noise1, prog, pulse } from '../../engine/util';
-import { FlameSprite, flameState, drawLamp2D, lampFlame } from '../motifs';
-import { Stage, Word3D, popHinge, popWords, vkeys, type Letter } from '../stage';
-import { WL0, LAMP } from './hook';
+import { ease, lerp, prog, pulse } from '../../engine/util';
+import { Stage, Word3D, keyLight, popHinge, popWords, vkeys, type Letter } from '../stage';
 
 /** The far shore (z), THREAT's cap height, the final camera (hook 1's frame): height, distance to the lamp, pitch. */
 const SHORE = -16, CAP = 2.1;
@@ -21,15 +19,13 @@ const END = { y: 0.25, z: 9.5, pitch: 0.152 };
 const HOOKS = /* glsl */ `
 uniform float tSea, shoreZ;
 float carve(vec2 xz) { return 0.0; }
-float floorLines(vec3 P, float u) {
-  return u + 0.3 * sin(P.x * 1.4 + 0.8 * sin(P.z * 0.9 + tSea * 0.35) + tSea * 0.7) + 0.05 * sin(P.x * 3.7 - tSea * 1.2);
-}
+float floorLines(vec3 P, float u) { return u; }
 float extraShadow(vec3 P, bool wall) { return 0.0; }
-uniform float skyI;
+uniform float skyI, toHook;
 // the far shore burns: a low band of light over the horizon that the words stand black against
 vec3 skyGlow(vec3 D) {
   float e = max(D.y, 0.0);
-  return mix(C_BLOOD, C_SIGNAL, 0.45) * skyI * (0.7 * exp(-e * 55.0) + 0.06 * exp(-e * 12.0));
+  return mix(C_BLOOD, C_SIGNAL, 0.45) * skyI * (0.6 * exp(-e * 30.0) + 0.06 * exp(-e * 9.0));
 }
 vec3 skyTint(vec3 D, vec3 col) { return col + skyGlow(D); }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
@@ -38,15 +34,14 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   float beyond = smoothstep(shoreZ + 0.02, shoreZ - 0.02, P.z);
   float lineG = exp(-abs(P.z - shoreZ) / max(0.06, gPix * 1.5));
   col = mix(col, C_INK, beyond);
-  col += mix(C_BLOOD, C_EMBER, 0.55) * lineG * 1.1;
+  // as the water settles into hook 1's frame the burning shore cools to its waterline, a bone hairline
+  col += mix(mix(C_BLOOD, C_EMBER, 0.55) * 1.1, C_BONE * 0.8, toHook) * lineG;
   return col;
 }`;
 
 export default class Sea extends Scene {
   private st!: Stage;
   private word!: Word3D;
-  private txt = new Layer2D();
-  private flame = new FlameSprite();
   private l1!: Line;
   private l2!: Line;
   /** The floating phrases: "What if the greatest", "we'll find", "across the sea" (tracked wide), "Is me?". */
@@ -55,7 +50,7 @@ export default class Sea extends Scene {
   override async init() {
     this.st = new Stage({
       hooks: HOOKS,
-      uniforms: { tSea: { value: 0 }, shoreZ: { value: SHORE }, skyI: { value: 1 } },
+      uniforms: { tSea: { value: 0 }, shoreZ: { value: SHORE }, skyI: { value: 1 }, toHook: { value: 0 } },
     });
     this.word = new Word3D('THREAT', F.archivo(75, 900), { size: 220 });
     this.word.lightMul = 0.12;                            // black against the burning shore
@@ -79,8 +74,8 @@ export default class Sea extends Scene {
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
-    const t = f.t, { renderer, comp, audio } = this.ctx;
-    const T0 = this.ctx.start, T1 = this.ctx.end;
+    const t = f.t, { renderer, audio } = this.ctx;
+    const T0 = this.ctx.start;
     const threat = this.w(this.l1, 'threat'), across = this.w(this.l1, 'across'), sea = this.w(this.l1, 'sea');
     const wi = this.l1.words.indexOf(threat);
     const back = prog(t, across.start - 0.05, sea.end + 0.4, ease.outExpo);
@@ -124,34 +119,15 @@ export default class Sea extends Scene {
     popWords(pA, ws.slice(ai).map((w) => w.start), t, bobRow(cx(pA, 0.62, 0.2), -6.5, 0.62, pA), { exit: sea.end + 0.9, amb: 0.16 });
     popWords(pM, this.l2.words.map((w) => w.start), t, bobRow(-1.75, END.z - 4.5, 0.3, pM));
 
-    // ---- the lamp: afloat, drifting left and nearer until it sits where hook 1 has it
-    const fl = flameState(audio, t, 21);
-    const lampW = new THREE.Vector3(lerp(-1.35, -2.74, Math.max(back, settle)) + 0.08 * noise1(t * 0.4, 5), 0, lerp(-0.7, END.z - 5.8, Math.max(back * 0.9, settle)));
-    const pl = this.st.cam.project(lampW);
-    const kL = Math.max(0.2, 5.8 / Math.max(pl.depth, 0.5));
-    // in the last bar, the lamp's screen place eases onto hook 1's exactly
-    const hook = prog(t, T1 - 1.4, T1 - 0.2, ease.inOutCubic);
-    const bob = 2.5 * Math.sin(t * 1.7);
-    const lx = lerp(pl.x, LAMP.x, hook), ly = lerp(pl.y, WL0 + LAMP.dy, hook) + bob;
-    const k = lerp(kL, 1, hook);
-    const fp = lampFlame(lx, ly);
-    const flH = LAMP.h * k * fl.h;
-    const fpx = { x: lx + (fp.x - lx) * k, y: ly + (fp.y - ly) * k };
-
     const u = this.st.bg.u;
     u.tSea!.value = t;
-    u.skyI!.value = 0.55 + 0.45 * prog(t, threat.start - 0.3, threat.start + 0.2) - 0.35 * settle;
-    // the light sits in the lamp's flame (world: just above the water at the lamp)
-    const Lbase = new THREE.Vector3(lampW.x + 0.35, 0.05, lampW.z);
-    this.st.render(renderer, out, t, { base: Lbase, h: 0.45 * fl.h, I: fl.I * 1.35, reach: 6.5 }, { wall: 0, freqFloor: 3.0, floorLines: 0.5, gloss: 0.55 },
-      { noFlame: true, cards: false, rim: 1.4, flameScreen: { x: fpx.x, y: fpx.y, h: flH } });
-
-    // ---- the lamp, its flame, the small voice
-    const c = this.txt.ctx;
-    this.txt.clear();
-    c.save(); c.translate(lx, ly); c.scale(k, k); drawLamp2D(c, 0, 0, 1); c.restore();
-    comp.draw(renderer, this.txt.upload(), out);
-    this.flame.draw(renderer, out, fpx.x, fpx.y, flH, t, { seed: 3, gust: fl.gust * 0.6, intensity: fl.I });
+    const toHook = prog(t, this.l2.words[0]!.start - 0.3, this.ctx.end - 0.15, ease.inOutQuad);
+    u.skyI!.value = (0.55 + 0.45 * prog(t, threat.start - 0.3, threat.start + 0.2) - 0.25 * settle) * (1 - 0.92 * toHook);
+    u.toHook!.value = toHook;
+    // the fire behind us; the water mirrors, wine-dark, its swells bending what it mirrors
+    this.st.render(renderer, out, t, keyLight(this.st.cam, audio, t, { seed: 21, I: 1.3, reach: 25 }),
+      { wall: 0, gloss: 0.75, swell: 0.45, wine: 0.85, reflBend: 0.3 },
+      { noFlame: true, cards: false, rim: 1.0, spec: 0.05 });
 
     return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6, halation: 0.35 };
   }
