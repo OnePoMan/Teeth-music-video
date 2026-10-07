@@ -1,9 +1,11 @@
 // `endless` — verse 1, line 2: "How did suffering become so endless?" (docs/MONSTER.md, revision 1).
 // From above: a Greek-key frieze cut in the cave floor, an inscription band over it, and one straight groove
 // between them that the flame runs along like a fuse, burning behind it. "suffering" is burned into the band as
-// the flame passes under each letter (never ahead of the voice). On "so" the camera corkscrews down behind the
-// flame and races it along the line: "endless?" folds up out of the floor letter by letter, standing in a row to the
-// horizon, each lit as the flame reaches it; the flame runs on to the vanishing point and the line burns behind it.
+// the flame passes under each letter (never ahead of the voice). On "so" the camera corkscrews down and the line
+// bends into an infinity loop burned in the floor: the flame runs the loop like a fuse with a comet's tail (the
+// "loading" chase), and "endless?" stands up on it letter by letter as the flame reaches each on its syllable:
+// E-N-D-L on the near arc of the left lobe, E-S-S-? on the far arc of the right, so every lap passes them in
+// reading order. The lap closes as the shot cuts.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F, font, layout } from '../../engine/type';
@@ -16,18 +18,35 @@ import { Stage, StageCam, Word3D, popHinge } from '../stage';
 const C = 0.3, Z_LINE = -4.9 * C, Z_LOW = 0.9 * C, LINE_W = 0.06;
 /** Inscription: baseline z, cap height (world), font. */
 const INSC = { zBase: -5.9 * C, cap: 2.1 * C, fam: () => F.archivo(87.5, 800), px: 300 };
-/** The hero word stands on the key band, letters this far apart, cap height. */
-const HERO = { z: -2.0 * C, cap: 1.15, lead: 4.2, ratio: 1.32 };
-/** Where the camera comes to rest (x relative to the hero's first letter, z): the letters turn to face it, and
- *  stand at distances growing by HERO.ratio from it, so each keeps its own place on screen as the row recedes. */
-const REST = { dx: -3.4, z: -2.0 * C + 3.5, y: 1.35 };
-const heroX = (xE: number, k: number) => xE + REST.dx - REST.dx * Math.pow(HERO.ratio, k);
+/** The infinity loop (a lemniscate on the floor): its left tip is where the line ends, `dx` past the inscription;
+ *  half-width `a`; the hero's cap height; the trail's samples and spacing (s). */
+const INF = { dx: 1.6, a: 3.5, cap: 0.72, trailN: 14, trailDt: 0.03 };
+/** A point of the loop: u = pi is the left tip; pi..3pi/2 the left lobe's near arc; 3pi/2..2pi the right lobe's far arc. */
+const lem = (u: number, cx: number, cz: number, a: number) => {
+  const s = Math.sin(u), c = Math.cos(u), d = 1 + s * s;
+  return { x: cx + (a * c) / d, z: cz + (a * s * c) / d };
+};
+/** Where the hero's letters stand on the loop (parameter u). */
+const LETTER_U = (k: number) => (k < 4 ? Math.PI + 0.42 + k * 0.33 : 1.5 * Math.PI + 0.3 + (k - 4) * 0.33);
 const FLAME_H = 0.5;
 
 const HOOKS = /* glsl */ `
 ${GLSL_KEY_DIST}
-uniform float cellW, zLine, zLow, zTopB, lineW, flameX, trailL, revealX;
+uniform float cellW, zLine, zLow, zTopB, lineW, flameX, trailL, revealX, xEnd;
 uniform sampler2D insc; uniform vec4 inscRect;
+uniform vec4 inf;                                   // the loop: centre x, z, half-width, shown
+uniform vec2 trail[${INF.trailN}];
+// distance to the lemniscate (x^2 + z^2)^2 = a^2 (x^2 - z^2), first order (good at the crossing too)
+float lemD(vec2 xz) {
+  vec2 p = xz - inf.xy; float a2 = inf.z * inf.z, r2 = dot(p, p);
+  float f = r2 * r2 - a2 * (p.x * p.x - p.y * p.y);
+  vec2 g = vec2(4.0 * p.x * r2 - 2.0 * a2 * p.x, 4.0 * p.y * r2 + 2.0 * a2 * p.y);
+  return abs(f) / max(length(g), 1e-3 * a2 * inf.z);
+}
+float infG(vec2 xz) {
+  if (inf.w <= 0.0) return 0.0;
+  return 1.0 - smoothstep(lineW * 0.5 - gPix, lineW + gPix, lemD(xz));
+}
 float meanderG(vec2 xz) {
   vec2 p = vec2(xz.x, -xz.y) / cellW;
   if (p.y < -0.6 || p.y > 4.6) return 0.0;
@@ -42,7 +61,10 @@ float inscM(vec2 xz) {
 }
 float lineG(float z, float z0) { return 1.0 - smoothstep(lineW * 0.5 - gPix, lineW + gPix, abs(z - z0)); }
 float carve(vec2 xz) {
-  float g = max(meanderG(xz), max(lineG(xz.y, zLine), max(lineG(xz.y, zLow), lineG(xz.y, zTopB))));
+  // the frieze ends before the loop; the flame's line runs on to the loop's left tip
+  float fr = smoothstep(xEnd + 0.3, xEnd - 0.3, xz.x);
+  float g = max(max(meanderG(xz), max(lineG(xz.y, zLow), lineG(xz.y, zTopB))) * fr, lineG(xz.y, zLine) * step(xz.x, inf.x - inf.z));
+  g = max(g, infG(xz));
   float m = inscM(xz);
   if (m > 0.0) g = max(g, smoothstep(0.25, 0.75, m) * smoothstep(0.02, -0.1, xz.x - revealX));
   // far away the grooves close up into the engraving's tone
@@ -55,8 +77,15 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   if (wall) return col;
   // the flame's line burns behind it like a fuse
   float onLine = 1.0 - smoothstep(lineW * 0.35, lineW * 1.1 + gPix, abs(P.z - zLine));
-  float tr = exp(-max(flameX - P.x, 0.0) / trailL) * step(P.x, flameX) * onLine;
+  float tr = exp(-max(flameX - P.x, 0.0) / trailL) * step(P.x, flameX) * onLine * step(P.x, inf.x - inf.z + 0.02);
   col += mix(C_BLOOD, C_EMBER, tr) * tr * 1.4;
+  // the loop: a dim ember all round once the flame is on it, white-hot along the flame's tail
+  float onInf = infG(P.xz);
+  if (onInf > 0.0) {
+    float tl = 0.0;
+    for (int i = 0; i < ${INF.trailN}; i++) tl = max(tl, exp(-length(P.xz - trail[i]) / 0.2) * (1.0 - float(i) / ${INF.trailN.toFixed(1)}));
+    col += mix(C_BLOOD, C_EMBER, tl) * (0.3 + 1.3 * tl) * onInf;
+  }
   // the inscription glows where it has just been burned in
   float m = smoothstep(0.3, 0.7, inscM(P.xz));
   // ...and keeps a cooling ember glow, so the burned words stay readable behind the flame
@@ -109,7 +138,8 @@ export default class Endless extends Scene {
       hooks: HOOKS,
       uniforms: {
         cellW: { value: C }, zLine: { value: Z_LINE }, zLow: { value: Z_LOW }, zTopB: { value: INSC.zBase - INSC.cap - 1.0 * C }, lineW: { value: LINE_W },
-        flameX: { value: 0 }, trailL: { value: 2 }, revealX: { value: -99 },
+        flameX: { value: 0 }, trailL: { value: 2 }, revealX: { value: -99 }, xEnd: { value: 99 },
+        inf: { value: new THREE.Vector4(0, Z_LINE, INF.a, 0) }, trail: { value: Array.from({ length: INF.trailN }, () => new THREE.Vector2(-999, -999)) },
         insc: { value: this.insc }, inscRect: { value: new THREE.Vector4(-pad * k, zTop, (cv.width - pad) * k, zBot) },
       },
     });
@@ -127,59 +157,76 @@ export default class Endless extends Scene {
     const suf = this.w('suffering'), so = this.w('so'), endless = this.w('endless');
     const T0 = this.ctx.start, T1 = this.ctx.end;
     const tilt0 = audio.nearestBeat(so.start - 0.1), tilt1 = tilt0 + 0.62;
-    const W0 = this.inscW, xE = W0 + HERO.lead, xLast = heroX(xE, 7);
+    const W0 = this.inscW;
+    // the loop: its left tip where the line ends
+    const tipX = W0 + INF.dx, cx = tipX + INF.a, cz = Z_LINE;
     const nH = this.hero.letters.length;
     const tk = (k: number) => endless.start + (k / (nH - 1)) * Math.max(0.3, endless.end - endless.start - 0.05);
+    const tEntry = endless.start - 0.1;
 
-    // ---- the flame along its line: under the inscription with the voice, then racing the hero word
-    // the flame reaches each burned word's first letter as it is sung, and SUFFERING's last as it ends
+    // ---- the flame: along its line under the inscription with the voice, a dash to the loop, then round and round
     const wx = this.wx;
-    const fx = keys(t, [
+    const lineX = (tt: number) => keys(tt, [
       [T0, -2.6],
       ...ws.slice(0, -1).map((w, i) => [w.start - 0.02, wx[i]!.x0 - 0.04, i === 0 ? ease.outQuad : ease.linear] as [number, number, (u: number) => number]),
-      [Math.min(ws[ws.length - 2]!.end, endless.start - 0.08), wx[wx.length - 1]!.x1 + 0.05, ease.linear],
-      [endless.start, xE - 1.2, ease.inQuad],
-      // through the row: reaching each letter just after it stands
-      ...Array.from({ length: nH }, (_, k) => [tk(k) + 0.07, heroX(xE, k) + 0.3, ease.linear] as [number, number, (u: number) => number]),
-      [T1, xLast + 40, ease.outQuad],
+      [Math.min(ws[ws.length - 2]!.end - 0.12, tEntry - 0.25), wx[wx.length - 1]!.x1 + 0.05, ease.linear],
+      [tEntry, tipX, ease.inQuad],
     ]);
+    // on the loop: through each letter's place as its syllable sounds, then on round the return half to close the lap
+    const loopU = (tt: number) => keys(tt, [
+      [tEntry, Math.PI],
+      ...Array.from({ length: nH }, (_, k) => [tk(k), LETTER_U(k), ease.linear] as [number, number, (u: number) => number]),
+      [T1, 3 * Math.PI, ease.linear],
+    ]);
+    const flameAt = (tt: number) => {
+      if (tt < tEntry) return { x: lineX(tt), z: Z_LINE };
+      return lem(loopU(tt), cx, cz, INF.a);
+    };
+    const fp = flameAt(t);
+    const fx = t < tEntry ? fp.x : tipX;
     const fl = flameState(audio, t, 3);
-    const base = new THREE.Vector3(fx, 0, Z_LINE);
+    const base = new THREE.Vector3(fp.x, 0, fp.z);
     const reveal = t < ws[0]!.start - 0.03 ? -99 : Math.min(fx, W0 + 1);
-    const race = prog(t, tilt0, endless.start + 0.2);
+    const onLoop = prog(t, tEntry - 0.05, tEntry + 0.05);
     const u = this.st.bg.u;
-    u.flameX!.value = fx; u.revealX!.value = reveal;
-    u.trailL!.value = lerp(1.6, 14, race);
+    u.flameX!.value = fx; u.revealX!.value = reveal; u.trailL!.value = 1.8;
+    u.xEnd!.value = W0 + 0.5;
+    (u.inf!.value as THREE.Vector4).set(cx, cz, INF.a, onLoop);
+    (u.trail!.value as THREE.Vector2[]).forEach((v, i) => {
+      const tt = t - i * INF.trailDt;
+      if (tt < tEntry) v.set(-999, -999); else { const p = flameAt(tt); v.set(p.x, p.z); }
+    });
 
-    // ---- the hero word: ENDLESS? folds up letter by letter as sung, in a row along the frieze, facing back
-    const hw = this.hero, s = HERO.cap / hw.cap;
-    for (let k = 0; k < nH; k++) {
-      const l = hw.letters[k]!, t0 = tk(k);
-      l.x = heroX(xE, k); l.z = HERO.z; l.y = 0; l.s = s;
-      l.yaw = Math.atan2(xE + REST.dx - l.x, REST.z - l.z);
-      l.hinge = popHinge(t, t0);
-      l.on = l.hinge < Math.PI / 2 - 1e-4 ? 1 : 0;
-      l.mat.uniforms.glow!.value = 0.3 * pulse(t, t0, 0.15) * (t >= t0 ? 1 : 0) * l.on;
-      l.mat.uniforms.amb!.value = 0.16 * prog(t, t0 + 0.25, t0 + 0.8) * l.on;
-    }
-    hw.update();
-
-    // ---- the camera: overhead, tracking the burn; a corkscrew down behind the flame on "so"; racing; braking
-    // overhead, the camera keeps the burn front a little left of centre
-    const xc = Math.max(fx - 1.1, -1.2);
-    const posA = new THREE.Vector3(xc, 6.0, -1.5), atA = new THREE.Vector3(xc, 0, -1.5);
-    // after the corkscrew the camera hangs back behind the word and eases to a stop; the flame runs on alone
-    const camX = keys(t, [[tilt0, W0 + 0.8], [tilt1, xE - 6.4, ease.inOutCubic], [endless.end, xE - 4.3, ease.linear], [T1, xE + REST.dx, ease.outCubic]]);
-    const posB = new THREE.Vector3(camX, REST.y, REST.z), atB = new THREE.Vector3(camX + 10, 0.25, REST.z - 4.6);
+    // ---- the camera: overhead tracking the burn; on "so" a corkscrew down to a high three-quarter view of the loop
+    const posA = new THREE.Vector3(Math.max(fx - 1.1, -1.2), 6.0, -1.5);
+    const xA = Math.min(posA.x, tipX - 1.0);
+    posA.x = xA;
+    const atA = new THREE.Vector3(xA, 0, -1.5);
+    const rest = new THREE.Vector3(cx - 0.3, 4.6, cz + 6.9), restAt = new THREE.Vector3(cx, 0.2, cz - 0.2);
+    const drift = prog(t, tilt1, T1, ease.inOutQuad);
+    const posB = rest.clone().add(new THREE.Vector3(0.5 * drift, -0.35 * drift, -0.9 * drift));
     const u2 = prog(t, tilt0, tilt1, ease.inOutCubic);
-    const q = StageCam.look(posA, atA, { x: 0, y: 0, z: -1 }).slerp(StageCam.look(posB, atB), u2);
+    const q = StageCam.look(posA, atA, { x: 0, y: 0, z: -1 }).slerp(StageCam.look(posB, restAt), u2);
     const pos = posA.clone().lerp(posB, u2);
     this.st.cam.setQ(pos, q, lerp(35, 42, u2));
 
-    const reach = lerp(4.2, 7.5, race);
-    this.st.render(renderer, out, t, { base, h: FLAME_H * fl.h, I: fl.I * 1.1, reach }, { wall: 0, freqFloor: 9 },
-      { gust: fl.gust * 0.5 - 0.9 * race * (1 - prog(t, endless.end, T1)), rim: 1.2, flameBehind: u2 > 0.5 });
+    // ---- ENDLESS? on the loop, each letter popping as the flame reaches it, facing the camera
+    const hw = this.hero, s = INF.cap / hw.cap;
+    const camP = this.st.cam.cam.position;
+    for (let k = 0; k < nH; k++) {
+      const l = hw.letters[k]!, t0 = tk(k), p = lem(LETTER_U(k), cx, cz, INF.a);
+      l.x = p.x; l.z = p.z; l.y = 0; l.s = s;
+      l.yaw = Math.atan2(camP.x - l.x, camP.z - l.z);
+      l.hinge = popHinge(t, t0);
+      l.on = l.hinge < Math.PI / 2 - 1e-4 ? 1 : 0;
+      l.mat.uniforms.glow!.value = 0.55 * pulse(t, t0, 0.16) * (t >= t0 ? 1 : 0) * l.on;
+      l.mat.uniforms.amb!.value = 0.14 * prog(t, t0 + 0.2, t0 + 0.7) * l.on;
+    }
+    hw.update();
 
-    return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6 + 0.8 * race * (1 - prog(t, endless.end, T1)), halation: 0.35 };
+    this.st.render(renderer, out, t, { base, h: FLAME_H * fl.h * (1 + 0.25 * onLoop), I: fl.I * 1.1, reach: lerp(4.2, 6.5, onLoop) }, { wall: 0, freqFloor: lerp(9, 5.5, u2) },
+      { gust: fl.gust * 0.5, rim: 1.2 });
+
+    return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6, halation: 0.35 };
   }
 }
