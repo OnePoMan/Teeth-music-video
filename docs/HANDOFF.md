@@ -85,7 +85,7 @@ Pilot v2 (client notes on v1 applied: words on their onsets, supporting words in
 - The artifact host refuses XML files with a DOCTYPE (bench-pack strips it from the stroke-font SVG copies).
 - faster-whisper's own decoder breaks with newer PyAV: pass an array (done in `whisper_run.py`).
 - A wait loop like `until ! pgrep -f "render.ts video"` matches its own command line and never exits: use `pgrep -f "[r]ender.ts video"`.
-- The no-HMR render server (`PDOOM_NO_HMR=1 bunx vite --port 5190`) does not see newly created scene files: restart it after adding one.
+- The no-HMR render server (`PDOOM_NO_HMR=1 bunx vite --port 5190`) does not see newly created scene files: restart it after adding one. It must stay up for a whole `video` render (the page keeps fetching from it), and a background command is killed after 2 h: restart the server before any long render if it has been up for more than ~1.5 h.
 - `Stage` draws letter meshes after the floor/wall pass: a flame that is behind letters must be drawn first (`flameBehind: true`), or it shows through them.
 - Floor engraving at grazing angles aliases; `pxLines` fades lines closer than ~3 px into their mean tone, and hooks should widen their AA by `gPix`.
 - Typecheck before committing: `cd app && bunx tsc --noEmit -p . && bunx tsc --noEmit -p tsconfig.scripts.json` (both clean at handoff).
