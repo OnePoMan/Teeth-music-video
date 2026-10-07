@@ -51,9 +51,9 @@ export function makeTimeline(ly: Lyrics, au: AudioData): TimelineEntry[] {
     ({ id, load: scene(file), start, end, ...extra });
 
   return [
-    E('strike', 'strike', 0, b.everything),
-    // verse 1 (revision 1 pilot): one shot per line, cut on the beat before each line
-    E('everything', 'everything', b.everything, b.endless),
+    // the opening and verse 1 (revision 1): one shot per line, cut on the beat before each line; `everything` opens
+    // the video (the flint strikes in the dark) and runs on into the first line without a cut
+    E('everything', 'everything', 0, b.endless),
     E('endless', 'endless', b.endless, b.symbolon),
     E('symbolon', 'symbolon', b.symbolon, b.change),
     E('change', 'change', b.change, b.souls),
