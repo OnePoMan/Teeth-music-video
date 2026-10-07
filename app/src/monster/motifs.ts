@@ -8,7 +8,9 @@ import * as THREE from 'three';
 import { FSPass, rtScale } from '../engine/gl';
 import { rgba } from '../engine/palette';
 import type { AudioData } from '../engine/audio';
-import { clamp, hash, noise1 } from '../engine/util';
+import type { Line, Word } from '../engine/lyrics';
+import { F, font, layout, measure, type TextLayout } from '../engine/type';
+import { clamp, hash, noise1, prog } from '../engine/util';
 
 // ---------------------------------------------------------------- the flame
 /**
@@ -152,6 +154,20 @@ float floorShadow(sampler2D mask, vec2 uv, vec2 L, int steps, float reach) {
 // ---------------------------------------------------------------- the meander
 type P2 = { x: number; y: number };
 
+/** GLSL: distance (cell units) to the Greek key's unit (5 cells along, 4 across) drawn as one polyline. */
+export const GLSL_KEY_DIST = /* glsl */ `
+    // the Greek key's unit (5 cells along, 4 across) as one polyline; distance in cell units
+    float keyDist(vec2 p) {
+      vec2 P[11];
+      P[0] = vec2(0.0, 4.0); P[1] = vec2(0.0, 0.0); P[2] = vec2(4.0, 0.0); P[3] = vec2(4.0, 3.0); P[4] = vec2(2.0, 3.0);
+      P[5] = vec2(2.0, 2.0); P[6] = vec2(3.0, 2.0); P[7] = vec2(3.0, 1.0); P[8] = vec2(1.0, 1.0); P[9] = vec2(1.0, 4.0); P[10] = vec2(5.0, 4.0);
+      float d = 1e9;
+      for (int k = 0; k < 10; k++) d = min(d, sdSegment(p, P[k], P[k + 1]));
+      // the neighbouring units' ends meet this one's (continuous line)
+      d = min(d, sdSegment(p, vec2(-1.0, 4.0), vec2(0.0, 4.0)));
+      return d;
+    }`;
+
 /**
  * The Greek key as one continuous polyline across a band from x0 to x1 at height y (top edge), band height h.
  * Each unit is the classic single-stroke key: up, over, down, back, in (a hook), then on to the next unit.
@@ -234,3 +250,40 @@ export function drawLamp2D(c: CanvasRenderingContext2D, x: number, y: number, al
 
 /** Where the flame stands for a lamp body centred at (x, y). */
 export const lampFlame = (x: number, y: number) => ({ x: x + LAMP_BODY.w * LAMP_BODY.nozzle.x, y: y + LAMP_BODY.h * LAMP_BODY.nozzle.y });
+
+
+// ---------------------------------------------------------------- the verse voice
+/** The verses' lyric setting (`questions`, `shades`…): Archivo wide and light, top left, unsung words dim. */
+export const VERSE = { x: 140, y: 250, size: 78, lead: 1.18, maxW: 1240, dim: 0.16 };
+
+export interface VerseRow { words: { w: Word; x: number; lay: TextLayout }[]; y: number }
+
+/** A lyric line wrapped into rows in the verse setting (x offsets relative to VERSE.x, baselines absolute). */
+export function layoutVerse(line: Line, o: { y?: number; size?: number; maxW?: number; fam?: string } = {}): VerseRow[] {
+  const fam = o.fam ?? F.archivo(125, 300), size = o.size ?? VERSE.size, maxW = o.maxW ?? VERSE.maxW;
+  const space = measure(' ', fam, size);
+  const rows: VerseRow[] = [];
+  let cur: VerseRow = { words: [], y: 0 };
+  let x = 0;
+  for (const w of line.words) {
+    const lay = layout(w.w, fam, size);
+    if (cur.words.length && x + lay.width > maxW) { rows.push(cur); cur = { words: [], y: 0 }; x = 0; }
+    cur.words.push({ w, x, lay });
+    x += lay.width + space;
+  }
+  rows.push(cur);
+  rows.forEach((r, i) => (r.y = (o.y ?? VERSE.y) + i * size * VERSE.lead));
+  return rows;
+}
+
+/** Draws verse rows in bone: each word lights from VERSE.dim to full as it is sung. `alpha` fades the whole line. */
+export function drawVerse(c: CanvasRenderingContext2D, rows: VerseRow[], t: number, alpha = 1) {
+  if (alpha <= 0 || !rows.length) return;
+  c.font = font(rows[0]!.words[0]!.lay.family, rows[0]!.words[0]!.lay.size);
+  c.textBaseline = 'alphabetic';
+  for (const r of rows) for (const it of r.words) {
+    const sung = prog(t, it.w.start, it.w.start + 0.12);
+    c.fillStyle = rgba('bone', (VERSE.dim + 0.8 * sung) * alpha);
+    c.fillText(it.w.w, VERSE.x + it.x, r.y);
+  }
+}

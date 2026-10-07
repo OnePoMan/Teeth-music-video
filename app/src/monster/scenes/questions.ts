@@ -17,13 +17,15 @@ import { LIN, rgba } from '../../engine/palette';
 import { F, font, layout, measure } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { clamp, ease, keys, lerp, prog, smoothstep } from '../../engine/util';
-import { FlameSprite, flameState } from '../motifs';
+import { FlameSprite, flameState, GLSL_KEY_DIST } from '../motifs';
 import { FLAME_HOME } from './strike';
 
 /** Focal length (px) of the camera that looks along the ground. */
-const FOCAL = 1100;
+export const FOCAL = 1100;
 /** The flame stands this far along the ground (camera-height units at the end of the crane). */
-const Z_FLAME = 7.0;
+export const Z_FLAME = 7.0;
+/** Where the plate leaves the camera, the flame and the split line (`shades` picks them up). */
+export const Q_END = { camH: 0.85, yh: H * 0.6, gutter: 0.85, gap: 520 };
 
 interface Row { words: { w: Word; x: number; lay: ReturnType<typeof layout> }[]; y: number }
 interface Q { line: Line; rows: Row[]; size: number; fam: string; t0: number; t1: number }
@@ -36,17 +38,7 @@ export default class Questions extends Scene {
   private bg = new FSPass(/* glsl */ `
     uniform float yh, camH, light, meander, scroll, t, split, dimAll;
     uniform vec2 flameScr;
-    // the Greek key's unit (5 cells along, 4 across) as one polyline; distance in cell units
-    float keyDist(vec2 p) {
-      vec2 P[11];
-      P[0] = vec2(0.0, 4.0); P[1] = vec2(0.0, 0.0); P[2] = vec2(4.0, 0.0); P[3] = vec2(4.0, 3.0); P[4] = vec2(2.0, 3.0);
-      P[5] = vec2(2.0, 2.0); P[6] = vec2(3.0, 2.0); P[7] = vec2(3.0, 1.0); P[8] = vec2(1.0, 1.0); P[9] = vec2(1.0, 4.0); P[10] = vec2(5.0, 4.0);
-      float d = 1e9;
-      for (int k = 0; k < 10; k++) d = min(d, sdSegment(p, P[k], P[k + 1]));
-      // the neighbouring units' ends meet this one's (continuous line)
-      d = min(d, sdSegment(p, vec2(-1.0, 4.0), vec2(0.0, 4.0)));
-      return d;
-    }
+    ${GLSL_KEY_DIST}
     void main() {
       vec2 px = vec2(FRAG_PX.x, ${H.toFixed(1)} - FRAG_PX.y);     // logical px, y DOWN (canvas convention)
       vec3 c = C_INK;
@@ -83,7 +75,7 @@ export default class Questions extends Scene {
         }
       }
       // the line (the horizon), split at the vanishing point: its halves drift apart
-      float gap = split * 520.0;
+      float gap = split * ${Q_END.gap.toFixed(1)};
       float onLine = 1.0 - smoothstep(0.6, 1.4, abs(px.y - yh) * PX_SCALE);
       float inGap = smoothstep(gap - 2.0, gap, abs(px.x - ${(W / 2).toFixed(1)}) * 2.0);
       c = mix(c, C_BONE * 0.8, onLine * (split > 0.0 ? inGap : 1.0) * 0.8 * (1.0 - 0.6 * dimAll));
@@ -126,12 +118,12 @@ export default class Questions extends Scene {
     const [q1, q2, q3, q4] = this.qs as [Q, Q, Q, Q];
     // the crane: from the ground (strike's view) up over the verse; the horizon rises a little as it tilts
     const crane = ease.inOutCubic(prog(t, this.ctx.start + 0.3, q3.line.start));
-    const camH = lerp(0.0, 0.85, crane);
-    const yh = lerp(FLAME_HOME.y, H * 0.6, ease.inOutCubic(prog(t, this.ctx.start + 0.3, q2.line.start + 1.5)));
+    const camH = lerp(0.0, Q_END.camH, crane);
+    const yh = lerp(FLAME_HOME.y, Q_END.yh, ease.inOutCubic(prog(t, this.ctx.start + 0.3, q2.line.start + 1.5)));
     const flameY = yh + (FOCAL * camH) / Z_FLAME;
     // the flame: it gutters on "change?" and comes back with the strings' figure
     const ch = q4.line.words[q4.line.words.length - 1]!;
-    const gutter = keys(t, [[ch.start - 0.05, 1], [ch.start + 0.35, 0.18, ease.outCubic], [ch.end + 0.25, 0.12], [ch.end + 1.6, 0.85, ease.inOutCubic]]);
+    const gutter = keys(t, [[ch.start - 0.05, 1], [ch.start + 0.35, 0.18, ease.outCubic], [ch.end + 0.25, 0.12], [ch.end + 1.6, Q_END.gutter, ease.inOutCubic]]);
     const fl = flameState(au, t, 0);
     const I = fl.I * gutter, hgt = FLAME_HOME.h * fl.h * lerp(0.45, 1, gutter);
     // the meander: drawn from the flame's feet as "suffering… become so endless" is sung, then it runs

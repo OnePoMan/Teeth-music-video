@@ -21,9 +21,9 @@ const CAP = 0.686; // Archivo cap height / em
 /** The ground line of the black-figure frieze (n=3). */
 const GROUND = H * 0.78;
 /** The waterline before and after the camera dips on MONSTER (n=1, 2). */
-const WL0 = H * 0.71, WL1 = H * 0.535;
+export const WL0 = H * 0.71, WL1 = H * 0.535;
 /** The floating lamp: x, depth below the waterline (it floats nearer the camera), flame height. */
-const LAMP = { x: W * 0.135, dy: 64, h: 104 };
+export const LAMP = { x: W * 0.135, dy: 64, h: 104 };
 
 interface Placed { w: Word; text: string; fam: string; size: number; x: number; base: number; lay: TextLayout; big: boolean }
 
