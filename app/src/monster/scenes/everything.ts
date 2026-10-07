@@ -40,7 +40,7 @@ float monsters(vec2 p) {
 float frMonster(int i, vec2 q) {
   if (i == 0) return polyphemus(q, frEye, frTime);
   if (i == 1) return circe(q, 1.0, frLook);
-  if (i == 2) return max(poseidon(q, 1.0, 1.0, 0.6, frLook), abs(q.x - 0.75) - 2.65);         // the wave and the trident only
+  if (i == 2) return max(poseidon(q, 1.0, 1.0, 0.6, frLook), abs(q.x - 0.7) - 3.1);            // the god and his trident only
   return trojanHorse(q, 1.0, 1.0, 0.0, frLook);
 }
 float frieze(vec2 p) {
@@ -94,7 +94,7 @@ const ARC = { cz: 10.5, R: 14 }, CAP = 1.6;
 const FRIEZE = [
   { x: -9.3, s: 0.74, letter: 0, g: [0, 5.6], eyes: [[0, 6.75, 0.78]] },
   { x: -1.5, s: 0.72, letter: 3, g: [-1.2, 3.6], eyes: [[-3.15, 5.82, 0.2], [1.6, 1.55, 0.3]] },
-  { x: 4.7, s: 0.74, letter: 5, g: [0.4, 3.8], eyes: [[-0.08, 3.95, 0.24]] },
+  { x: 4.7, s: 0.66, letter: 5, g: [0.6, 4.4], eyes: [[0.32, 4.72, 0.22]] },
   { x: 10.2, s: 0.68, letter: 8, g: [0.6, 4.2], eyes: [[3.22, 6.3, 0.36]] },
 ] as const;
 /** The frieze stands this high on the wall, clear of the word before it. */
@@ -172,7 +172,7 @@ export default class Everything extends Scene {
     const h1 = prog(t, hit(3, 3.84) - 0.02, hit(3, 3.84) + 0.2, ease.outCubic);
     const h2 = prog(t, hit(4, 4.18) - 0.02, hit(4, 4.18) + 0.2, ease.outCubic);
     // placement: each figure framed on its own (x, scale), blended through the morphs; the fire's flicker sways them
-    const pl = [[0, 1], [0.2, 1.18], [0.2, 1.0], [-0.2, 1.12]] as const;
+    const pl = [[0, 1], [0.2, 1.18], [0.6, 1.15], [-0.2, 1.12]] as const;
     let px = 0, ps = 0;
     w.forEach((wi, i) => { px += wi * pl[i]![0]; ps += wi * pl[i]![1]; });
     (u.figW!.value as THREE.Vector4).set(...w);

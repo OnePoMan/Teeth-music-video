@@ -170,8 +170,9 @@ float circe(vec2 p, float k, float look) {
   return min(d, circeMan((p - vec2(2.9, 0.0)) / 1.25, k, look) * 1.25);
 }
 
-// ---- Poseidon: the sea with its running-wave border, one wave heaving (k) and breaking in a scroll (the vases' wave),
-// an arm driving the trident up out of it (thrust), a galley before the wave pitching up (tip)
+// ---- Poseidon: the god himself, bearded, rising waist-deep out of the sea (k) with his trident raised (thrust); the
+// sea's running-wave border breaks before him; a galley pitches up beside him (tip). Archaic black-figure: a frontal
+// chest, the head in profile toward the ship, a long wedge beard, hair down his back, a fillet; the eye incised.
 // a scroll: a spiral arm leaving at angle a0 (radius R) and winding inward, counter-clockwise, for 'turns'
 float scroll(vec2 p, float R, float a0, float w, float turns) {
   float r = length(p), th = atan(p.y, p.x), L = turns * 6.2831853, d = 1e3;
@@ -196,38 +197,61 @@ float galley(vec2 p) {
   for (int i = 0; i < 3; i++) d = incise(d, abs(p.x + 0.5 * float(i - 1)) + max(0.0, abs(p.y - 1.9) - 0.6), 0.025);   // the sail's seams
   return d;
 }
-float poseidon(vec2 p, float k, float thrust, float tip, float look) {
-  // the sea: a band with a running-wave border along its top
-  float d = p.y - (0.8 + 0.06 * sin(p.x * 2.1));
-  vec2 cp = vec2(mod(p.x + 0.8, 1.6) - 0.8, p.y - 1.08);
-  d = min(d, scroll(cp, 0.34, -0.5, 0.085, 1.1));
-  // the wave: its back rising from the right, a steep concave face, the crest breaking over in a scroll
-  float top = 0.8 + 4.4 * k;
-  vec2 C = vec2(-0.1, top - 1.25 * k);
-  float H = max(C.y - 0.42 * k - 0.8, 0.0);
-  float S = p.x > 0.95 ? smoothstep(4.8, 0.95, p.x) : pow(smoothstep(-1.3, 0.95, p.x), 2.2);
-  d = min(d, p.y - (0.8 + H * S));
-  d = min(d, scroll(p - C, 1.32 * k, -0.32, 0.32 * k, 1.35));
-  for (int i = 0; i < 6; i++) d = min(d, sdCircle(p - C - vec2(-1.55 - 0.3 * float(i), 0.9 * k - 0.25 * float(i) + 0.2 * sin(float(i) * 2.0)), (0.1 - 0.01 * float(i)) * k));   // spray
-  for (int i = 0; i < 3; i++) d = incise(d, abs(p.y - (0.8 + (H - 0.42 - 0.48 * float(i)) * S)) + max(0.0, 1.25 - p.x) + max(0.0, p.x - 4.0), 0.03 * k);   // lines along its back
-  // the arm and the trident, before the wave once they are up
-  float ty = top + mix(-3.4, 1.0, thrust), tx = 2.2;
-  float tri = sdSegment(p, vec2(tx, ty - 3.2), vec2(tx, ty + 0.2)) - 0.1;
-  tri = min(tri, sdBox(p - vec2(tx, ty), vec2(0.82, 0.1)));
+float poseidonGod(vec2 g, float thrust, float look) {
+  // g: his own space, the waist at y 0.6, the ship to his left (-x)
+  float d = sdTrap(g - vec2(0.0, 2.1), 0.72, 1.28, 1.5);                                          // torso
+  d = smin(d, sdCircle(g - vec2(-1.16, 3.36), 0.4), 0.2);                                          // shoulders
+  d = smin(d, sdCircle(g - vec2(1.16, 3.36), 0.4), 0.2);
+  d = smin(d, sdBox(g - vec2(0.0, 3.86), vec2(0.3, 0.32)), 0.08);                                  // neck
+  vec2 h = g - vec2(0.02, 4.66);
+  float head = sdEll(h, vec2(0.54, 0.62));
+  head = smin(head, sdSegment(h, vec2(-0.44, 0.2), vec2(-0.66, -0.12)) - 0.05, 0.08);             // a straight nose
+  head = smin(head, sdCap(g, vec2(0.3, 4.95), vec2(0.66, 3.5), 0.44, 0.3), 0.12);                 // his hair, down his back
+  // the beard: full from the cheek, falling to a point on his chest, parted from it by a line of clay
+  float beard = min(sdCap(g, vec2(-0.12, 4.36), vec2(-0.56, 3.2), 0.42, 0.05), sdEll(g - vec2(-0.12, 4.25), vec2(0.46, 0.3)));
+  d = smin(d, head, 0.06);
+  d = before(d, beard, 0.045);
+  d = min(d, head);
+  // one arm stretched toward the ship, the palm raised against it; the other lifting the trident
+  d = smin(d, sdCap(g, vec2(-1.12, 3.36), vec2(-2.5, 3.08), 0.27, 0.18), 0.12);
+  d = smin(d, sdEll(rot2(-0.12) * (g - vec2(-2.66, 3.32)), vec2(0.13, 0.32)), 0.05);
+  d = min(d, sdCap(g, vec2(-2.56, 3.1), vec2(-2.42, 3.38), 0.05, 0.04));                          // the thumb
+  float ty = mix(4.4, 7.2, thrust), tx = 2.05;                                                      // the trident's crossbar
+  vec2 hand = vec2(tx - 0.02, ty - 1.65), sh = vec2(1.18, 3.42), el = mix(sh, hand, 0.5) + vec2(0.5, -0.1);
+  d = smin(d, sdCap(g, sh, el, 0.3, 0.24), 0.1);
+  d = smin(d, sdCap(g, el, hand, 0.24, 0.2), 0.08);
+  d = min(d, sdEll(g - hand, vec2(0.25, 0.22)));                                                     // the fist
+  float tri = sdSegment(g, vec2(tx, ty - 5.2), vec2(tx, ty + 0.15)) - 0.085;
+  tri = min(tri, sdBox(g - vec2(tx, ty), vec2(0.78, 0.09)));
   for (int i = 0; i < 3; i++) {
-    float x = tx - 0.8 + 0.8 * float(i);
-    float pt = ty + (i == 1 ? 1.55 : 1.15);
-    tri = min(tri, sdSegment(p, vec2(x, ty), vec2(x, pt)) - 0.08);
-    vec2 b = p - vec2(x, pt);
+    float x = tx - 0.75 + 0.75 * float(i), pt = ty + (i == 1 ? 1.5 : 1.12);
+    tri = min(tri, sdSegment(g, vec2(x, ty), vec2(x, pt)) - 0.075);
+    vec2 b = g - vec2(x, pt);
     tri = min(tri, max(abs(b.x) * 1.5 + b.y - 0.24, -b.y - 0.2));                                   // barbed point
   }
-  float fy = ty - 1.25;
-  float arm = sdEll(p - vec2(tx + 0.04, fy), vec2(0.38, 0.32));                                    // the fist round the shaft
-  arm = smin(arm, sdCap(p, vec2(tx + 0.1, fy - 0.15), vec2(tx + 0.7, fy - 2.8), 0.27, 0.36), 0.08); // forearm
-  for (int i = 0; i < 3; i++) arm = incise(arm, sdSegment(p, vec2(tx - 0.3, fy + 0.13 - 0.15 * float(i)), vec2(tx + 0.36, fy + 0.13 - 0.15 * float(i))), 0.022);
-  if (look > 0.001) d = min(d, length(p - C - vec2(0.02, 0.0)) - 0.17 * k * look);               // the wave's eye, in the heart of its scroll
-  d = before(d, min(arm, tri), 0.07 * thrust);
-  // the galley before the wave, its bow lifting
+  d = min(d, tri);
+  // incisions, as the vase painters drew a strong man: the chest, the arch of the ribs, the line down the belly, the
+  // navel; the fingers round the shaft; the beard's and the hair's strands; the eye, archaic and frontal
+  d = incise(d, max(abs(length((g - vec2(-0.5, 3.15)) * vec2(1.0, 1.5)) - 0.48), g.y - 3.15), 0.035);
+  d = incise(d, max(abs(length((g - vec2(0.5, 3.15)) * vec2(1.0, 1.5)) - 0.48), g.y - 3.15), 0.035);
+  d = incise(d, max(max(abs(length((g - vec2(0.0, 1.95)) * vec2(1.0, 1.25)) - 0.78), 2.2 - g.y), 0.22 - abs(g.x)), 0.03);
+  d = incise(d, sdSegment(g, vec2(0.0, 2.85), vec2(0.0, 1.85)), 0.028);
+  d = incise(d, length(g - vec2(0.0, 1.55)), 0.06);
+  for (int i = 0; i < 3; i++) d = incise(d, sdSegment(g, hand + vec2(-0.2, 0.1 - 0.1 * float(i)), hand + vec2(0.2, 0.1 - 0.1 * float(i))), 0.018);
+  for (int i = 0; i < 3; i++) d = incise(d, sdSegment(g, vec2(-0.36 + 0.15 * float(i), 4.08), vec2(-0.5 + 0.1 * float(i), 3.5 + 0.12 * float(i))), 0.022);
+  for (int i = 0; i < 3; i++) d = incise(d, sdSegment(g, vec2(0.28 + 0.15 * float(i), 4.85), vec2(0.5 + 0.13 * float(i), 3.75)), 0.022);
+  float ek = max(0.7, look);
+  return frontEye(d, g, vec2(-0.26, 4.78), 0.13 * (1.0 + 0.6 * look), ek);
+}
+float poseidon(vec2 p, float k, float thrust, float tip, float look) {
+  // the god, rising out of the sea as it heaves
+  float d = poseidonGod(p - vec2(0.6, -5.2 * (1.0 - k)), thrust, look);
+  // the sea before him: a band with a running-wave border, swelling round him
+  float sea = p.y - (0.8 + 0.06 * sin(p.x * 2.1) + 0.35 * k * exp(-(p.x - 0.6) * (p.x - 0.6) / 3.0));
+  vec2 cp = vec2(mod(p.x + 0.8, 1.6) - 0.8, p.y - 1.08 - 0.35 * k * exp(-(p.x - 0.6) * (p.x - 0.6) / 3.0));
+  sea = min(sea, scroll(cp, 0.34, -0.5, 0.085, 1.1));
+  d = before(d, sea, 0.06);
+  // the galley beside him, its bow lifting
   vec2 gp = rot2(0.6 * tip) * (p - vec2(-4.2, 1.15 + 0.3 * k));
   return before(d, galley(gp * 1.1) / 1.1, 0.06);
 }

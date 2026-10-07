@@ -19,7 +19,7 @@ const FIRE = new THREE.Vector3(7.0, 1.7, 10.5);
 const GROUPS = [
   { letters: [0, 1], h: 9.2, cx: 0.0 },
   { letters: [2, 3], h: 6.6, cx: -0.1 },
-  { letters: [4, 5], h: 8.1, cx: 0.75 },
+  { letters: [4, 5], h: 8.9, cx: 0.7 },
   { letters: [6], h: 7.3, cx: 0.3 },
 ] as const;
 
@@ -29,7 +29,7 @@ uniform float mT;
 float monster(int i, vec2 q) {
   if (i == 0) return polyphemus(q, 1.0, mT);
   if (i == 1) return circe(q, 1.0, 0.0);
-  if (i == 2) return max(poseidon(q, 1.0, 1.0, 0.6, 0.0), abs(q.x - 0.75) - 2.65);
+  if (i == 2) return max(poseidon(q, 1.0, 1.0, 0.6, 0.0), abs(q.x - 0.7) - 3.1);
   return trojanHorse(q, 1.0, 1.0, 0.0, 0.0);
 }
 float carve(vec2 xz) { return 0.0; }
