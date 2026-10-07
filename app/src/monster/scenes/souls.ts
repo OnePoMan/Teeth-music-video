@@ -23,19 +23,25 @@ const HOOKS = /* glsl */ `
 uniform float figA[${MAXF}], figH[${MAXF}], figV[${MAXF}], figT[${MAXF}];
 uniform int nFig; uniform float tNow, sway, cylR, zLine, lineW, flameX, lineOn, revealX;
 uniform vec2 home; uniform sampler2D word; uniform vec4 wordRect; uniform mat4 anaVP;
-// a standing man as a shadow: proportions in units of his height, feet at the origin, y up
+// a standing figure as a shadow: proportions in units of its height, feet at the origin, y up. v varies the build,
+// the stance, the cloak (a himation from the shoulders to the shins) and a bowed head.
 float figure(vec2 q, float v) {
-  float sh = 0.1 + 0.025 * fract(v * 7.3), hd = 0.052 + 0.01 * fract(v * 3.1), st = 0.03 + 0.03 * fract(v * 5.7);
-  float d = length(q - vec2(0.0, 0.93)) - hd;
-  d = min(d, sdSegment(q, vec2(0.0, 0.84), vec2(0.0, 0.9)) - 0.022);
-  d = min(d, sdSegment(q, vec2(-sh * 0.85, 0.8), vec2(sh * 0.85, 0.8)) - 0.035);
-  d = min(d, sdSegment(q, vec2(0.0, 0.55), vec2(0.0, 0.79)) - 0.075);
-  d = min(d, sdSegment(q, vec2(-sh, 0.79), vec2(-sh - 0.02, 0.5)) - 0.026);
-  d = min(d, sdSegment(q, vec2(sh, 0.79), vec2(sh + 0.02 * (1.0 - 2.0 * fract(v * 2.7)), 0.5)) - 0.026);
-  d = min(d, sdSegment(q, vec2(-0.04, 0.55), vec2(-st - 0.03, 0.02)) - 0.035);
-  d = min(d, sdSegment(q, vec2(0.04, 0.55), vec2(st + 0.03, 0.02)) - 0.035);
-  // some wear a tunic to the thigh
-  if (fract(v * 11.1) > 0.45) d = min(d, max(abs(q.x) - (0.07 + 0.35 * (0.6 - q.y) * step(q.y, 0.6)), abs(q.y - 0.5) - 0.1));
+  float sh = 0.105 + 0.02 * fract(v * 7.3), hd = 0.055 + 0.008 * fract(v * 3.1), st = 0.025 + 0.035 * fract(v * 5.7);
+  float bow = step(0.55, fract(v * 13.7)) * 0.03;
+  float cloak = step(0.4, fract(v * 11.1));
+  vec2 hc = vec2(bow, 0.925 - bow * 0.6);
+  float d = length((q - hc) * vec2(1.0, 0.88)) - hd;                               // head, a little long
+  d = smin(d, sdSegment(q, vec2(bow * 0.5, 0.84), hc) - 0.024, 0.02);              // neck
+  d = smin(d, sdSegment(q, vec2(-sh * 0.8, 0.8), vec2(sh * 0.8, 0.8)) - 0.04, 0.04); // shoulders
+  d = smin(d, sdSegment(q, vec2(0.0, 0.52), vec2(0.0, 0.79)) - 0.078, 0.05);        // torso
+  d = smin(d, sdSegment(q, vec2(-sh, 0.79), vec2(-sh - 0.015, 0.52)) - 0.026, 0.03); // arms
+  d = smin(d, sdSegment(q, vec2(sh, 0.79), vec2(sh + 0.02 * (1.0 - 2.0 * fract(v * 2.7)), 0.52)) - 0.026, 0.03);
+  d = smin(d, sdSegment(q, vec2(-0.04, 0.54), vec2(-st - 0.025, 0.02)) - 0.034, 0.03); // legs
+  d = smin(d, sdSegment(q, vec2(0.04, 0.54), vec2(st + 0.025, 0.02)) - 0.034, 0.03);
+  // the cloak: a drape from the shoulders, widening to the shins, over one arm
+  float hw = mix(sh + 0.03, sh + 0.07, sat((0.8 - q.y) / 0.6));
+  float drape = max(abs(q.x - 0.01) - hw, max(q.y - 0.82, 0.2 - q.y));
+  d = mix(d, smin(d, drape, 0.03), cloak);
   return d;
 }
 float carve(vec2 xz) {
@@ -54,7 +60,7 @@ float anaMask(vec2 xz) {
   return smoothstep(0.25, 0.75, textureLod(word, uv, 0.0).a) * smoothstep(0.02, -0.25, sp.x - (revealX + 5.4) / 10.8);
 }
 // the floor in rings round the flame's home
-float floorLines(vec3 P, float u) { return length(P.xz - home) * 4.2 + 0.25 * snoise(P.xz * 0.2); }
+float floorLines(vec3 P, float u) { return length(P.xz - home) * 2.4 + 0.2 * snoise(P.xz * 0.2); }
 float extraShadow(vec3 P, bool wall) {
   if (!wall) return 0.0;
   float a = atan(P.z, P.x), occ = 0.0;
@@ -249,7 +255,8 @@ export default class Souls extends Scene {
     }
 
     this.st.render(renderer, out, t, { base, h: FLAME_H * fl.h * (sweeping ? 1.25 : 1), I: fl.I * 1.7, reach: 15 },
-      { wall: 2, cyl: [0, 0, R], freqWall: 6.5, freqFloor: 6 },
+      // the wall is a shadow-theatre screen: plaster in one continuous lit tone, so the shades read crisp and black
+      { wall: 2, cyl: [0, 0, R], freqWall: 6.5, freqFloor: 6, toneWall: 1, toneFloor: 0.45 },
       { cards: false, gust: fl.gust * 0.6 + (sweeping ? -1.2 : 0), rim: 1.2 });
 
     return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6, halation: 0.35 };

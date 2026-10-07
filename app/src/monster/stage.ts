@@ -333,6 +333,9 @@ export interface StageSurfaces {
   freqWall?: number;
   /** 0..1: how much of the floor is drawn (the light's own pool fades in with it). */
   floor?: number;
+  /** 0 engraved lines, 1 a continuous lit tone (plaster), for the wall and the floor. */
+  toneWall?: number;
+  toneFloor?: number;
 }
 
 /** Default surface hooks: no grooves, no extra shadows (scenes pass their own, see `Stage` options). */
@@ -347,7 +350,7 @@ const BG_FRAG = (hooks: string) => /* glsl */ `
 uniform mat4 invVP; uniform vec3 camPos;
 uniform vec3 Lc; uniform float LI, reach, rL;
 uniform int wallMode; uniform float wallZ; uniform vec3 cyl;
-uniform float freqF, freqW, floorOn;
+uniform float freqF, freqW, floorOn, toneW, toneF;
 uniform mat4 cardM[${MAX_CARDS}]; uniform vec4 cardBox[${MAX_CARDS}]; uniform vec4 cardMap[${MAX_CARDS}];
 uniform float cardS[${MAX_CARDS}]; uniform float cardAt[${MAX_CARDS}]; uniform int nCards;
 uniform sampler2D atlas0, atlas1, atlas2, atlas3;
@@ -451,6 +454,14 @@ void main() {
     // white-line engraving: hairlines that swell a little in the light and stop in the shadow
     float ink = pxLines(u, 0.6 + 1.9 * sat(b * 0.85)) * smoothstep(0.015, 0.09, b);
     col = mix(C_INK, warm(b) * min(1.0, 0.35 + b), ink);
+    // or a continuous tone: lime plaster lit by the flame, like a shadow-theatre screen (a little mottling and grain)
+    float tone = wall ? toneW : toneF;
+    if (tone > 0.0) {
+      vec2 sp = wall ? vec2(P.x + P.z, P.y) : P.xz;
+      float grain = 0.9 + 0.1 * snoise(sp * 1.3) + 0.05 * snoise(sp * 23.0);
+      vec3 plaster = warm(b) * (0.03 + 0.42 * sat(b) * sat(b)) * grain;
+      col = mix(col, plaster, tone);
+    }
     // a groove: its floor dark and finely cross-hatched, its walls hairlines (the one facing the flame bright)
     if (g > 0.0) {
       float wallM = sat(g * (1.0 - g) * 4.0);
@@ -487,7 +498,7 @@ export class Stage {
       invVP: { value: new THREE.Matrix4() }, camPos: { value: new THREE.Vector3() },
       Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, rL: { value: 0.1 },
       wallMode: { value: 0 }, wallZ: { value: -10 }, cyl: { value: new THREE.Vector3(0, 0, 8) },
-      freqF: { value: 7 }, freqW: { value: 5 }, floorOn: { value: 1 },
+      freqF: { value: 7 }, freqW: { value: 5 }, floorOn: { value: 1 }, toneW: { value: 0 }, toneF: { value: 0 },
       cardM: { value: arr(() => new THREE.Matrix4()) }, cardBox: { value: arr(() => new THREE.Vector4()) },
       cardMap: { value: arr(() => new THREE.Vector4()) }, cardS: { value: arr(() => 1) }, cardAt: { value: arr(() => 0) }, nCards: { value: 0 },
       atlas0: { value: null }, atlas1: { value: null }, atlas2: { value: null }, atlas3: { value: null },
@@ -525,6 +536,7 @@ export class Stage {
     const cy = S.cyl ?? [0, 0, 8];
     (u.cyl!.value as THREE.Vector3).set(cy[0], cy[1], cy[2]);
     u.freqF!.value = S.freqFloor ?? 7; u.freqW!.value = S.freqWall ?? 5; u.floorOn!.value = S.floor ?? 1;
+    u.toneW!.value = S.toneWall ?? 0; u.toneF!.value = S.toneFloor ?? 0;
     // shadow cards: every shown letter of every casting run
     let n = 0;
     if (o.cards !== false) this.casters.forEach((w, k) => {
