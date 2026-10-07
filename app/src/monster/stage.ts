@@ -60,11 +60,13 @@ out vec4 fragColor;
 ${GLSL_COMMON}
 uniform vec3 Lc, camPosL; uniform float LI, reach, glow, lineFreq, rim, amb, vaseL;
 void main() {
-  vec3 N = normalize(vNW);
+  // (degenerate bevel triangles carry zero normals: guard them, or their NaN blooms into a white star)
+  float nl = length(vNW);
+  vec3 N = nl > 1e-6 ? vNW / nl : vec3(0.0, 0.0, 1.0);
   vec3 L = Lc - vW; float d = length(L); L /= d;
   float fall = LI / (1.0 + (d / reach) * (d / reach) * 4.0);
   float ndl = dot(N, L);
-  float face = step(0.9, abs(normalize(vN).z));          // the letter's face (front or back) vs its sides
+  float face = step(0.9, abs(vN.z) / max(length(vN), 1e-6));   // the letter's face (front or back) vs its sides
   float lit = pow(max(ndl, 0.0), 1.3) * fall;
   float tone = sat(lit * 1.35);
   // cut stone: the face bone in the light, the sides a step darker; where the light falls away, a black-line
@@ -92,6 +94,7 @@ void main() {
   // afterglow: a sung letter keeps a little warm light of its own
   col += mix(C_BONE, C_EMBER, 0.3) * amb * (0.35 + 0.65 * face) * (1.0 - 0.5 * lines);
   col = mix(col, C_EMBER * 2.2, glow * (0.6 + 0.4 * face));
+  if (any(isnan(col)) || any(isinf(col))) col = vec3(0.0);
   fragColor = vec4(col, 1.0);
 }`;
 
@@ -469,7 +472,12 @@ vec3 clayWall(vec3 P, vec3 N, out float occ) {
   float across = wallMode == 1 ? P.x : atan(P.z - cyl.y, P.x - cyl.x) * cyl.z;
   vec2 sp = vec2(across, P.y);
   float grain = 0.92 + 0.06 * snoise(sp * 1.1) + 0.04 * snoise(sp * 19.0);
+#ifdef WALL_HOOK
+  // a scene that paints its own wall (a backdrop) defines WALL_HOOK and wallHook(P, col) in its hooks
+  return wallHook(P, clayCol(light * (1.0 - occ)) * grain);
+#else
   return clayCol(light * (1.0 - occ)) * grain;
+#endif
 }
 vec3 wallNormal(vec3 P) { return wallMode == 1 ? vec3(0.0, 0.0, 1.0) : vec3(cyl.x - P.x, 0.0, cyl.y - P.z) / cyl.z; }
 
@@ -538,7 +546,8 @@ void main() {
         else refl = skyTint(R, C_INK);
         if (reflOn > 0.0) {
           vec2 ruv = FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)}) + vec2(Nf.x, -Nf.z) * reflBend;
-          vec4 rt = texture(reflTex, ruv); refl = mix(refl, rt.rgb, rt.a);
+          vec4 rt = texture(reflTex, ruv);
+          if (!(any(isnan(rt)) || any(isinf(rt)))) refl = mix(refl, rt.rgb, rt.a);
         }
         vec3 Hh = normalize(Lv + V);
         float spec = pow(max(dot(Nf, Hh), 0.0), 260.0) * fall * (1.0 - occ);
