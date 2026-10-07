@@ -4,7 +4,7 @@ A code-rendered, word-synced music video for "Monster" (Jorge Rivera-Herrans, *E
 
 ## The idea in one paragraph
 
-**A shadow play in the land of the dead.** In the Greek underworld the dead are *shades* (σκιά, shadows), and the song is sung among them. One flame, the signal-orange point that ran through P(doom) as the spark, is the only light down here; it is carried through every plate and everything we see is lit by it. **What the flame lights is the man; what it casts is the monster.** Each plate sets concrete things in front of the flame (a cave mouth, a cup, a fleet, a wooden horse, a scale, a stele, a sea chart, a wall) and lets their shadows tell the truth. Under every plate runs **the line** ("I'm the only one whose line I haven't crossed"): one hairline, a horizon, a ground line, a scale beam, a wall's coping, a course on a chart, which he walks along and, on "I will deal the blow", crosses. The three choruses are one hook in three grammatical moods, and the shadow takes over a little more each time: *What if I'm the monster?* (the shadow trails the word, wrong-shaped), *If I became the monster* (the word and its shadow weigh the same), *Then I'll become the monster* (the palette flips from red-figure, a lit figure on black, to black-figure, a black silhouette on a flame-orange field: the shadow is the only figure left). The video ends where it began: the flame goes out, a spark is struck, and it loops.
+**A shadow play in the land of the dead.** In the Greek underworld the dead are *shades* (σκιά, shadows), and the song is sung among them. One flame, the signal-orange point that ran through P(doom) as the spark, is the only light down here; it is carried through every plate and everything we see is lit by it. **What the flame lights is the man; what it casts is the monster.** Each plate sets concrete things in front of the flame (a cave mouth, a cup, a fleet, a wooden horse, a scale, a stele, a sea chart, a wall) and lets their shadows tell the truth. Under every plate runs **the line** ("I'm the only one whose line I haven't crossed"): one hairline, a horizon, a ground line, a scale beam, a wall's coping, a course on a chart, which he walks along and, on "I will deal the blow", crosses. The three choruses are one hook in three grammatical moods, and the other self takes over a little more each time: *What if I'm the monster?* (the word stands lit on the shore; its reflection in the black water is already black-figure, a black silhouette on the clay's orange, and has no question mark: the figure asks, the water answers), *If I became the monster* (the orange seeps up above the waterline, very slightly), *Then I'll become the monster* (the palette flips from red-figure, a lit figure on black, to black-figure: the reflection is the only figure left). The video ends where it began: the flame goes out, a spark is struck, and it loops.
 
 ## Tone
 
@@ -40,6 +40,7 @@ Unchanged from `docs/TREATMENT.md`: every line readable and synced per word (a w
 4. **The scale** (the in-world instrument, P(doom)'s readout's successor): a balance whose beam tips a little further toward ruthlessness each chorus; staged inside plates as a cameo, never a corner HUD.
 5. **The hook**: MONSTER, one recurring typographic event that escalates through the three moods, then is chanted by the shades in the outro.
 6. **The meander**: the Greek key, a single continuous line: the "endless" suffering of verse 1 and the bookend frame (P(doom)'s crop marks' successor) around the first and last frames.
+7. **The water** (the reflection is the future): wherever the line is a waterline, the water shows the other self in black-figure. It is the mechanism of the palette's arc: only in the reflection in chorus 1, seeping above the line through chorus 2, the whole frame in chorus 3.
 
 ## Song map (from `data/monster/audio.json`, `data/monster/lyrics.json`)
 
@@ -50,13 +51,13 @@ Unchanged from `docs/TREATMENT.md`: every line readable and synced per word (a w
 | `strike` | 0:00–0:04.7 | intro | Black. A flint strikes on the first downbeat; the flame catches; the meander frame draws itself as one line. |
 | `questions` | 0:04.7–0:26 | How has everything… / How did suffering… / How am I to reunite… / Do I need to change? | Four questions, four turns of the flame: "turned against us" (the words turn their backs), "endless" (the line rides a meander that never ends), "estranged" (the line splits across a widening sea), "change" (the flame gutters and the shadow of CHANGE changes shape). |
 | `shades` | 0:26–0:44 | I'm surrounded by the souls… / …line I haven't crossed / …across the sea / Is me? | The flame set on the ground; long shadows of the dead ring it, with no one casting them. A line in the dust: every shadow lies beyond it but his. The line becomes the horizon; "Is me?": his reflection's shadow stands up. |
-| `hook` 1 | 0:44–0:46.5 | What if I'm the monster? | Bone on ink. The word lit from below; its shadow on the wall behind is too tall and leans the wrong way. |
+| `hook` 1 | 0:44–0:46.5 | What if I'm the monster? | The shore of black water; the line is the waterline. A clay oil lamp floats at the left. The question is voiced top left; MONSTER? stands up on the waterline as it is sung, bone, lit. Its reflection is black-figure on the clay's orange and has no question mark; the orange develops in the water as the word is sung and breaks into ripple bands with depth. On the word the camera dips until the waterline crosses the middle of the frame. |
 | `mirror` | 0:46.5–1:09 | …in the wrong / …hiding all along / …caved to guilt / …far too kind to foes, but a monster to ourselves / What if I'm the monster? | The shadow hides behind each word; "caved" folds the frame into a cave; "kind to foes / monster to ourselves" is the scale's first cameo. |
 | `cyclops` | 1:09–1:19.7 | Is the cyclops struck with guilt… | The cave mouth is the eye, the boulder its pupil. Open at night under the moon; tally marks of men struck off on the rock; on "sleep" the boulder rolls back: the eye shuts. |
 | `circe` | 1:19.7–1:30.3 | When the witch turns men to pigs… | A cup seen from above. MEN reflected in the potion re-forms as PIGS; the surface spirals ("insane"), then freezes ("colder… older"). |
 | `poseidon` | 1:30.3–1:41 | When a God comes down… | An engraved sea of wave scrolls and a fleet in hull outlines; three lines (the trident) come down and the fleet drowns; the sea goes flat and silent ("no one dares"). |
 | `horse` | 1:41–1:50.4 | Does a soldier use a wooden horse… | The horse as a carpenter's construction drawing, x-rayed: the soldiers inside are hatch marks; the city's lamps go out ("sleeping Trojans"); VILE re-letters itself into GUILE; REMORSE is thrown off. |
-| `hook` 2 | 1:50.4–1:55 | If I became the monster… | Hairline type (the conditional). Word and shadow on the two pans of the scale, level. |
+| `hook` 2 | 1:50.4–1:55 | If I became the monster… | The same shore, the conditional: hairline type; the orange of the reflection creeps a little way above the waterline. |
 | `scale` | 1:55–2:15.4 | …threw that guilt away / …foes at bay / …everyone but us / …got home again / …unjust | GUILT is thrown off a pan and the beam drops; the foes are kept outside a bay on a chart; a circle drawn around "us"; home is a point of light on the horizon; on "unjust" the beam snaps. Drums out from 1:55 to 2:03, back for "home again". |
 | `creed` | 2:15.4–2:23.3 | Oh, ruthlessness is mercy upon ourselves / And deep down I know this well | Poseidon's creed carved in Cormorant on a frieze; RUTHLESSNESS slides into MERCY's place; "deep down": the camera sinks under the line. |
 | `losses` | 2:23.3–2:29 | I lost my best friend… / Five hundred men gone… | A funerary stele; three epitaphs carved and darkened; then five hundred small flames in a grid go out on "gone". |
@@ -74,8 +75,8 @@ Unchanged from `docs/TREATMENT.md`: every line readable and synced per word (a w
 - The "infant" line is handled with type only, no figure.
 - The palette moves toward black-figure gradually and very subtly across chorus 2; the full flip is chorus 3.
 - Final render: the command-line pipeline (headless Chrome + x264, as P(doom)) on a GPU machine.
+- Hook 1: the reflection is the future (black-figure, in the water) and has no question mark.
 
 ## Open questions
 
 1. Which machine renders (the render bench, `app/src/bench.ts`, measures each candidate) and so how heavy the 3D plates can be.
-2. Hook 1: the current treatment or one of three alternatives (under review).
