@@ -6,6 +6,7 @@
 //  - the MEANDER: the Greek key as one continuous polyline (the "endless" line, the bookend frame).
 import * as THREE from 'three';
 import { FSPass, rtScale } from '../engine/gl';
+import { rgba } from '../engine/palette';
 import type { AudioData } from '../engine/audio';
 import { clamp, hash, noise1 } from '../engine/util';
 
@@ -200,3 +201,36 @@ export function embers(t: number, x: number, y: number, h: number, rate = 6, see
   return out;
 }
 
+
+// ---------------------------------------------------------------- the lamp
+/** Size of the floating clay oil lamp (logical px) and where its flame sits relative to the body's centre. */
+export const LAMP_BODY = { w: 92, h: 26, nozzle: { x: 0.64, y: -0.12 } };
+
+/**
+ * The clay oil lamp the flame burns in once it is set on the water: a low round bowl with a nozzle to the
+ * right and a ring handle to the left, lit by its own flame along the rim. Canvas2D, centred at (x, y).
+ */
+export function drawLamp2D(c: CanvasRenderingContext2D, x: number, y: number, alpha = 1) {
+  const { w, h } = LAMP_BODY;
+  c.save();
+  c.globalAlpha *= alpha;
+  c.translate(x, y);
+  c.beginPath();
+  c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+  c.moveTo(w * 0.35, -h * 0.28); c.quadraticCurveTo(w * 0.62, -h * 0.34, w * 0.66, -h * 0.05);
+  c.quadraticCurveTo(w * 0.62, h * 0.22, w * 0.35, h * 0.18);
+  const g = c.createLinearGradient(0, -h / 2, 0, h / 2);
+  g.addColorStop(0, rgba('blood', 0.95)); g.addColorStop(0.45, rgba('ink2', 1)); g.addColorStop(1, rgba('ink', 1));
+  c.fillStyle = g;
+  c.fill();
+  c.beginPath(); c.ellipse(-w * 0.52, -h * 0.05, 9, 7, 0, 0, Math.PI * 2);
+  c.strokeStyle = rgba('ink2', 1); c.lineWidth = 4; c.stroke();
+  c.beginPath(); c.ellipse(0, -h * 0.18, w * 0.47, h * 0.3, 0, Math.PI * 1.05, Math.PI * 1.95);
+  c.strokeStyle = rgba('ember', 0.9); c.lineWidth = 2.2; c.stroke();
+  c.beginPath(); c.ellipse(-w * 0.06, -h * 0.12, 9, 3.5, 0, 0, Math.PI * 2);
+  c.fillStyle = rgba('ink', 1); c.fill();
+  c.restore();
+}
+
+/** Where the flame stands for a lamp body centred at (x, y). */
+export const lampFlame = (x: number, y: number) => ({ x: x + LAMP_BODY.w * LAMP_BODY.nozzle.x, y: y + LAMP_BODY.h * LAMP_BODY.nozzle.y });

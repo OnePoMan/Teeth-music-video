@@ -12,11 +12,10 @@
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { FSPass, Layer2D, W, H } from '../../engine/gl';
-import { rgba } from '../../engine/palette';
 import { F, font, layout, measure, type TextLayout } from '../../engine/type';
 import type { Word } from '../../engine/lyrics';
 import { clamp, ease, lerp, prog, pulse, noise1 } from '../../engine/util';
-import { FlameSprite, flameState, meanderBand } from '../motifs';
+import { FlameSprite, flameState, meanderBand, drawLamp2D, lampFlame } from '../motifs';
 
 const CAP = 0.686; // Archivo cap height / em
 /** The ground line of the black-figure frieze (n=3). */
@@ -216,29 +215,10 @@ export default class Hook extends Scene {
   /** The floating lamp's body (dark clay, a rim of firelight on its top edge) and its flame. */
   private drawLamp(renderer: THREE.WebGLRenderer, out: THREE.WebGLRenderTarget, x: number, y: number, t: number, fl: { h: number; I: number; gust: number }) {
     const L = this.lampLayer; L.clear();
-    const c = L.ctx;
-    const w = 92, h = 26;
-    c.save();
-    c.translate(x, y);
-    // the body: a low round bowl with a nozzle to the right and a ring handle to the left
-    c.beginPath();
-    c.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
-    c.moveTo(w * 0.35, -h * 0.28); c.quadraticCurveTo(w * 0.62, -h * 0.34, w * 0.66, -h * 0.05);
-    c.quadraticCurveTo(w * 0.62, h * 0.22, w * 0.35, h * 0.18);
-    const g = c.createLinearGradient(0, -h / 2, 0, h / 2);
-    g.addColorStop(0, rgba('blood', 0.95)); g.addColorStop(0.45, rgba('ink2', 1)); g.addColorStop(1, rgba('ink', 1));
-    c.fillStyle = g;
-    c.fill();
-    c.beginPath(); c.ellipse(-w * 0.52, -h * 0.05, 9, 7, 0, 0, Math.PI * 2);
-    c.strokeStyle = rgba('ink2', 1); c.lineWidth = 4; c.stroke();
-    // firelight on the rim and the filling hole
-    c.beginPath(); c.ellipse(0, -h * 0.18, w * 0.47, h * 0.3, 0, Math.PI * 1.05, Math.PI * 1.95);
-    c.strokeStyle = rgba('ember', 0.9); c.lineWidth = 2.2; c.stroke();
-    c.beginPath(); c.ellipse(-w * 0.06, -h * 0.12, 9, 3.5, 0, 0, Math.PI * 2);
-    c.fillStyle = rgba('ink', 1); c.fill();
-    c.restore();
+    drawLamp2D(L.ctx, x, y);
     this.ctx.comp.draw(renderer, L.upload(), out);
-    this.flame.draw(renderer, out, x + w * 0.64, y - h * 0.12, LAMP.h * fl.h, t, { seed: 3, gust: fl.gust * 0.6, intensity: fl.I });
+    const fp = lampFlame(x, y);
+    this.flame.draw(renderer, out, fp.x, fp.y, LAMP.h * fl.h, t, { seed: 3, gust: fl.gust * 0.6, intensity: fl.I });
   }
 
   /** Black-figure: the frame is clay, the word a black silhouette with incised detail. */
