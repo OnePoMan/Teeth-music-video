@@ -1,5 +1,7 @@
 # Monster — treatment & style bible (draft 1)
 
+> **Revision 2 pending (client review of pilot v5):** no visible flame anywhere (its shadows stay), no line fields on floors or water, and the opening becomes Polyphemus, Circe, Poseidon and the Trojan horse. The through-line that replaces the flame is still open. Until this treatment is rewritten, `docs/HANDOFF.md` "Pilot v5 review" overrides anything below that conflicts with it.
+
 A code-rendered, word-synced music video for "Monster" (Jorge Rivera-Herrans, *EPIC: The Musical*, The Underworld Saga), on the P(doom) engine (`docs/ENGINE.md`) and its design rules (`docs/TREATMENT.md`): every frame a pure function of song time, karaoke per word, cuts and hits on the analysed beat grid, one restrained palette, one type system, concrete objects treated as visual puns and transformations, never storyboard illustrations of the lines. Where P(doom) drew everything as an engraving, Monster's surfaces are Greek vase painting: clay, black glaze, and lines reserved in the clay (Grammar rule 9).
 
 ## The idea in one paragraph
