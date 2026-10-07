@@ -54,7 +54,7 @@ The work is collaborative: propose, show stills/clips, ask the client (the user)
 | hook3 | `scenes/hook.ts` n=3 | draft: clay field, black MONSTER with inset incised contour, ground line, meander band. |
 | mirror, cyclops, circe, poseidon, horse, scale, creed, losses, course, wall, blackfigure, outro | — | not started; designs in `docs/MONSTER.md` (rework each under the revision 1 grammar before building) |
 
-Verse 1 pilot review clip: `out/review/pilot-v1.mp4` (3.0–46.6 s, 30 fps, 1 sample, SwiftShader; not committed, regenerate with the command under "Render facts"). Shot designs: `docs/MONSTER.md` plate table.
+Pilot v2 (client notes on v1 applied: words on their onsets, supporting words in 3D, CHANGE?'s shadows, THREAT black, finer face engraving): review clip `out/review/pilot-v2.mp4`. Earlier: verse 1 pilot review clip `out/review/pilot-v1.mp4` (3.0–46.6 s, 30 fps, 1 sample, SwiftShader; not committed, regenerate with the command under "Render facts"). Shot designs: `docs/MONSTER.md` plate table.
 
 ## Word-timing (alignment) status
 
@@ -92,7 +92,7 @@ Verse 1 pilot review clip: `out/review/pilot-v1.mp4` (3.0–46.6 s, 30 fps, 1 sa
 
 ## Next steps, in order
 
-1. Get the client's notes on the verse 1 pilot clip and apply them (known polish items: `symbolon`'s light and estranged placement, `change`'s shadow readability during the eighth-note jumps, `sea`'s THREAT tone, letter-face hatching on mid-tones).
+1. Get the client's notes on pilot v2 (`out/review/pilot-v2-review.mp4`) and apply them. v1 notes and their fixes are in `docs/MONSTER.md` Grammar rules 7–8.
 2. Finish the alignment QA (karaoke split, FIX table), regenerate `data/monster/lyrics.json`, recheck hook timings.
 3. Build `mirror` (rest of chorus 1), then verse 2's four plates (`cyclops`, `circe`, `poseidon`, `horse`), then chorus 2 (`hook` n=2 + `scale`, with the very subtle orange creep), the bridge (`creed`, `losses` with the names, `course` with the dawn accent, `wall` type-only), chorus 3 (`hook` n=3 + `blackfigure`), and `outro` (loop back to the first frame of `strike`).
 4. Collect bench results; give the client render-machine setup steps; final render.

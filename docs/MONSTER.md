@@ -42,6 +42,8 @@ The first build of verse 1 read as subtitles over a quiet scene: two-line couple
 4. **Something happens every bar** (2.67 s; every 2 beats in the choruses and the bridge): sub-cuts, whips, orbits, pushes, snaps, easing into downbeats. The flame travels like P(doom)'s spark, so the shadows sweep.
 5. **Full-frame engraved detail** with a full value range in every shot; the flame shown big in close-ups.
 6. **A Greek medium per plate** (shadow theatre, red- and black-figure vase painting, carved frieze, stele, sea chart, masonry, bronze), one palette and type system throughout.
+7. **Every word lands on its sung onset** (client note on pilot v1): no fade-ins on word entrances; 3D letters spring up starting 45 ms before the onset so they stand as the syllable sounds (`POP` in `app/src/monster/stage.ts`); camera hits and impacts key to the word onsets, not the nearest beat. The aligned word starts sit on the vocal onsets (median 30 ms early), so the data need no offset.
+8. **Supporting words are physical too** (client note on pilot v1: "the rest of the words appear somewhat flat and understated"): no flat 2D captions; every word of the line is a thing in the shot (smaller 3D type in Archivo 112.5/600, burned into the frieze, standing on the token's rim, in the ring of souls, floating on the sea), popping on its onset and lit by the flame.
 
 ## Motifs
 
