@@ -33,7 +33,8 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   // the water ends at the far shore; the shore is the line, burning
   float beyond = smoothstep(shoreZ + 0.02, shoreZ - 0.02, P.z);
   float lineG = exp(-abs(P.z - shoreZ) / max(0.06, gPix * 1.5));
-  col = mix(col, C_INK, beyond);
+  // beyond it the ground takes the sky's own colour: the shore line is the horizon, no black sliver above it
+  col = mix(col, C_INK + skyGlow(normalize(P - camPos)), beyond);
   // as the water settles into hook 1's frame the burning shore cools to its waterline, a bone hairline
   col += mix(mix(C_BLOOD, C_EMBER, 0.55) * 1.1, C_BONE * 0.8, toHook) * lineG;
   return col;

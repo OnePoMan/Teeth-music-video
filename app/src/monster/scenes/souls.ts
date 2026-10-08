@@ -11,7 +11,7 @@ import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F, font, layout } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, keys, lerp, mulberry32, prog, pulse } from '../../engine/util';
-import { flameState, GLSL_KEY_DIST } from '../motifs';
+import { flameState, GLSL_KEY_DIST, GLSL_SHADE } from '../motifs';
 import { Stage, Word3D, keyLight, popHinge, popWords, row, vkeys, type Letter } from '../stage';
 
 /** The chamber's radius, the ring SOULS stands on, cap heights, the ring's centre. */
@@ -25,27 +25,7 @@ ${GLSL_KEY_DIST}
 uniform float figA[${MAXF}], figH[${MAXF}], figV[${MAXF}], figT[${MAXF}];
 uniform int nFig; uniform float tNow, sway, cylR, zLine, lineW, flameX, lineOn, revealX, headOn;
 uniform vec2 home; uniform sampler2D word; uniform vec4 wordRect; uniform mat4 anaVP;
-// a standing figure as a shadow: proportions in units of its height, feet at the origin, y up. v varies the build,
-// the stance, the cloak (a himation from the shoulders to the shins) and a bowed head.
-float figure(vec2 q, float v) {
-  float sh = 0.105 + 0.02 * fract(v * 7.3), hd = 0.055 + 0.008 * fract(v * 3.1), st = 0.025 + 0.035 * fract(v * 5.7);
-  float bow = step(0.55, fract(v * 13.7)) * 0.03;
-  float cloak = step(0.4, fract(v * 11.1));
-  vec2 hc = vec2(bow, 0.925 - bow * 0.6);
-  float d = length((q - hc) * vec2(1.0, 0.88)) - hd;                               // head, a little long
-  d = smin(d, sdSegment(q, vec2(bow * 0.5, 0.84), hc) - 0.024, 0.02);              // neck
-  d = smin(d, sdSegment(q, vec2(-sh * 0.8, 0.8), vec2(sh * 0.8, 0.8)) - 0.04, 0.04); // shoulders
-  d = smin(d, sdSegment(q, vec2(0.0, 0.52), vec2(0.0, 0.79)) - 0.078, 0.05);        // torso
-  d = smin(d, sdSegment(q, vec2(-sh, 0.79), vec2(-sh - 0.015, 0.52)) - 0.026, 0.03); // arms
-  d = smin(d, sdSegment(q, vec2(sh, 0.79), vec2(sh + 0.02 * (1.0 - 2.0 * fract(v * 2.7)), 0.52)) - 0.026, 0.03);
-  d = smin(d, sdSegment(q, vec2(-0.04, 0.54), vec2(-st - 0.025, 0.02)) - 0.034, 0.03); // legs
-  d = smin(d, sdSegment(q, vec2(0.04, 0.54), vec2(st + 0.025, 0.02)) - 0.034, 0.03);
-  // the cloak: a drape from the shoulders, widening to the shins, over one arm
-  float hw = mix(sh + 0.03, sh + 0.07, sat((0.8 - q.y) / 0.6));
-  float drape = max(abs(q.x - 0.01) - hw, max(q.y - 0.82, 0.2 - q.y));
-  d = mix(d, smin(d, drape, 0.03), cloak);
-  return d;
-}
+${GLSL_SHADE}
 // the floor is the inside of a cup: black glaze with a meander border round the foot of the wall, reserved in the clay
 float border(vec2 xz) {
   float r = length(xz), band = 0.42, r1 = cylR - 0.18, r0 = r1 - band;

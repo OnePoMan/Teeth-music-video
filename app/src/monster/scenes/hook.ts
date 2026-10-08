@@ -22,8 +22,10 @@ import type { Word } from '../../engine/lyrics';
 import { ease, lerp, prog, pulse, noise1 } from '../../engine/util';
 import { meanderBand } from '../motifs';
 import { SHORE, Stage, Word3D, keyLight, popHinge, popWords } from '../stage';
-import { LOW, SHORE_KEY, SHORE_OPTS, SHORE_POST, SHORE_SURF, VOICE, WORD_Z, bob as bobAt, heroScale, hideFlat, setRegion, shoreStage, wordBox } from '../shore';
+import { LOW, SHORE_KEY, SHORE_OPTS, SHORE_POST, SHORE_SURF, VOICE, WORD_Z, Answer, bob as bobAt, heroScale, hideFlat, setRegion, shoreStage } from '../shore';
 
+/** The answer's top under the surface (fraction of the hero word's cap height). */
+const ANSWER_GAP = 0.06;
 /** The ground line of the black-figure frieze (n=3). */
 const GROUND = H * 0.78;
 interface Placed { w: Word; text: string; fam: string; size: number; x: number; base: number; lay: TextLayout; big: boolean }
@@ -41,6 +43,8 @@ export default class Hook extends Scene {
   private prevOn: number[] = [];
   /** World units per font px of MONSTER?. */
   private bigS = 0.01;
+  /** The water's answer: MONSTER, painted right way round under the surface. */
+  private ans!: Answer;
   // ---- n = 3: black-figure, 2D
   private L: Layer2D | null = null;
   private words: Placed[] = [];
@@ -72,6 +76,7 @@ export default class Hook extends Scene {
     for (const w of this.st.words) for (const l of w.letters) l.mat.side = THREE.DoubleSide;
     // MONSTER? fills BIG_W of the frame once the camera is down
     this.bigS = heroScale(this.big);
+    this.ans = new Answer(this.st, this.bigW.w);
   }
 
   private init3(ws: Word[], bi: number) {
@@ -162,22 +167,21 @@ export default class Hook extends Scene {
     // ---- the answer in the water: where the mirrored word stands on screen, and how far the orange has developed
     const u = this.st.bg.u;
     const lead = this.n === 2 ? 0.15 : 0;                   // (n=2) the reflection moves first
-    const ink = this.big.letters.filter((l) => l.ch !== '?');
-    setRegion(this.st, wordBox(this.st, ink, this.bigS, this.big.cap));
+    const gap = ANSWER_GAP * this.big.cap * this.bigS;
+    setRegion(this.st, this.ans.box(this.st, 0, this.bigS, gap));
     u.develop!.value = ease.outCubic(prog(t, bw.start + 0.05 - lead, bw.start + 0.7 - lead));
     u.creep!.value = this.n === 2 ? 0.25 * prog(t, bw.start, bw.start + 0.6) : 0;
 
-    // the mirrored render: MONSTER in black slip with its incised contour, without its question mark
-    const q = this.big.letters.findIndex((l) => l.ch === '?');
+    // the mirrored render holds no image of MONSTER?, only the answer: MONSTER, right way round under the surface,
+    // in black slip with its incised contour, unfolding from the deep as the word stands up
     const mirror = {
       before: () => {
-        if (lead) this.poseBig(t + lead);
-        for (const l of this.big.letters) l.mat.uniforms.bf!.value = 1;
-        if (q >= 0) this.big.letters[q]!.mesh.visible = false;
+        for (const l of this.big.letters) l.mesh.visible = false;
+        this.ans.pose(t + lead, 0, this.bigS, bw.start, gap);
       },
       after: () => {
-        for (const l of this.big.letters) l.mat.uniforms.bf!.value = 0;
-        if (lead) this.poseBig(t); else this.big.update();
+        this.ans.hide();
+        this.big.update();
       },
     };
     // the fire behind us (as `sea`); the water mirrors, wine-dark, its swells bending what it mirrors

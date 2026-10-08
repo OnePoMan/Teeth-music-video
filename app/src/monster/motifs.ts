@@ -248,3 +248,28 @@ export function drawLamp2D(c: CanvasRenderingContext2D, x: number, y: number, al
 
 /** Where the flame stands for a lamp body centred at (x, y). */
 export const lampFlame = (x: number, y: number) => ({ x: x + LAMP_BODY.w * LAMP_BODY.nozzle.x, y: y + LAMP_BODY.h * LAMP_BODY.nozzle.y });
+
+/** A standing man as a shadow (souls' shades; the shades lying in `mirror`'s water): a signed distance in units of
+ *  his height, feet at the origin, y up. Needs sdSegment and smin (GLSL_COMMON). */
+export const GLSL_SHADE = /* glsl */ `
+// a standing figure as a shadow: proportions in units of its height, feet at the origin, y up. v varies the build,
+// the stance, the cloak (a himation from the shoulders to the shins) and a bowed head.
+float figure(vec2 q, float v) {
+  float sh = 0.105 + 0.02 * fract(v * 7.3), hd = 0.055 + 0.008 * fract(v * 3.1), st = 0.025 + 0.035 * fract(v * 5.7);
+  float bow = step(0.55, fract(v * 13.7)) * 0.03;
+  float cloak = step(0.4, fract(v * 11.1));
+  vec2 hc = vec2(bow, 0.925 - bow * 0.6);
+  float d = length((q - hc) * vec2(1.0, 0.88)) - hd;                               // head, a little long
+  d = smin(d, sdSegment(q, vec2(bow * 0.5, 0.84), hc) - 0.024, 0.02);              // neck
+  d = smin(d, sdSegment(q, vec2(-sh * 0.8, 0.8), vec2(sh * 0.8, 0.8)) - 0.04, 0.04); // shoulders
+  d = smin(d, sdSegment(q, vec2(0.0, 0.52), vec2(0.0, 0.79)) - 0.078, 0.05);        // torso
+  d = smin(d, sdSegment(q, vec2(-sh, 0.79), vec2(-sh - 0.015, 0.52)) - 0.026, 0.03); // arms
+  d = smin(d, sdSegment(q, vec2(sh, 0.79), vec2(sh + 0.02 * (1.0 - 2.0 * fract(v * 2.7)), 0.52)) - 0.026, 0.03);
+  d = smin(d, sdSegment(q, vec2(-0.04, 0.54), vec2(-st - 0.025, 0.02)) - 0.034, 0.03); // legs
+  d = smin(d, sdSegment(q, vec2(0.04, 0.54), vec2(st + 0.025, 0.02)) - 0.034, 0.03);
+  // the cloak: a drape from the shoulders, widening to the shins, over one arm
+  float hw = mix(sh + 0.03, sh + 0.07, sat((0.8 - q.y) / 0.6));
+  float drape = max(abs(q.x - 0.01) - hw, max(q.y - 0.82, 0.2 - q.y));
+  d = mix(d, smin(d, drape, 0.03), cloak);
+  return d;
+}`;
