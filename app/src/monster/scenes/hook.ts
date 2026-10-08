@@ -1,109 +1,162 @@
-// HOOK ×3 — the one recurring event, in three grammatical moods (docs/MONSTER.md):
-//   n=1 "What if I'm the monster?"  The shore of black mirror water, wine-dark; the line is the waterline. The
-//       fire behind us (never seen) lights the words. The question is voiced top left; MONSTER? stands up on the
-//       waterline as it is sung, bone, lit (red-figure: a lit figure on black). Its reflection is not a mirror
-//       image: below the line the water shows the future, a black-figure MONSTER on the clay's orange, with no
-//       question mark (the figure asks, the reflection answers), bent by the swell. On the word the camera dips
-//       until the waterline crosses the middle of the frame: half figure, half reflection, while the orange
-//       develops in the water.
-//   n=2 "If I became the monster…" (the conditional): the same shore; the orange creeps a little above the line.
+// HOOK ×3 — the one recurring event, in three grammatical moods (docs/MONSTER.md). Its motif (client's choice for
+// pilot v7, "the reflection disobeys"): the hero word stands lit on the waterline, and its reflection in the
+// wine-dark mirror water is not quite its mirror image but the answer, black-figure on the clay's orange; hook by
+// hook it obeys the word less. The signature shot of every hook: on MONSTER the camera dips to the waterline, half
+// word, half reflection.
+//   n=1 "What if I'm the monster?"  `sea`'s last frame, on the stage in 3D: black mirror water, wine-dark, lit by the
+//       fire behind us (never seen); the far shore is the line, a bone hairline. "Is me?" lies down; "What if I'm
+//       the" pops up afloat near us, truly reflected; MONSTER? stands up on the waterline as it is sung, bone, lit
+//       (red-figure: a lit figure on black). Its reflection follows it in everything but two: it has no question
+//       mark, and it is black-figure (black slip, the contour incised back to the clay, the clay's orange developing
+//       behind it in the water). The question is asked above the line; below it, the answer.
+//   n=2 "If I became the monster…" (the conditional): the same shore; the reflection moves before the word does,
+//       and the orange climbs a little above the line. (Placeholder until chorus 2 is designed.)
 //   n=3 "Then I'll become the monster" (the declarative): black-figure. The frame is the clay's orange, the word a
-//       black silhouette with its detail incised, and there is no flame: he is the reflection now.
+//       black silhouette with its detail incised, and there is no flame: he is the reflection now. (2D draft; to be
+//       rebuilt on the motif: the reflection stands up out of the water and takes the word's place.)
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { FSPass, Layer2D, W, H } from '../../engine/gl';
 import { F, font, layout, measure, type TextLayout } from '../../engine/type';
 import type { Word } from '../../engine/lyrics';
-import { clamp, ease, lerp, prog, pulse, noise1 } from '../../engine/util';
-import { flameState, meanderBand } from '../motifs';
+import { ease, lerp, prog, pulse, noise1 } from '../../engine/util';
+import { meanderBand } from '../motifs';
+import { SHORE, Stage, Word3D, keyLight, popHinge, popWords, type Letter } from '../stage';
 
-const CAP = 0.686; // Archivo cap height / em
 /** The ground line of the black-figure frieze (n=3). */
 const GROUND = H * 0.78;
-/** The waterline before and after the camera dips on MONSTER (n=1, 2). */
-export const WL0 = H * 0.71, WL1 = H * 0.535;
+/** MONSTER? stands on the water just short of the shore line. */
+const WORD_Z = SHORE.z + 0.4;
+/** The camera after the dip: just over the water, nearly level (the waterline at 0.536 H), a little closer. */
+const LOW = { y: 0.055, z: 8.4, pitch: 0.0262 };
+/** MONSTER?'s width in frame after the dip, and the voice's cap height (world) and place afloat near us. */
+const BIG_W = 0.72, VOICE = { cap: 0.13, x0: -1.2, z: 6.4 };
+
+const HOOKS = /* glsl */ `
+#define WATER_HOOK
+uniform float shoreZ, skyI, develop, wordL, wordR, wordB, wordH, creep;
+float carve(vec2 xz) { return 0.0; }
+float floorLines(vec3 P, float u) { return u; }
+float extraShadow(vec3 P, bool wall) { return 0.0; }
+/** The clay's orange as the water shows it (q: screen px of the mirrored image, depth below the word's foot). */
+vec3 clayField(vec2 q, float depth) {
+  return mix(C_SIGNAL * 0.6, C_EMBER * 0.62, 0.2 + 0.2 * snoise(vec2(q.x / 500.0, depth / 200.0)));
+}
+/** (n=2) The orange climbing a little above the line behind the word. */
+vec3 creepUp(vec3 col) {
+  if (creep <= 0.0) return col;
+  vec2 px = FRAG_PX;
+  float up = px.y - wordB;
+  float across = smoothstep(wordL - 90.0, wordL + 30.0, px.x) * (1.0 - smoothstep(wordR - 30.0, wordR + 90.0, px.x));
+  return mix(col, clayField(px, 0.0), creep * across * exp(-max(up, 0.0) / (0.35 * wordH)) * 0.6);
+}
+// the far shore: a last trace of its burning, low over the horizon (as \`sea\` leaves it)
+vec3 skyTint(vec3 D, vec3 col) {
+  float e = max(D.y, 0.0);
+  return creepUp(col + mix(C_BLOOD, C_SIGNAL, 0.45) * skyI * (0.6 * exp(-e * 30.0) + 0.06 * exp(-e * 9.0)));
+}
+vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
+  if (wall) return col;
+  // the water ends at the far shore, and the shore is the line: a bone hairline
+  float beyond = smoothstep(shoreZ + 0.02, shoreZ - 0.02, P.z);
+  float lineG = exp(-abs(P.z - shoreZ) / max(0.06, gPix * 1.5));
+  col = mix(col, creepUp(C_INK), beyond);
+  return col + C_BONE * 0.8 * lineG;
+}
+// the reflection answers: under the word the water develops the clay's orange, and the mirrored word (black slip,
+// its contour incised, no question mark) shows on it at full strength; deeper down the swell breaks it into strips
+vec3 waterHook(vec2 px, vec2 ruv, vec4 rt, vec3 col) {
+  if (develop <= 0.0) return col;
+  vec2 q = ruv * vec2(${W.toFixed(1)}, ${H.toFixed(1)});      // where the swell has moved what this point mirrors
+  float depth = wordB - q.y;
+  if (depth < -4.0) return col;
+  float t = stageT;
+  float edgeN = 26.0 * snoise(vec2(depth / 30.0, t * 0.4));
+  float across = smoothstep(wordL - 70.0, wordL + 10.0, q.x + edgeN) * (1.0 - smoothstep(wordR - 10.0, wordR + 70.0, q.x + edgeN));
+  float down = smoothstep(-4.0, 2.0, depth) * (1.0 - smoothstep(wordH * 0.9, wordH * 2.3, depth + edgeN * 0.5));
+  float band = sin(depth * 0.21 - t * 1.7 + 0.6 * snoise(vec2(q.x / 260.0, t * 0.35)));
+  float strips = mix(1.0, smoothstep(-0.35, 0.55, band), smoothstep(wordH * 0.75, wordH * 1.3, depth));
+  float field = develop * across * down * strips * (0.9 + 0.1 * band);
+  col = mix(col, clayField(q, depth), field);
+  return mix(col, rt.rgb, rt.a * smoothstep(0.08, 0.35, field));
+}`;
 
 interface Placed { w: Word; text: string; fam: string; size: number; x: number; base: number; lay: TextLayout; big: boolean }
 
 export default class Hook extends Scene {
   n = 1;
-  L = new Layer2D();
-  words: Placed[] = [];
-  shore = new FSPass(/* glsl */ `
-    uniform sampler2D tex; uniform float wl, develop, light, t, wordL, wordR, wordH, creep;
-    const vec3 C_WINE = vec3(0.028, 0.0006, 0.0062);
-    void main() {
-      vec2 px = FRAG_PX;                                   // logical px, y up
-      vec3 c;
-      if (px.y >= wl) {
-        // above the water: darkness; the words, bone, lit by the fire behind us
-        c = C_INK;
-        // (n=2: the clay's warmth creeping a little way up from the waterline)
-        c = mix(c, C_SIGNAL * 0.62, creep * exp(-(px.y - wl) / 90.0) * 0.5);
-        vec4 tx = texture(tex, vUv);
-        float side = clamp(0.8 + 0.2 * px.x / ${W.toFixed(1)}, 0.0, 1.0);    // the fire is over our right shoulder
-        float foot = mix(1.0, 0.82, clamp((px.y - wl) / 260.0, 0.0, 1.0));      // and low
-        vec3 face = C_BONE * (0.6 + 0.4 * side * foot) * (0.84 + 0.16 * light);
-        c = mix(c, face, tx.a);
-      } else {
-        float depth = wl - px.y;
-        // ripples: the reflection is displaced sideways, barely at the line, more with depth, broken into bands
-        float band = sin(depth * 0.21 - t * 1.7 + 0.6 * snoise(vec2(px.x / 260.0, t * 0.35)));
-        float dx = (0.6 + depth * 0.022) * (0.65 * band + 0.35 * snoise(vec2(px.x / 90.0, depth / 14.0 - t * 0.8))) * smoothstep(0.0, 24.0, depth);
-        vec2 ruv = vUv + vec2(dx / ${W.toFixed(1)}, 0.0);
-        vec4 r = texture(tex, ruv);
-        // the water: a black mirror, wine-dark; nothing drawn on it, its swell shows only in what it mirrors
-        c = mix(C_INK, C_WINE, 0.85 * smoothstep(0.0, 160.0, depth));
-        // the other world in the water: the clay's orange behind the reflected word, fading with depth and to the sides
-        float edgeN = 26.0 * snoise(vec2(depth / 30.0, t * 0.4));
-        float across = smoothstep(wordL - 70.0, wordL + 10.0, px.x + edgeN) * (1.0 - smoothstep(wordR - 10.0, wordR + 70.0, px.x + edgeN));
-        // the mirrored field breaks up in the swell as it fades with depth
-        float down = 1.0 - smoothstep(wordH * 0.9, wordH * 2.3, depth + edgeN * 0.5);
-        float strips = mix(1.0, smoothstep(-0.35, 0.55, band), smoothstep(wordH * 0.75, wordH * 1.3, depth));
-        float field = develop * across * down * strips * (0.9 + 0.1 * band);
-        vec3 clay = mix(C_SIGNAL * 0.6, C_EMBER * 0.62, 0.2 + 0.2 * snoise(vec2(px.x / 500.0, depth / 200.0)));
-        c = mix(c, clay, field);
-        // the reflected word in black slip, its contour incised back to the clay (red channel)
-        float letter = r.a;
-        float inc = smoothstep(0.5, 0.9, r.r - r.g) * letter;
-        float shown = smoothstep(0.08, 0.35, field);
-        c = mix(c, C_INK, letter * shown);
-        c = mix(c, clay * 1.1, inc * shown);
-      }
-      // the waterline: the line
-      float d = abs(px.y - wl);
-      c = mix(c, C_BONE * 0.8, pxLine(d * PX_SCALE, 0.6, 1.4) * 0.75);
-      fragColor = vec4(c, 1.0);
-    }`, {
-    tex: { value: this.L.texture }, wl: { value: H - WL0 }, develop: { value: 0 }, light: { value: 1 }, t: { value: 0 },
-    wordL: { value: 0 }, wordR: { value: W }, wordH: { value: 180 }, creep: { value: 0 },
-  });
-  black = new FSPass(/* glsl */ `
-    uniform sampler2D words; uniform float t, warm;
-    void main() {
-      // black-figure: the clay's orange field, the figure in black slip, detail incised back to the clay
-      vec2 px = FRAG_PX;
-      float g = 0.5 + 0.5 * snoise(vec2(px.x / 900.0, px.y / 700.0));
-      vec3 clay = mix(C_SIGNAL * 0.62, C_EMBER * 0.7, 0.25 * g) * (0.92 + 0.08 * warm);
-      vec4 wd = texture(words, vUv);
-      vec3 c = mix(clay, C_INK, wd.a);
-      // incised lines are drawn into the layer's red channel (white on the black figure)
-      c = mix(c, clay * 1.08, wd.a * smoothstep(0.5, 0.9, wd.r - wd.g));
-      fragColor = vec4(c, 1.0);
-    }`, { words: { value: this.L.texture }, t: { value: 0 }, warm: { value: 0 } });
+  // ---- n = 1, 2: the shore, on the stage
+  private st!: Stage;
+  /** MONSTER? (incised for its black-figure reflection), the question before it, and (n=1) `sea`'s "Is me?". */
+  private big!: Word3D;
+  private voice!: Word3D;
+  private prev: Word3D | null = null;
+  private bigW!: Word;
+  private small: Word[] = [];
+  private prevOn: number[] = [];
+  /** World units per font px of MONSTER?. */
+  private bigS = 0.01;
+  // ---- n = 3: black-figure, 2D
+  private L: Layer2D | null = null;
+  private words: Placed[] = [];
+  private black: FSPass | null = null;
 
-  override init() {
+  override async init() {
     const { lyrics, params, start, end } = this.ctx;
     this.n = Number(params.n ?? 1);
     const line = lyrics.lines.find((l) => l.voice !== 'ensemble' && l.start >= start - 0.3 && l.start < end)!;
     const ws = line.words.filter((w) => w.start < end);
-    // the question voiced small, top left; MONSTER standing big on the line
-    const bigIdx = ws.findIndex((w) => /monster/i.test(w.w));
-    const small = ws.slice(0, bigIdx), big = ws[bigIdx]!;
-    const fS = F.archivo(100, 500), fB = this.n === 3 ? F.archivo(125, 900) : F.archivo(112.5, 900);
+    const bi = ws.findIndex((w) => /monster/i.test(w.w));
+    if (this.n === 3) return this.init3(ws, bi);
+    this.bigW = ws[bi]!;
+    this.small = ws.slice(0, bi);
+    this.st = new Stage({
+      hooks: HOOKS,
+      uniforms: {
+        shoreZ: { value: SHORE.z }, skyI: { value: 0.06 }, develop: { value: 0 }, creep: { value: 0 },
+        wordL: { value: 0 }, wordR: { value: W }, wordB: { value: 0 }, wordH: { value: 150 },
+      },
+    });
+    const voice = F.archivo(112.5, 600);
+    this.big = new Word3D(this.bigW.w.toUpperCase().replace(/[,.]$/, ''), F.archivo(112.5, 900), { size: 220, incise: true });
+    this.big.lightMul = 2.8;                                // far off on the shore, lit as brightly as the near words
+    this.voice = new Word3D(this.small.map((w) => w.w).join(' '), voice, { size: 200 });
+    this.st.add(this.big, { shadows: false });
+    this.st.add(this.voice, { shadows: false });
+    if (this.n === 1) {
+      // `sea`'s last phrase, carried over the cut exactly where it stood, to lie down
+      const l2 = lyrics.get('Is me');
+      this.prev = new Word3D(l2.words.map((w) => w.w).join(' '), voice, { size: 200 });
+      this.prevOn = l2.words.map((w) => w.start);
+      this.st.add(this.prev, { shadows: false });
+    }
+    for (const w of this.st.words) for (const l of w.letters) l.mat.side = THREE.DoubleSide;
+    // MONSTER? fills BIG_W of the frame once the camera is down
+    const dist = LOW.z - WORD_Z, fov = 40;
+    this.bigS = (BIG_W * 2 * dist * Math.tan((fov * Math.PI) / 360) * (W / H)) / this.big.width;
+  }
+
+  private init3(ws: Word[], bi: number) {
+    this.L = new Layer2D();
+    this.black = new FSPass(/* glsl */ `
+      uniform sampler2D words; uniform float t, warm;
+      void main() {
+        // black-figure: the clay's orange field, the figure in black slip, detail incised back to the clay
+        vec2 px = FRAG_PX;
+        float g = 0.5 + 0.5 * snoise(vec2(px.x / 900.0, px.y / 700.0));
+        vec3 clay = mix(C_SIGNAL * 0.62, C_EMBER * 0.7, 0.25 * g) * (0.92 + 0.08 * warm);
+        vec4 wd = texture(words, vUv);
+        vec3 c = mix(clay, C_INK, wd.a);
+        // incised lines are drawn into the layer's red channel (white on the black figure)
+        c = mix(c, clay * 1.08, wd.a * smoothstep(0.5, 0.9, wd.r - wd.g));
+        fragColor = vec4(c, 1.0);
+      }`, { words: { value: this.L.texture }, t: { value: 0 }, warm: { value: 0 } });
+    // the question voiced small, top left; MONSTER standing big on the ground line
+    const small = ws.slice(0, bi), big = ws[bi]!;
+    const fS = F.archivo(100, 500), fB = F.archivo(125, 900);
     const sizeS = 66;
     const bigText = big.w.toUpperCase().replace(/[,.]$/, '');
-    const sizeB = Math.min(this.n === 3 ? 330 : 250, (W - (this.n === 3 ? 260 : 640)) / (measure(bigText, fB, 100) / 100));
+    const sizeB = Math.min(330, (W - 260) / (measure(bigText, fB, 100) / 100));
     let x = 120;
     for (const w of small) {
       const lay = layout(w.w, fS, sizeS);
@@ -111,93 +164,106 @@ export default class Hook extends Scene {
       x += lay.width + measure(' ', fS, sizeS);
     }
     const layB = layout(bigText, fB, sizeB);
-    const bx = W / 2 - layB.width / 2;
-    this.words.push({ w: big, text: bigText, fam: fB, size: sizeB, x: bx, base: GROUND, lay: layB, big: true });
-  }
-
-  /** 0..1: a word stands up from its line as it is sung (a cut-out rising on its hinge). */
-  private stand(p: Placed, t: number) {
-    const a = p.w.start - (p.big ? 0.02 : 0.0);
-    return p.big ? ease.outBack(prog(t, a, a + 0.22), 1.6) : ease.outCubic(prog(t, a, a + 0.16));
+    this.words.push({ w: big, text: bigText, fam: fB, size: sizeB, x: W / 2 - layB.width / 2, base: GROUND, lay: layB, big: true });
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     return this.n === 3 ? this.render3(f, out) : this.renderShore(f, out);
   }
 
+  /** MONSTER?'s letters standing up on the waterline as it is sung (at time `t`). */
+  private poseBig(t: number) {
+    const wd = this.big, s = this.bigS;
+    wd.letters.forEach((l, k) => {
+      l.x = (l.penX - wd.width / 2) * s; l.z = WORD_Z; l.y = 0; l.yaw = 0; l.s = s;
+      l.hinge = popHinge(t, this.bigW.start, k);
+      l.on = l.hinge < Math.PI / 2 - 1e-4 ? 1 : 0;
+    });
+    wd.update();
+  }
+
   /** n=1, 2: the shore, the word, and the water that answers it. */
   private renderShore(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
-    const { renderer, audio: au } = this.ctx;
-    const t = f.t;
-    const fl = flameState(au, t, 3);
-    const big = this.words[this.words.length - 1]!;
-    // the camera dips onto the waterline as MONSTER is sung
-    const dip = ease.inOutCubic(prog(t, big.w.start - 0.1, big.w.start + 0.42));
-    const wl = lerp(WL0, WL1, dip);
-    const L = this.L; L.clear();
-    const c = L.ctx;
-    c.textBaseline = 'alphabetic';
-    // the question, voiced (screen-fixed, it is the voice not an object)
-    for (const p of this.words) {
-      if (p.big) continue;
-      const s = this.stand(p, t);
-      if (s <= 0.001) continue;
-      c.save();
-      c.translate(0, p.base); c.scale(1, Math.max(0.001, s));
-      c.font = font(p.fam, p.size); c.fillStyle = 'rgb(255,255,255)';
-      c.fillText(p.text, p.x, 0);
-      c.restore();
-    }
-    const s = this.stand(big, t);
-    const answer = big.text.replace(/\?$/, ''); // the reflection answers: no question mark
-    if (s > 0.001) {
-      // the figure, standing on the line
-      c.save();
-      c.translate(0, wl); c.scale(1, s);
-      c.font = font(big.fam, big.size); c.fillStyle = 'rgb(255,255,255)';
-      c.fillText(big.text, big.x, 0);
-      c.restore();
-      // its reflection below the line, mirrored, black slip with an incised inner contour (red)
-      c.save();
-      c.translate(0, wl + 3); c.scale(1, -s);
-      c.font = font(big.fam, big.size);
-      c.fillStyle = 'rgb(0,0,0)';
-      c.fillText(answer, big.x, 0);
-      c.globalCompositeOperation = 'source-atop';
-      c.lineJoin = 'round';
-      c.strokeStyle = 'rgb(255,0,0)'; c.lineWidth = 13; c.strokeText(answer, big.x, 0);
-      c.strokeStyle = 'rgb(0,0,0)'; c.lineWidth = 9.5; c.strokeText(answer, big.x, 0);
-      c.restore();
-    }
-    // the ledger: the line is named
-    const la = prog(t, big.w.start + 0.25, big.w.start + 0.55);
-    if (la > 0) {
-      c.save();
-      c.font = font(F.mono(400), 12);
-      c.letterSpacing = '2px';
-      c.textAlign = 'right';
-      c.fillStyle = `rgba(255,255,255,${(0.42 * la).toFixed(3)})`;
-      c.fillText('WATERLINE', W - 96, wl - 10);
-      c.restore();
-    }
-    L.upload();
+    const { renderer, audio } = this.ctx;
+    const t = f.t, T0 = this.ctx.start, T1 = this.ctx.end;
+    const bw = this.bigW;
 
-    const u = this.shore.u;
-    u.wl!.value = H - wl; u.t!.value = t; u.light!.value = fl.I;
-    u.develop!.value = ease.outCubic(prog(t, big.w.start + 0.05, big.w.start + 0.7));
-    u.wordH!.value = big.size * CAP;
-    u.wordL!.value = big.x; u.wordR!.value = big.x + measure(answer, big.fam, big.size);
-    u.creep!.value = this.n === 2 ? 0.25 : 0;
-    this.shore.render(renderer, out);
-    const hit = pulse(t, big.w.start, 0.08);
-    return { bloom: 0.62, bloomThreshold: 0.95, vignette: 0.5, grain: 0.06, ca: 0.55, halation: 0.3, shake: [noise1(t * 60, 1) * 9 * hit, noise1(t * 60, 2) * 9 * hit] };
+    // ---- the camera: `sea`'s last frame, drifting a little; on MONSTER it dips to the waterline and levels, so the
+    // line crosses the middle of the frame (half word, half reflection), then keeps pushing in slowly
+    const tD0 = bw.start - 0.12, tD1 = bw.start + 0.45;
+    const dip = ease.inOutCubic(prog(t, tD0, tD1)), drift = prog(t, T0, tD0);
+    const C = SHORE.cam;
+    const pos = new THREE.Vector3(lerp(0.14 * drift, 0, dip), lerp(C.y, LOW.y, dip),
+      lerp(C.z - 0.25 * drift, LOW.z, dip) - 0.3 * prog(t, tD1, T1 + 0.6));
+    const pitch = lerp(C.pitch, LOW.pitch, dip);
+    this.st.cam.set(pos, pos.clone().add(new THREE.Vector3(0, 30 * pitch, -30)), 40);
+    const cam = this.st.cam.cam.position;
+
+    // ---- MONSTER?: standing up on the waterline as sung, bone, lit; a flash of ember as it lands
+    this.poseBig(t);
+    this.big.letters.forEach((l, k) => {
+      const tk = bw.start + k * 0.014;
+      l.mat.uniforms.glow!.value = 0.5 * pulse(t, tk, 0.14) * (t >= tk ? 1 : 0) * l.on;
+      l.mat.uniforms.amb!.value = 0.05 * prog(t, tk, tk + 0.3);
+    });
+
+    // ---- the question afloat near us, bobbing on the swell, facing us, truly reflected; it lies down as MONSTER?
+    // stands. (n=1) "Is me?" from `sea` lies down first, from exactly where it stood.
+    const bob = (x0: number, z0: number, cap: number, w: Word3D, amp: number) => (l: Letter) => {
+      const sc = cap / w.cap;
+      l.x = x0 + l.penX * sc; l.z = z0; l.s = sc;
+      l.y = amp * Math.sin(t * 2.1 + l.penX * 0.004 + z0);
+      l.yaw = Math.atan2(cam.x - (x0 + (w.width * sc) / 2), cam.z - z0);
+    };
+    if (this.prev) popWords(this.prev, this.prevOn, t, bob(-1.75, C.z - 4.5, 0.3, this.prev, 0.025), { exit: T0 + 0.02, exitDur: 0.24 });
+    popWords(this.voice, this.small.map((w) => w.start), t, bob(VOICE.x0, VOICE.z, VOICE.cap, this.voice, 0.012),
+      { exit: bw.start - 0.06, exitDur: 0.15 });
+
+    // ---- the answer in the water: where the mirrored word stands on screen, and how far the orange has developed
+    const u = this.st.bg.u, sc = this.st.cam;
+    const lead = this.n === 2 ? 0.15 : 0;                   // (n=2) the reflection moves first
+    const ink = this.big.letters.filter((l) => l.ch !== '?');
+    const xL = Math.min(...ink.map((l) => l.x + l.box[0] * l.s)), xR = Math.max(...ink.map((l) => l.x + l.box[2] * l.s));
+    const pL = sc.project({ x: xL, y: 0, z: WORD_Z }), pR = sc.project({ x: xR, y: 0, z: WORD_Z });
+    const pB = sc.project({ x: 0, y: 0, z: WORD_Z }), pT = sc.project({ x: 0, y: this.big.cap * this.bigS, z: WORD_Z });
+    u.wordL!.value = pL.x; u.wordR!.value = pR.x; u.wordB!.value = H - pB.y; u.wordH!.value = Math.max(1, pB.y - pT.y);
+    u.develop!.value = ease.outCubic(prog(t, bw.start + 0.05 - lead, bw.start + 0.7 - lead));
+    u.creep!.value = this.n === 2 ? 0.25 * prog(t, bw.start, bw.start + 0.6) : 0;
+
+    // the mirrored render: MONSTER in black slip with its incised contour, without its question mark
+    const q = this.big.letters.findIndex((l) => l.ch === '?');
+    const mirror = {
+      before: () => {
+        if (lead) this.poseBig(t + lead);
+        for (const l of this.big.letters) l.mat.uniforms.bf!.value = 1;
+        if (q >= 0) this.big.letters[q]!.mesh.visible = false;
+      },
+      after: () => {
+        for (const l of this.big.letters) l.mat.uniforms.bf!.value = 0;
+        if (lead) this.poseBig(t); else this.big.update();
+      },
+    };
+    // the fire behind us (as `sea`); the water mirrors, wine-dark, its swells bending what it mirrors
+    this.st.render(renderer, out, t, keyLight(this.st.cam, audio, t, { seed: 21, I: 1.3, reach: 25 }),
+      { wall: 0, gloss: 0.75, swell: 0.45, wine: 0.85, reflBend: 0.3 },
+      { noFlame: true, cards: false, rim: 1.0, spec: 0.05, mirror });
+
+    const hit = pulse(t, bw.start, 0.08);
+    return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6, halation: 0.35,
+      shake: [noise1(t * 60, 1) * 6 * hit, noise1(t * 60, 2) * 6 * hit] };
+  }
+
+  /** 0..1: a word stands up from its line as it is sung (a cut-out rising on its hinge; n=3). */
+  private stand(p: Placed, t: number) {
+    const a = p.w.start - (p.big ? 0.02 : 0.0);
+    return p.big ? ease.outBack(prog(t, a, a + 0.22), 1.6) : ease.outCubic(prog(t, a, a + 0.16));
   }
 
   /** Black-figure: the frame is clay, the word a black silhouette with incised detail. */
   private render3(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const { renderer } = this.ctx;
     const t = f.t;
-    const L = this.L; L.clear();
+    const L = this.L!; L.clear();
     const c = L.ctx;
     c.textBaseline = 'alphabetic';
     for (const p of this.words) {
@@ -230,11 +296,10 @@ export default class Hook extends Scene {
     c.beginPath(); mb.forEach((q, i) => (i ? c.lineTo(q.x, q.y) : c.moveTo(q.x, q.y))); c.stroke();
     c.fillRect(0, GROUND + 98, W, 3);
     L.upload();
-    this.black.u.t!.value = t;
-    this.black.u.warm!.value = 0;
-    this.black.render(renderer, out);
+    const bl = this.black!;
+    bl.u.t!.value = t;
+    bl.u.warm!.value = 0;
+    bl.render(renderer, out);
     return { bloom: 0.3, bloomThreshold: 1.2, vignette: 0.35, grain: 0.07, ca: 0.4, halation: 0.1 };
   }
 }
-
-void clamp; void CAP;

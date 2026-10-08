@@ -61,7 +61,9 @@ precision highp int;
 in vec3 vW; in vec3 vNW; in vec3 vP; in vec3 vN;
 out vec4 fragColor;
 ${GLSL_COMMON}
-uniform vec3 Lc, camPosL; uniform float LI, reach, glow, lineFreq, rim, amb, vaseL, glaze;
+uniform vec3 Lc, camPosL; uniform float LI, reach, glow, lineFreq, rim, amb, vaseL, glaze, bf;
+// black-figure: the glyph's incised contour (red channel of incTex) and where this glyph sits in it
+uniform sampler2D incTex; uniform vec4 amap;
 void main() {
   // (degenerate bevel triangles carry zero normals: guard them, or their NaN blooms into a white star)
   float nl = length(vNW);
@@ -70,6 +72,12 @@ void main() {
   float fall = LI / (1.0 + (d / reach) * (d / reach) * 4.0);
   float ndl = dot(N, L);
   float face = step(0.9, abs(vN.z) / max(length(vN), 1e-6));   // the letter's face (front or back) vs its sides
+  // black-figure (a reflection that answers back): black slip, its contour incised back to the clay; no light of its own
+  if (bf > 0.5) {
+    float inc = face * texture(incTex, (amap.xy + vec2(vP.x, -vP.y)) * amap.zw).r;
+    fragColor = vec4(mix(C_INK, mix(C_SIGNAL * 0.66, C_EMBER * 0.68, 0.3), inc), 1.0);
+    return;
+  }
   float lit = pow(max(ndl, 0.0), 1.3) * fall;
   float tone = sat(lit * 1.35);
   // cut stone: the face bone in the light, the sides a step darker; where the light falls away, a black-line
@@ -157,6 +165,9 @@ export interface WordOpts {
   div?: number;
   /** Engraving line frequency on the stone (lines per font px). */
   lineFreq?: number;
+  /** Builds the black-figure incision (`incTex`): a contour scratched inside each glyph between these depths
+   *  (fractions of the cap height; true: hook 1's 0.035..0.047). */
+  incise?: boolean | [number, number];
 }
 
 /**
@@ -172,6 +183,8 @@ export class Word3D {
   /** Pen x where each space-separated word starts and its advance (font px). */
   readonly words: { x0: number; w: number; text: string }[] = [];
   readonly group = new THREE.Group();
+  /** The incised contours (o.incise), for black-figure letters (`bf` uniform). */
+  readonly incTex: THREE.CanvasTexture | null = null;
   constructor(readonly text: string, family: string, o: WordOpts = {}) {
     const size = o.size ?? 220, depth = o.depth ?? size * 0.17, bevel = o.bevel ?? size * 0.014, div = o.div ?? 10;
     const f = ot(family);
@@ -209,11 +222,16 @@ export class Word3D {
     cv.width = this.aw; cv.height = this.ah;
     const c = cv.getContext('2d')!;
     c.fillStyle = '#fff';
+    const inc = o.incise ? document.createElement('canvas') : null;
+    const ic = inc?.getContext('2d') ?? null;
+    if (inc) { inc.width = this.aw; inc.height = this.ah; }
+    const [inI, inO] = o.incise === true || !o.incise ? [0.035, 0.047] : o.incise;
     const geoMat = new THREE.RawShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: LETTER_VERT, fragmentShader: LETTER_FRAG,
       uniforms: {
         Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, glow: { value: 0 },
         lineFreq: { value: o.lineFreq ?? 0.12 }, rim: { value: 1 }, amb: { value: 0 }, vaseL: { value: 1 }, camPosL: { value: new THREE.Vector3() }, glaze: { value: 0 },
+        bf: { value: 0 }, incTex: { value: null }, amap: { value: new THREE.Vector4() },
       },
     });
     let ax = 0;
@@ -223,6 +241,15 @@ export class Word3D {
       const penAx = ax + pad - it.bb.x1, base = pad + top;
       const path = new Path2D(new PathShim(it.cmds).d);
       c.save(); c.translate(penAx, base); c.fill(path); c.restore();
+      if (ic) {
+        // the glyph in black, a red ring clipped inside it, most of the ring painted black again: a scratched contour
+        ic.save(); ic.translate(penAx, base);
+        ic.fillStyle = '#000'; ic.fill(path);
+        ic.globalCompositeOperation = 'source-atop'; ic.lineJoin = 'round';
+        ic.strokeStyle = '#f00'; ic.lineWidth = 2 * inO * this.cap; ic.stroke(path);
+        ic.strokeStyle = '#000'; ic.lineWidth = 2 * inI * this.cap; ic.stroke(path);
+        ic.restore();
+      }
       // mesh
       const shapes = glyphShapes(it.cmds, div);
       const geo = new THREE.ExtrudeGeometry(shapes, {
@@ -232,6 +259,7 @@ export class Word3D {
       geo.computeVertexNormals();
       const mat = geoMat.clone();
       mat.uniforms = THREE.UniformsUtils.clone(geoMat.uniforms);
+      (mat.uniforms.amap!.value as THREE.Vector4).set(penAx + cx, base, 1 / this.aw, 1 / this.ah);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.frustumCulled = false;
       this.group.add(mesh);
@@ -249,6 +277,14 @@ export class Word3D {
     this.atlas.minFilter = THREE.LinearMipmapLinearFilter;
     this.atlas.magFilter = THREE.LinearFilter;
     this.atlas.needsUpdate = true;
+    if (inc) {
+      const tx = new THREE.CanvasTexture(inc);
+      tx.flipY = false; tx.colorSpace = THREE.NoColorSpace; tx.generateMipmaps = true;
+      tx.minFilter = THREE.LinearMipmapLinearFilter; tx.magFilter = THREE.LinearFilter; tx.anisotropy = 4; tx.needsUpdate = true;
+      (this as { incTex: THREE.CanvasTexture | null }).incTex = tx;
+      // (set after cloning: cloned uniforms would copy the texture once per letter)
+      for (const l of this.letters) l.mat.uniforms.incTex!.value = tx;
+    }
   }
 
   /** Applies the letters' poses to their meshes (call once per frame after posing). */
@@ -550,14 +586,21 @@ void main() {
         vec3 refl = C_INK;
         if (tR < 1e8) { float o3; vec3 PR = P + R * tR; refl = PR.y > 0.0 ? clayWall(PR, wallNormal(PR), o3) : C_INK; }
         else refl = skyTint(R, C_INK);
+        vec2 ruv = FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)}) + vec2(Nf.x, -Nf.z) * reflBend;
+        vec4 rt = vec4(0.0);
         if (reflOn > 0.0) {
-          vec2 ruv = FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)}) + vec2(Nf.x, -Nf.z) * reflBend;
-          vec4 rt = texture(reflTex, ruv);
-          if (!(any(isnan(rt)) || any(isinf(rt)))) refl = mix(refl, rt.rgb, rt.a);
+          rt = texture(reflTex, ruv);
+          if (any(isnan(rt)) || any(isinf(rt))) rt = vec4(0.0);
+          refl = mix(refl, rt.rgb, rt.a);
         }
         vec3 Hh = normalize(Lv + V);
         float spec = pow(max(dot(Nf, Hh), 0.0), 260.0) * fall * (1.0 - occ);
         col = mix(C_INK * 0.9, C_WINE, wine) + clayCol(b) * 0.05 + refl * fres * gloss + mix(C_EMBER, C_BONE, 0.45) * spec * 2.5 * specK;
+#ifdef WATER_HOOK
+        // a scene that paints into the water (hook: the reflection that answers) defines WATER_HOOK and
+        // waterHook(px, ruv, rt, col): ruv is where the swell moved what this point mirrors, rt the mirrored scene there
+        col = waterHook(FRAG_PX, ruv, rt, col);
+#endif
         // the flame mirrored: a broken column under it
         if (flameOn > 0.0) {
           float dx = abs(FRAG_PX.x - flamePx.x), below = flamePx.y - FRAG_PX.y;
@@ -660,7 +703,9 @@ export class Stage {
       /** The light's highlight on the glaze (default 1; keep it low for the unseen key light: its mirror image is a flame). */
       spec?: number;
       /** Where the flame stands on screen (logical px, y down) and its height, for scenes that draw their own. */
-      flameScreen?: { x: number; y: number; h: number } } = {}) {
+      flameScreen?: { x: number; y: number; h: number };
+      /** Called around the mirrored render (a reflection that differs from its word: hook's black-figure answer). */
+      mirror?: { before?: () => void; after?: () => void } } = {}) {
     const u = this.bg.u;
     const Lc = this.lightCentre(L);
     this.cam.invVP(u.invVP!.value as THREE.Matrix4);
@@ -702,9 +747,11 @@ export class Stage {
       renderer.setRenderTarget(this.refl);
       renderer.setClearColor(0x000000, 0);
       renderer.clear(true, true, true);
+      o.mirror?.before?.();
       this.scene.scale.y = -1; this.scene.updateMatrixWorld(true);
       renderer.render(this.scene, this.cam.cam);
       this.scene.scale.y = 1; this.scene.updateMatrixWorld(true);
+      o.mirror?.after?.();
       u.reflTex!.value = this.refl.texture; u.reflOn!.value = 1;
     } else u.reflOn!.value = 0;
     // the flame's mirror column
@@ -730,6 +777,11 @@ export class Stage {
     if (!o.flameBehind) drawFlame();
   }
 }
+
+// ---------------------------------------------------------------- the shore
+/** The shore hand-off (`sea` ends on hook 1's first frame): the far shore (z) and the camera there (height, z, and
+ *  the tangent of its upward pitch: the horizon at 0.71 H with a 40 degree fov). */
+export const SHORE = { z: -16, cam: { y: 0.25, z: 9.5, pitch: 0.152 } };
 
 // ---------------------------------------------------------------- the key light
 /**

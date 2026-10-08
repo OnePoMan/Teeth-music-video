@@ -10,11 +10,11 @@ import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, lerp, prog, pulse } from '../../engine/util';
-import { Stage, Word3D, keyLight, popHinge, popWords, vkeys, type Letter } from '../stage';
+import { SHORE as SHORE_FRAME, Stage, Word3D, keyLight, popHinge, popWords, vkeys, type Letter } from '../stage';
 
-/** The far shore (z), THREAT's cap height, the final camera (hook 1's frame): height, distance to the lamp, pitch. */
-const SHORE = -16, CAP = 2.1;
-const END = { y: 0.25, z: 9.5, pitch: 0.152 };
+/** The far shore (z), THREAT's cap height, the final camera (hook 1's first frame, shared with `hook`). */
+const SHORE = SHORE_FRAME.z, CAP = 2.1;
+const END = SHORE_FRAME.cam;
 
 const HOOKS = /* glsl */ `
 uniform float tSea, shoreZ;
