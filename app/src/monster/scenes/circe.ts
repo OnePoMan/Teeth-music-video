@@ -44,7 +44,7 @@ const SMALL = 0.3;
 /** A world direction on the potion for an angle a (0: -z, screen-up when the camera's roll is 0; +pi/2: +x). */
 const dir = (a: number) => ({ x: Math.sin(a), z: -Math.cos(a) });
 
-type Pop = { exit?: number; exitDur?: number; ripple?: number };
+type Pop = { exit?: number; exitDur?: number; ripple?: number; sink?: boolean };
 
 export default class Circe extends Scene {
   private open = new Stage({
@@ -102,7 +102,9 @@ export default class Circe extends Scene {
     this.sG = small(j(this.l4, 0, 3));
     this.sH = small(j(this.l4, 3, 6));
     this.pain = hero('PAIN?');
-    for (const w of [this.sA, this.men, this.to1, this.pigs, this.sB, this.sC, this.insane, this.sD, this.sE, this.sF, this.colder, this.sG, this.sH, this.pain]) this.cup.add(w);
+    for (const w of [this.sA, this.to1, this.sB, this.sC, this.sD, this.sE, this.sF, this.sG, this.sH]) this.cup.add(w);
+    // (hero words on the potion have no mirror image of themselves: client, chorus 1)
+    for (const w of [this.men, this.pigs, this.insane, this.colder, this.pain]) this.cup.add(w, { mirror: false });
     const T0 = this.ctx.start, T1 = this.ctx.end;
     this.snares = au.events('snare', T0, T1).map(([t]) => t);
     this.orch = au.events('orch', T0, T1).map(([t]) => t);
@@ -168,16 +170,16 @@ export default class Circe extends Scene {
     const h1 = orchD[1] ?? bar4 + 0.3, h2 = orchD[2] ?? bar4 + 0.63;
     const sn4 = this.snares.filter((x) => x > h2 + 0.05 && x < pain.start - 0.1)[0] ?? h2 + 0.18;
     const level = keys(t, [[h1 - 0.02, FULL], [h1 + 0.2, -0.3, ease.outCubic], [h2 - 0.02, -0.32, ease.linear], [h2 + 0.2, -0.46, ease.outCubic],
-      [sn4, -0.48, ease.linear], [sn4 + 0.18, -0.57, ease.outCubic], [pain.start - 0.03, -0.59, ease.linear], [pain.start + 0.32, -CUP.D - 0.06, ease.inOutCubic]]);
+      [sn4, -0.48, ease.linear], [sn4 + 0.18, -0.57, ease.outCubic], [pain.start - 0.03, -0.59, ease.linear], [pain.start + 0.18, -CUP.D - 0.06, ease.inOutCubic]]);
 
     // ---- the camera: high over the cup; it comes down a little for the words, up overhead for the vortex (rolling
     // with INSANE?), stops dead on "Or", leans in for COLDER, and rises over the empty cup at the end
     const c0 = this.cut;
     const el = keys(t, [[c0, 1.42], [men.start - 0.05, 1.12, ease.inOutCubic], [bar2, 1.08, ease.linear], [ins.start - 0.05, 1.5, ease.inOutCubic],
       [bar3, 1.5, ease.linear], [colder.start - 0.03, 1.08, ease.inOutCubic], [bar4, 1.04, ease.linear], [pain.start + 0.05, 1.12, ease.inOutCubic], [T1, 1.14, ease.linear]]);
-    const dist = keys(t, [[c0, 10.2], [men.start - 0.05, 8.6, ease.inOutCubic], [bar2, 8.3, ease.linear], [ins.start - 0.05, 7.0, ease.inOutCubic],
-      [bar3, 7.0, ease.linear], [colder.start - 0.03, 8.2, ease.inOutCubic], [bar4, 7.9, ease.linear], [pain.start + 0.05, 7.0, ease.inOutCubic], [T1, 6.8, ease.linear]]);
-    const atZ = keys(t, [[c0, 0.3], [men.start, 0.35], [bar2, 0.35], [ins.start - 0.05, 0.0, ease.inOutCubic], [bar3, 0.0], [colder.start, 0.3, ease.inOutCubic],
+    const dist = keys(t, [[c0, 10.2], [men.start - 0.05, 8.6, ease.inOutCubic], [bar2, 8.3, ease.linear], [ins.start - 0.05, 8.5, ease.inOutCubic],
+      [bar3, 8.5, ease.linear], [colder.start - 0.03, 8.2, ease.inOutCubic], [bar4, 7.9, ease.linear], [pain.start + 0.05, 7.0, ease.inOutCubic], [T1, 6.8, ease.linear]]);
+    const atZ = keys(t, [[c0, 0.3], [men.start, 0.35], [bar2, 0.35], [ins.start - 0.05, -0.6, ease.inOutCubic], [bar3, -0.6], [colder.start, 0.3, ease.inOutCubic],
       [bar4, 0.3], [pain.start + 0.05, 1.45, ease.inOutCubic]]);
     const atY = Math.max(level, -0.5) * 0.6 + FULL * 0.4;
     // the roll: the vortex's turn while it spins (the camera turns with the letters), a jolt on the stop
@@ -219,15 +221,15 @@ export default class Circe extends Scene {
         kIn.set(l.word, k + 1);
         const on = onsets[Math.min(l.word, onsets.length - 1)]!;
         const uu = 1 - popHinge(t, on, k) / (Math.PI / 2);
-        const gone = prog(t, exit + k * rip, exit + k * rip + dur, ease.inCubic);
+        const gone = prog(t, exit + k * rip, exit + k * rip + dur, ease.inOutQuad);
         const capW = w.cap * l.s;
         const ln = lean(l.x, l.z, lv);
         const h = ln + (Math.PI / 2 - ln) * (1 - uu);
-        l.hinge = h + (Math.PI / 2 + 0.05 - h) * gone;
+        l.hinge = h + (Math.PI / 2 + 0.05 - h) * gone * (o.sink ? 0.5 : 1);
         const bob = 0.02 * Math.sin(t * 2.3 + l.x * 1.7 + l.z);
-        l.y = lv + bob * (stopped ? 0.2 : 1) - capW * 0.55 * (1 - Math.min(uu, 1)) - capW * 0.5 * prog(t, exit + k * rip + dur * 0.6, exit + k * rip + dur * 1.6);
-        l.on = t >= on - POP.lead + k * POP.ripple && t < exit + k * rip + dur * 1.6 ? 1 : 0;
-        l.mat.uniforms.glow!.value = 0.45 * Math.pow(0.5, Math.max(0, t - on) / 0.16) * (t >= on - 0.02 ? 1 : 0) * l.on;
+        l.y = lv + bob * (stopped ? 0.2 : 1) * (1 - gone) - capW * 0.55 * (1 - Math.min(uu, 1)) - capW * (o.sink ? 1.1 * gone : 0.7 * Math.max(0, (gone - 0.55) / 0.45));
+        l.on = t >= on - POP.lead + k * POP.ripple && t < exit + k * rip + dur ? 1 : 0;
+        l.mat.uniforms.glow!.value = 0.3 * Math.pow(0.5, Math.max(0, t - on) / 0.08) * (t >= on - 0.02 ? 1 : 0) * l.on;
       }
       w.update();
     };
@@ -235,7 +237,7 @@ export default class Circe extends Scene {
     // line 1: "When the witch turns" | MEN "to" -> PIGS | "to protect her nymphs"
     cupPop(this.sA, W1.slice(0, 4).map((x) => x.start), rowAt(this.sA, pS.x, pS.z, SMALL), { exit: men.start - POP.lead - 0.02, exitDur: 0.12 });
     const menCap = fit(this.pigs, 4.6), heroX = pH.x, heroZ = pH.z;
-    cupPop(this.men, [men.start], rowAt(this.men, heroX, heroZ, menCap), { exit: pigs.start - POP.lead - 0.05, exitDur: 0.08 });
+    cupPop(this.men, [men.start], rowAt(this.men, heroX, heroZ, menCap), { exit: pigs.start - 0.15, exitDur: 0.15, sink: true });
     cupPop(this.to1, [W1[5]!.start], rowAt(this.to1, pS.x, pS.z, SMALL), { exit: W1[7]!.start - POP.lead - 0.06, exitDur: 0.1 });
     cupPop(this.pigs, [pigs.start], rowAt(this.pigs, heroX, heroZ, menCap), { exit: W2[0]!.start - 0.04, exitDur: 0.16 });
     cupPop(this.sB, W1.slice(7, 11).map((x) => x.start), rowAt(this.sB, pS.x, pS.z, SMALL), { exit: W2[0]!.start - POP.lead - 0.06, exitDur: 0.12 });
@@ -243,12 +245,12 @@ export default class Circe extends Scene {
     cupPop(this.sC, W2.slice(0, 3).map((x) => x.start), rowAt(this.sC, pS.x, pS.z, SMALL), { exit: ins.start - 0.02, exitDur: 0.12 });
     {
       const w = this.insane, capW = 0.95, s = capW / w.cap, RA = 1.75;
-      const tipT = or.start;                                   // "Or": it stops dead, and INSANE? goes under
+      const tipT = this.ctx.audio.timeOfBeat(Math.floor(this.ctx.audio.beatAt(or.start)));   // the beat before "Or": INSANE? goes under
       cupPop(w, [ins.start], (l) => {
         const al = -Om + ((l.penX - w.width / 2) * s) / RA;
         const p = dir(al);
         l.x = RA * p.x; l.z = RA * p.z; l.yaw = -al; l.s = s;
-      }, { exit: tipT + 0.02, exitDur: 0.14, ripple: 0.0 });
+      }, { exit: Math.min(tipT, or.start - 0.15), exitDur: 0.14 });
     }
     // line 3: "Or did she learn" | "to be" COLDER | "when she got" | OLDER (the C drops away)
     cupPop(this.sD, W3.slice(0, 4).map((x) => x.start), rowAt(this.sD, pS.x, pS.z, SMALL), { exit: W3[4]!.start - POP.lead - 0.06, exitDur: 0.12 });
@@ -257,16 +259,16 @@ export default class Circe extends Scene {
     {
       const w = this.colder, L = w.letters, capW = fit(w, 5.2);
       const cC = (L[0]!.penX + L[L.length - 1]!.penX) / 2, cO = (L[1]!.penX + L[L.length - 1]!.penX) / 2;
-      const close = prog(t, older.start + 0.06, older.start + 0.36, ease.outCubic);
-      const exitO = W4[0]!.start + 0.08;
-      cupPop(w, [colder.start], rowAt(w, heroX, heroZ, capW, (l) => l.penX - lerp(cC, cO, close)), { exit: exitO, exitDur: 0.16, ripple: 0.0 });
+      const close = prog(t, older.start - 0.02, older.start + 0.22, ease.outCubic);
+      const exitO = W4[0]!.start - 0.16;
+      cupPop(w, [colder.start], rowAt(w, heroX, heroZ, capW, (l) => l.penX - lerp(cC, cO, close)), { exit: exitO, exitDur: 0.14 });
       // the C: on "older" it tips over backward and goes under
-      const c = L[0]!, tip = prog(t, older.start - 0.04, older.start + 0.2, ease.inQuad);
-      if (t >= older.start - 0.04) {
+      const c = L[0]!, tip = prog(t, older.start - POP.lead - 0.04, older.start + 0.08, ease.outQuad);
+      if (t >= older.start - POP.lead - 0.04) {
         c.hinge = lerp(c.hinge, Math.PI / 2 + 0.55, tip);
         c.yaw += 0.35 * tip;
-        c.y = lv - capW * 0.9 * prog(t, older.start + 0.08, older.start + 0.42, ease.inQuad);
-        c.on = t < older.start + 0.42 ? 1 : 0;
+        c.y = lv - capW * 0.9 * prog(t, older.start, older.start + 0.3, ease.inQuad);
+        c.on = t < older.start + 0.3 ? 1 : 0;
         c.mat.uniforms.glow!.value = 0;
       }
       w.update();
@@ -297,18 +299,18 @@ export default class Circe extends Scene {
     const phi = 0.4 + 0.62 * n - 1.15 * Om;
     const lift = prog(t, h1 - 0.1, pain.start, ease.inOutCubic);
     const tipR = 0.85 + 2.8 * lift;
-    const butt = { x: 5.6 + 0.25 * Math.cos(phi), z: -3.6 + 0.25 * Math.sin(phi) };
+    const butt = { x: 4.5 + 0.2 * Math.cos(phi), z: -2.9 + 0.2 * Math.sin(phi) };
     const tip = { x: tipR * Math.cos(phi) * 0.8 + 0.35 + 2.0 * lift, z: tipR * Math.sin(phi) * 0.8 - 0.25 - 1.0 * lift };
     // ---- rings on the potion: each stir at the staff's tip; letters going in and coming out; the drain
     const rips: [number, number, number, number][] = [];
     for (const x of stirs) {
       const nn = stirs.filter((y) => y <= x).length;
       const ph = 0.4 + 0.62 * nn - 1.15 * this.omega(x);
-      rips.push([0.85 * Math.cos(ph) * 0.8 + 0.35, 0.85 * Math.sin(ph) * 0.8 - 0.25, x, 0.35]);
+      rips.push([0.85 * Math.cos(ph) * 0.8 + 0.35, 0.85 * Math.sin(ph) * 0.8 - 0.25, x, 0.35 * (1 - prog(t, or.start, or.start + 0.1))]);
     }
-    rips.push([heroX, heroZ, pigs.start - 0.05, 0.9], [heroX, heroZ, men.start, 0.4], [heroX, heroZ, colder.start, 0.5]);
+    rips.push([heroX, heroZ, pigs.start - 0.05, 0.9], [heroX, heroZ, men.start, 0.4]);
     const cl = this.colder.letters[0]!;
-    rips.push([cl.x, cl.z, older.start + 0.15, 0.9]);
+    rips.push([cl.x, cl.z, older.start + 0.05, 0.9]);
     for (const x of [h1, h2, sn4, pain.start]) rips.push([0, 0, x + 0.05, 0.5]);
 
     // ---- the vortex
@@ -316,7 +318,7 @@ export default class Circe extends Scene {
     // ---- the fire behind us (flares on the 'orch' hits)
     const L = keyLight(this.cup.cam, audio, t, { seed: 11, I: 1.55 * (1 + 0.25 * stopJolt), reach: 30, right: 2.2, up: 1.5, back: 2.5 });
     this.cup.render(renderer, out, t, L, {
-      level, wine: 0.65, gloss: 0.85, swell: stopped ? 0.04 : 0.35, reflBend: 0.05, spec: 0.05, swirl, swirlT: Om,
+      level, wine: 0.35, gloss: 0.7, mirror: !(swirl > 0), swell: stopped ? 0 : 0.35, reflBend: 0.05, spec: 0.05, swirl, swirlT: Om,
       staff: [butt.x, butt.z, tip.x, tip.z], staffOn: 1 - prog(t, pain.start - 0.1, pain.start + 0.25), rips, tondoRot: -this.omega(T1), dancePh: 2.5 * t,
     });
     return { bloom: 0.55, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0, 0.004 * jolt] };

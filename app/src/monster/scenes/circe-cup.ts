@@ -135,8 +135,8 @@ float staffShadow(vec3 P) {
   vec2 q = P.xz - away * (-P.y) * 0.45;
   vec2 a = staff.xy, b = staff.zw, pa = q - a, ba = b - a;
   float h = sat(dot(pa, ba) / dot(ba, ba));
-  float d = length(pa - ba * h) - mix(0.11, 0.065, h);
-  d = min(d, length(q - b) - 0.085);                          // its knob, at the tip in the cup
+  float d = length(pa - ba * h) - mix(0.1, 0.07, h);
+  d = min(d, length(q - a) - 0.2);                            // its ball finial, on the floor beyond the rim
   float soft = 0.02 + 0.03 * (-P.y) + gPix;
   return staffOn * (1.0 - smoothstep(-soft, soft, d));
 }
@@ -239,7 +239,7 @@ vec3 hall(vec3 P, vec3 R) {
   float g = max(dot(R, Lv), 0.0);
   vec2 sp = R.xz / (R.y + 0.3);
   float smoke = smoothstep(0.0, 0.6, fbm(sp * 0.55 + vec2(0.0, stageT * 0.04), 2));
-  return mix(C_BLOOD, C_EMBER, 0.45) * (0.002 + (0.05 * g * g * g * g + 0.02 * g) + 0.16 * g * smoke) * LI;
+  return mix(C_BLOOD, C_EMBER, 0.45) * (0.001 + (0.012 * g * g * g * g + 0.006 * g) + 0.05 * g * smoke) * LI;
 }
 /** From a point inside the cup along R (upward): the bowl's wall (its clay band under the lip), or out to the hall. */
 vec3 env(vec3 P, vec3 R) {
@@ -389,12 +389,12 @@ void main() {
       refl /= float(taps);
       float lb = lightAt(P, N) * (1.0 - staffShadow(P));
       float spec = pow(max(dot(N, normalize(normalize(Lc - P) + V)), 0.0), 260.0) * fallAt(P);
-      vec3 liq = mix(C_INK * 0.6, C_WINE, wine) + clayCol(lb) * 0.012 + refl * (0.3 + 0.7 * fr) * gloss
-        + mix(C_EMBER, C_BONE, 0.45) * spec * 2.5 * specK;
+      vec3 liq = mix(C_INK * 0.5, C_WINE, wine) + clayCol(lb) * 0.006 + refl * (0.3 + 0.7 * fr) * gloss
+        + mix(C_EMBER, C_BONE, 0.45) * spec * 0.5 * specK;
       // shallow: the painting shows through, darkened by the wine
       float depth = level - (CY - sqrt(max(RS * RS - r * r, 0.0)));
       float a = smoothstep(0.0, 0.09, depth);
-      vec3 under = bowlCol(Pb, D) * mix(vec3(1.0), vec3(0.5, 0.12, 0.14), smoothstep(0.0, 0.03, depth));
+      vec3 under = bowlCol(Pb, D);
       col = mix(under + refl * 0.2 * gloss * (1.0 - a), liq, a);
       // the meniscus: a hair of light where the potion meets the wall
       col += clayCol(lb) * 0.25 * (1.0 - smoothstep(0.0, 0.006 + gPix, depth - 0.0)) * a;
@@ -417,7 +417,7 @@ void main() {
     float b = dot(oc, D), c = dot(oc, oc) - RSO * RSO, disc = b * b - c;
     float te = disc > 0.0 ? -b - sqrt(disc) : -1.0;
     float tf = (FLOORY - P0.y) / D.y;
-    if (hd < 0.0) {
+    if (false) {
       vec3 N = vec3(0.0, 1.0, 0.0);
       float edge = smoothstep(-0.075, 0.0, hd);
       col = C_INK * 0.6 + clayCol(lightAt(Ph, N)) * 0.03 + mix(C_EMBER, C_SIGNAL, 0.5) * 0.012 * fallAt(Ph) * smoothstep(0.4, 0.9, 1.0 - edge) * (1.0 - smoothstep(0.9, 1.0, 1.0 - edge));
@@ -452,6 +452,8 @@ export interface CupState {
   /** Rings on the potion: [x, z, start time, strength]. */
   rips?: [number, number, number, number][];
   tondoRot?: number;
+  /** Mirror the (non-hero) letters in the potion (default true). */
+  mirror?: boolean;
   dancePh?: number;
 }
 
@@ -473,8 +475,10 @@ export class CupStage {
       rip: { value: Array.from({ length: MAX_RIP }, () => new THREE.Vector4()) }, nRip: { value: 0 }, tondoRot: { value: 0 }, dancePh: { value: 0 },
     });
   }
-  add(w: Word3D) {
+  private noMirror = new Set<Word3D>();
+  add(w: Word3D, o: { mirror?: boolean } = {}) {
     clipWord(w);
+    if (o.mirror === false) this.noMirror.add(w);
     this.words.push(w);
     this.scene.add(w.group);
   }
@@ -508,9 +512,11 @@ export class CupStage {
       renderer.setClearColor(0x000000, 0);
       renderer.clear(true, true, true);
       this.setClip(S.level, -1);
+      for (const w of this.words) w.group.visible = S.mirror !== false && !this.noMirror.has(w);
       this.scene.scale.y = -1; this.scene.position.y = 2 * S.level; this.scene.updateMatrixWorld(true);
       renderer.render(this.scene, this.cam.cam);
       this.scene.scale.y = 1; this.scene.position.y = 0; this.scene.updateMatrixWorld(true);
+      for (const w of this.words) w.group.visible = true;
       u.reflTex!.value = this.refl.texture; u.reflOn!.value = 1;
     } else u.reflOn!.value = 0;
     this.bg.render(renderer, out);
