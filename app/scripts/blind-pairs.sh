@@ -15,10 +15,14 @@ for a in "$@"; do
 done
 [ -n "$OUT" ] && [ -n "$KEY" ] && [ ${#NEW[@]} -gt 0 ] && [ ${#REF[@]} -gt 0 ] || { sed -n 5,8p "$0"; exit 1; }
 mkdir -p "$OUT" "$(dirname "$KEY")"
+# which side each new frame goes on: half left, half right, shuffled (a plain coin flip can put five of six on one side)
+N=${#NEW[@]}; SIDE=()
+for ((i = 0; i < N; i++)); do SIDE+=($((i % 2))); done
+for ((i = N - 1; i > 0; i--)); do j=$((RANDOM % (i + 1))); t=${SIDE[$i]}; SIDE[$i]=${SIDE[$j]}; SIDE[$j]=$t; done
 for i in "${!NEW[@]}"; do
   n=${NEW[$i]}; r=${REF[$((i % ${#REF[@]}))]}
   name=$(printf 'pair%02d' $((i + 1)))
-  if [ $((RANDOM % 2)) = 0 ]; then A=$n; B=$r; else A=$r; B=$n; fi
+  if [ "${SIDE[$i]}" = 0 ]; then A=$n; B=$r; else A=$r; B=$n; fi
   ffmpeg -loglevel error -y -i "$A" -i "$B" -filter_complex \
     "[0]scale=960:540[a];[1]scale=960:540[b];[a]pad=976:540:0:0:color=0x808080[ap];[ap][b]hstack" \
     -frames:v 1 "$OUT/$name.png" || exit 1
