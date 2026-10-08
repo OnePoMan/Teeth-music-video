@@ -42,7 +42,10 @@ float monsters(vec2 p) {
 float frMonster(int i, vec2 q) {
   if (i == 0) return polyphemus(q, frEye, frTime, frAct.x);
   if (i == 1) return circe(q, 1.0, frLook, frAct.y);
-  if (i == 2) return max(poseidon(q, 1.0, 1.0, 0.6, frLook, frAct.z), abs(q.x - 0.5) - 3.3);     // the god and his trident only
+  if (i == 2) {                                                                                     // the god and his trident only
+    float m = abs(q.x - 0.5) - 3.3, d = max(poseidon(q, 1.0, 1.0, 0.6, frLook, frAct.z), m);
+    return frAct.z > 0.0 ? min(d, max(trident(q - vec2(0.6, 0.0), 2.05, 7.2, frAct.z), -m)) : d;   // (thrown, past his side)
+  }
   return trojanHorse(q, 1.0, 1.0, 0.0, frLook, frAct.w);
 }
 float frieze(vec2 p) {
@@ -191,15 +194,18 @@ export default class Everything extends Scene {
     const ev = this.w('everything'), been = this.w('been'), turned = this.w('turned'), against = this.w('against'), us = this.w('us');
     const tThrow = ev.start - 0.03;                   // the camera is thrown back as "everything" sounds
     const R = this.rush;
-    // ---- the strikes, one per note of the figure, each with a little wind-up; and when each lands
+    // ---- the strikes, one per note of the figure, each with a little wind-up, each ending on the word: the club comes
+    // down on E V, the spell and then the pig on Y, the trident on T, the soldiers at I N and on G; and when each lands
     const club = t < R[0]! - 0.04 ? -0.35 * prog(t, R[0]! - 0.24, R[0]! - 0.04, ease.outQuad)
-      : lerp(-0.35, 2.15, ease.outBack(prog(t, R[0]! - 0.04, R[0]! + 0.1)));
-    const circeAct = prog(t, R[1]! - 0.04, R[1]! + 0.32, ease.outCubic);
-    const hurl = prog(t, R[2]! - 0.05, R[2]! + 0.14, ease.inQuad);
-    const burst = prog(t, R[3]! - 0.02, R[3]! + 0.32);
-    const lands = [R[0]! + 0.06, R[1]! + 0.12, R[2]! + 0.14, R[3]! + 0.2];
-    /** EVERYTHING's letters beneath each monster (E V | E R Y | T H | I N G). */
-    const under = (k: number) => (k < 2 ? 0 : k < 5 ? 1 : k < 7 ? 2 : 3);
+      : t < R[0]! + 0.06 ? lerp(-0.35, 2.56, ease.inQuad(prog(t, R[0]! - 0.04, R[0]! + 0.06)))
+      : 2.56 - 0.1 * Math.sin(Math.PI * prog(t, R[0]! + 0.06, R[0]! + 0.22));
+    const circeAct = prog(t, R[1]! - 0.08, R[1]! + 0.32);          // (the spell lands at act 0.35, the pig at 0.6)
+    const hurl = t < R[2]! - 0.05 ? -prog(t, R[2]! - 0.2, R[2]! - 0.05, ease.outQuad) : prog(t, R[2]! - 0.05, R[2]! + 0.14);
+    const b0 = R[3]! - 0.2, burst = prog(t, b0, b0 + 0.53);
+    const sold = SOLDIERS.map((o) => b0 + 0.53 * (o + 0.62));
+    const pigLands = R[1]! + 0.16, lands = [R[0]! + 0.06, R[1]! + 0.06, pigLands, R[2]! + 0.14, sold[0]!, sold[1]!];
+    /** When each of EVERYTHING's letters is struck (E V | E R Y | T H | I N G); Y twice, by the spell and the pig. */
+    const hitAt = [lands[0]!, lands[0]! + 0.015, lands[1]! + 0.05, lands[1]! + 0.025, lands[1]!, lands[3]!, lands[3]! + 0.025, sold[0]!, sold[0]! + 0.02, sold[1]!];
 
     // ---- EVERYTHING: an arc before the wall; each letter lands on its share of the sung word, and jolts when the
     // monster above it strikes
@@ -209,7 +215,8 @@ export default class Everything extends Scene {
       const l = wd.letters[k]!;
       const th = ((l.penX - wd.width / 2) * s) / ARC.R;
       l.x = ARC.R * Math.sin(th); l.z = ARC.cz - ARC.R * Math.cos(th);
-      l.y = 0.22 * Math.sin(Math.PI * prog(t, lands[under(k)]! + 0.015 * k, lands[under(k)]! + 0.015 * k + 0.17));
+      const hop = (h: number) => Math.sin(Math.PI * prog(t, h, h + 0.17));
+      l.y = 0.22 * (hop(hitAt[k]!) + (k === 4 ? hop(pigLands) : 0));
       l.yaw = -th; l.s = s;
       l.hinge = popHinge(t, tk(k));
       l.on = l.hinge < Math.PI / 2 - 1e-4 ? 1 : 0;
@@ -271,8 +278,8 @@ export default class Everything extends Scene {
         v('frG').setComponent(i, 1); v('frGx').setComponent(i, x + sc * m.g[0]); v('frGy').setComponent(i, y + sc * m.g[1]);
         v('frBlur').setComponent(i, 0.015);
         m.eyes.forEach((e, j) => {
-          const ex = i === 1 && j === 1 ? pigEyeX(e[0], circeAct) : e[0];   // the pig's eye goes with it as it charges
-          eyes[ei++]!.set(x + sc * ex, y + sc * e[1], sc * e[2] * 1.6, up > 0.5 ? 1 : 0);
+          const [ex, ey] = i === 1 && j === 1 ? pigEye(e[0], e[1], circeAct) : [e[0], e[1]];   // the pig's eye goes with it as it leaps
+          eyes[ei++]!.set(x + sc * ex, y + sc * ey, sc * e[2] * 1.6, up > 0.5 ? 1 : 0);
         });
       });
       (u.frAct!.value as THREE.Vector4).set(club, circeAct, hurl, burst);
@@ -290,12 +297,19 @@ export default class Everything extends Scene {
   }
 }
 
-/** Circe's pig's eye (figure-local x, `ex` as it stands at the cup) once she acts: circe() in figures.ts moves the
- *  pig by `ch` and, past act 0.02, mirrors it about its own origin (2.9 + ch) as it turns to charge. */
-function pigEyeX(ex: number, act: number) {
-  const ch = act > 0 ? 1.2 * (1 - (1 - Math.min(1, act * 1.3)) ** 3) : 0;
-  return act > 0.02 ? 5.8 + ch - ex : ex + ch;
+/** Circe's pig's eye (figure-local, (ex, ey) as it stands at the cup) once she acts: circe() in figures.ts crouches
+ *  the pig, hops it and dives it onto the word, turning it by `pr` about its middle (at rest 3.05, 1.275). */
+function pigEye(ex: number, ey: number, act: number): [number, number] {
+  const sat = (x: number) => Math.min(1, Math.max(0, x));
+  const cr = sat((act - 0.1) / 0.15), f = sat((act - 0.25) / 0.35);
+  const pr = -0.15 * cr * (1 - f) + 0.5 * f * f - 0.3 * f * (1 - f);
+  const px = 3.05 + 0.12 * cr * (1 - f) - 0.3 * f, py = 1.275 - 0.615 * f + 3.2 * f * (1 - f);
+  const vx = ex - 3.05, vy = ey - 1.275, c = Math.cos(pr), s = Math.sin(pr);
+  return [px + c * vx - s * vy, py + s * vx + c * vy];
 }
+
+/** The soldiers' starts in the horse's burst (0..1); each lands 0.62 later (trojanHorse() in figures.ts). */
+const SOLDIERS = [0, 0.05, 0.3, 0.5];
 
 /** Letters in a row standing on the floor at z0, facing the camera (+z), from x0. */
 function rowAt(x0: number, z0: number, s: number) {

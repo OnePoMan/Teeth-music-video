@@ -17,3 +17,6 @@ analysis/qa/
 audio/monster.mp3
 __pycache__/
 app/dist-bench/
+
+# git worktrees made for parallel agent work (Claude Code)
+.claude/worktrees/
