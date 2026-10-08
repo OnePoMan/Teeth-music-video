@@ -24,6 +24,8 @@ uniform vec4 bould;                  // the boulder: centre offset from the mout
 uniform vec4 tal[${N_TALLY}];        // tally strokes: world segments (a.xy, b.xy)
 uniform float talOn[${N_TALLY}];     // 0 none, 0..1 struck in, (1 + flash) just struck
 uniform float nightK;                // the night's own faint light (0 dark)
+uniform vec4 pool;                   // the fire's pool on the wall: centre x, y (world), radius, how dark beyond it
+float gOcc = 0.0;                    // the giant's shadow at the wall point being shaded (set by extraShadow)
 
 float cyEll(vec2 p, vec2 r) { float k0 = length(p / r), k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / max(k1, 1e-5); }
 float cyCap(vec2 p, vec2 a, vec2 b, float ra, float rb) {
@@ -67,15 +69,22 @@ float cyGiant(vec2 p, float club) {
 float carve(vec2 xz) { return 0.0; }
 float floorLines(vec3 P, float u) { return u; }
 vec3 skyTint(vec3 D, vec3 col) { return col; }
-vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) { return col; }
+// the fire's pool: the clay falls off toward the frame's edges
+vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
+  if (!wall) return col;
+  vec2 d = (P.xy - pool.xy) / pool.z;
+  return col * mix(pool.w, 1.0, exp(-dot(d, d)));
+}
 
 float extraShadow(vec3 P, bool wall) {
+  gOcc = 0.0;
   if (!wall || gT.w <= 0.0) return 0.0;
   vec2 q = (P.xy - gT.xy) / gT.z;
   if (abs(q.x) > 12.0 || q.y > 11.0) return 0.0;
   float d = cyGiant(q, clubR) * gT.z;
   float w = max(gPix * 0.75, 0.012);
-  return gT.w * (1.0 - smoothstep(-w, w, d));
+  gOcc = gT.w * (1.0 - smoothstep(-w, w, d));
+  return gOcc;
 }
 
 // what is not shadow: the cave mouth, the boulder, the tally
@@ -90,8 +99,9 @@ vec3 wallHook(vec3 P, vec3 col) {
     if (on <= 0.0) continue;
     vec2 a = tal[i].xy, b = tal[i].zw, c = 0.5 * (a + b);
     float k = min(on, 1.0);
-    float s = sdSegment(P.xy, mix(c, a, k), mix(c, b, k)) - 0.15 - 0.03 * snoise(P.xy * 7.0) - 0.015 * snoise(P.xy * 23.0);
-    col = mix(col, C_INK * 0.8, 1.0 - smoothstep(-aw, aw, s));
+    float s = sdSegment(P.xy, mix(c, a, k), mix(c, b, k)) - 0.15 - 0.012 * snoise(P.xy * 6.0);
+    // (struck into the clay: the club's shadow passes over it)
+    col = mix(col, C_INK * 0.8, (1.0 - smoothstep(-aw, aw, s)) * (1.0 - gOcc));
   }
   float ms = mouth.z, a = aw / ms;
   vec2 e = (P.xy - mouth.xy) / ms;
@@ -117,7 +127,9 @@ vec3 wallHook(vec3 P, vec3 col) {
     float bd = length(bq) - rb;
     float inS = 1.0 - smoothstep(-a, a, bd);
     if (inS > 0.0) {
-      vec3 stone = clay * (0.92 + 0.08 * snoise(bq * 2.3));
+      // a body: darker clay, lit from the fire's side (the shading stays put while the markings turn)
+      vec2 bn = (e - bould.xy) / ${MOUTH.rb.toFixed(3)};
+      vec3 stone = clay * (0.36 + 0.26 * sat(0.5 + 0.6 * dot(bn, vec2(0.55, 0.5)))) * (0.94 + 0.06 * snoise(bq * 2.3));
       // its markings, incised: one jagged crack across it and a branch (they turn as it rolls)
       float m = sdSegment(bq, vec2(-1.0, 0.48), vec2(-0.42, 0.24));
       m = min(m, sdSegment(bq, vec2(-0.42, 0.24), vec2(-0.2, -0.18)));
