@@ -248,7 +248,7 @@ vec3 holeCol(vec3 P, vec3 D) {
   float through = smoothstep(-soft, soft, hatchR.x - abs(X.x)) * smoothstep(-soft, soft, hatchR.y - X.z) * smoothstep(-soft, soft, X.z - hatchR.z);
   float occ = cardShadow(Q);
   float grain = 0.9 + 0.1 * snoise(Q.xz * 1.3) + 0.05 * snoise(Q.xz * 17.0);
-  vec3 c = clayCol(0.04 + fallOff(Q) * 4.0 * through * (1.0 - occ)) * grain;
+  vec3 c = clayCol(0.04 + fallOff(Q) * 0.6 * through * (1.0 - occ)) * grain;
   // the hole's cut edge: the planks' thickness, dark
   float rim = min(min(hatchR.x - abs(P.x), hatchR.y - P.z), P.z - hatchR.z);
   float farEdge = 1.0 - smoothstep(0.0, 0.09, P.z - hatchR.z);
@@ -359,7 +359,7 @@ void main() {
   vec3 col;
   if (vNL.y > 0.5) col = mix(C_INK * (0.6 + 0.5 * lit) + clay * 0.04, wood * 0.45, max(seam * 0.7, batten * 0.5));
   else if (vNL.y < -0.5) col = wood * (1.0 - 0.6 * seam);
-  else col = clay * (0.25 + 0.9 * lit);                      // the edges: bare wood, catching the light
+  else col = clay * (0.06 + 0.3 * lit);                      // the edges: bare wood, in the hole's shade
   if (any(isnan(col)) || any(isinf(col))) col = vec3(0.0);
   fragColor = vec4(col, 1.0);
 }`;
