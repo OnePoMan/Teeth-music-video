@@ -170,7 +170,7 @@ export default class Circe extends Scene {
     const h1 = orchD[1] ?? bar4 + 0.3, h2 = orchD[2] ?? bar4 + 0.63;
     const sn4 = this.snares.filter((x) => x > h2 + 0.05 && x < pain.start - 0.1)[0] ?? h2 + 0.18;
     const level = keys(t, [[h1 - 0.02, FULL], [h1 + 0.2, -0.3, ease.outCubic], [h2 - 0.02, -0.32, ease.linear], [h2 + 0.2, -0.46, ease.outCubic],
-      [sn4, -0.48, ease.linear], [sn4 + 0.18, -0.57, ease.outCubic], [pain.start - 0.03, -0.59, ease.linear], [pain.start + 0.18, -CUP.D - 0.06, ease.inOutCubic]]);
+      [sn4, -0.48, ease.linear], [sn4 + 0.18, -0.57, ease.outCubic], [pain.start - 0.03, -0.59, ease.linear], [pain.start + 0.06, -0.67, ease.inQuad], [pain.start + 0.42, -CUP.D - 0.06, ease.linear]]);
 
     // ---- the camera: high over the cup; it comes down a little for the words, up overhead for the vortex (rolling
     // with INSANE?), stops dead on "Or", leans in for COLDER, and rises over the empty cup at the end
@@ -239,7 +239,7 @@ export default class Circe extends Scene {
     const menCap = fit(this.pigs, 4.6), heroX = pH.x, heroZ = pH.z;
     cupPop(this.men, [men.start], rowAt(this.men, heroX, heroZ, menCap), { exit: pigs.start - 0.15, exitDur: 0.15, sink: true });
     cupPop(this.to1, [W1[5]!.start], rowAt(this.to1, pS.x, pS.z, SMALL), { exit: W1[7]!.start - POP.lead - 0.06, exitDur: 0.1 });
-    cupPop(this.pigs, [pigs.start], rowAt(this.pigs, heroX, heroZ, menCap), { exit: W2[0]!.start - 0.04, exitDur: 0.16 });
+    cupPop(this.pigs, [pigs.start], rowAt(this.pigs, heroX, heroZ, menCap), { exit: W2[0]!.start - POP.lead - 0.16, exitDur: 0.15 });
     cupPop(this.sB, W1.slice(7, 11).map((x) => x.start), rowAt(this.sB, pS.x, pS.z, SMALL), { exit: W2[0]!.start - POP.lead - 0.06, exitDur: 0.12 });
     // line 2: "is she going" | INSANE? round the vortex
     cupPop(this.sC, W2.slice(0, 3).map((x) => x.start), rowAt(this.sC, pS.x, pS.z, SMALL), { exit: ins.start - 0.02, exitDur: 0.12 });
@@ -263,12 +263,13 @@ export default class Circe extends Scene {
       const exitO = W4[0]!.start - 0.16;
       cupPop(w, [colder.start], rowAt(w, heroX, heroZ, capW, (l) => l.penX - lerp(cC, cO, close)), { exit: exitO, exitDur: 0.14 });
       // the C: on "older" it tips over backward and goes under
-      const c = L[0]!, tip = prog(t, older.start - POP.lead - 0.04, older.start + 0.08, ease.outQuad);
-      if (t >= older.start - POP.lead - 0.04) {
-        c.hinge = lerp(c.hinge, Math.PI / 2 + 0.55, tip);
-        c.yaw += 0.35 * tip;
-        c.y = lv - capW * 0.9 * prog(t, older.start, older.start + 0.3, ease.inQuad);
-        c.on = t < older.start + 0.3 ? 1 : 0;
+      const c = L[0]!, tip = prog(t, older.start - 0.02, older.start + 0.2, ease.inOutQuad);
+      if (t >= older.start - 0.02) {
+        // it tips over backward about its baseline, face up (still a C from up here), its top dipping into the
+        // potion, and goes under top first
+        c.hinge = lerp(c.hinge, Math.PI / 2 + 0.22, tip);
+        c.y = lv - capW * 0.55 * prog(t, older.start + 0.06, older.start + 0.32, ease.inQuad);
+        c.on = t < older.start + 0.32 ? 1 : 0;
         c.mat.uniforms.glow!.value = 0;
       }
       w.update();
@@ -318,7 +319,7 @@ export default class Circe extends Scene {
     // ---- the fire behind us (flares on the 'orch' hits)
     const L = keyLight(this.cup.cam, audio, t, { seed: 11, I: 1.55 * (1 + 0.25 * stopJolt), reach: 30, right: 2.2, up: 1.5, back: 2.5 });
     this.cup.render(renderer, out, t, L, {
-      level, wine: 0.35, gloss: 0.7, mirror: !(swirl > 0), swell: stopped ? 0 : 0.35, reflBend: 0.05, spec: 0.05, swirl, swirlT: Om,
+      level, wine: 0.35, gloss: 0.7, mirror: false, swell: stopped ? 0 : 0.35, reflBend: 0.05, spec: 0.05, swirl, swirlT: Om,
       staff: [butt.x, butt.z, tip.x, tip.z], staffOn: 1 - prog(t, pain.start - 0.1, pain.start + 0.25), rips, tondoRot: -this.omega(T1), dancePh: 2.5 * t,
     });
     return { bloom: 0.55, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0, 0.004 * jolt] };

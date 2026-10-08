@@ -239,7 +239,7 @@ vec3 hall(vec3 P, vec3 R) {
   float g = max(dot(R, Lv), 0.0);
   vec2 sp = R.xz / (R.y + 0.3);
   float smoke = smoothstep(0.0, 0.6, fbm(sp * 0.55 + vec2(0.0, stageT * 0.04), 2));
-  return mix(C_BLOOD, C_EMBER, 0.45) * (0.001 + (0.012 * g * g * g * g + 0.006 * g) + 0.05 * g * smoke) * LI;
+  return mix(C_BLOOD, C_EMBER, 0.45) * (0.001 + (0.012 * g * g * g * g + 0.006 * g) + 0.03 * g * smoke) * LI;
 }
 /** From a point inside the cup along R (upward): the bowl's wall (its clay band under the lip), or out to the hall. */
 vec3 env(vec3 P, vec3 R) {
@@ -390,10 +390,10 @@ void main() {
       float lb = lightAt(P, N) * (1.0 - staffShadow(P));
       float spec = pow(max(dot(N, normalize(normalize(Lc - P) + V)), 0.0), 260.0) * fallAt(P);
       vec3 liq = mix(C_INK * 0.5, C_WINE, wine) + clayCol(lb) * 0.006 + refl * (0.3 + 0.7 * fr) * gloss
-        + mix(C_EMBER, C_BONE, 0.45) * spec * 0.5 * specK;
+        + mix(C_EMBER, C_BONE, 0.45) * spec * 0.15 * specK;
       // shallow: the painting shows through, darkened by the wine
       float depth = level - (CY - sqrt(max(RS * RS - r * r, 0.0)));
-      float a = smoothstep(0.0, 0.09, depth);
+      float a = smoothstep(0.0, 0.025, depth);
       vec3 under = bowlCol(Pb, D);
       col = mix(under + refl * 0.2 * gloss * (1.0 - a), liq, a);
       // the meniscus: a hair of light where the potion meets the wall
