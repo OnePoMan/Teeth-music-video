@@ -1,6 +1,8 @@
 """Vocal-stem signal features used to arbitrate/refine word timings -> work/monster/vocal_feats.npz
 (ported from analysis/vocal_feats.py). hop = 5 ms: rms (dB), pyin f0 + voiced flag, spectral-flux onset strength
-(log-mel), high-band (>2.5 kHz) and mid-band energy, sibilance ratio (4-10.5 kHz over 90-1500 Hz)."""
+(log-mel), high-band (>2.5 kHz) and mid-band energy, sibilance ratio (4-10.5 kHz over 90-1500 Hz).
+`python vocal_feats.py lead` computes them on another source of common.load_vocal_source (the karaoke model's lead
+voice) -> work/monster/vocal_feats_lead.npz."""
 import common
 import librosa
 import numpy as np
@@ -9,8 +11,8 @@ SR = 22050
 HOP = 110  # ~5 ms
 
 
-def compute():
-    y, sr = common.load_stem("vocals", sr=SR)
+def compute(source="vocals"):
+    y, sr = common.load_stem("vocals", sr=SR) if source == "vocals" else common.load_vocal_source(source, sr=SR)
     rms = librosa.feature.rms(y=y, frame_length=1024, hop_length=HOP, center=True)[0]
     S = np.abs(librosa.stft(y, n_fft=1024, hop_length=HOP, center=True)) ** 2
     freqs = librosa.fft_frequencies(sr=SR, n_fft=1024)
@@ -23,7 +25,8 @@ def compute():
     onset = librosa.onset.onset_strength(S=logmel, sr=SR, hop_length=HOP, lag=2, max_size=3)
     f0, vflag, vprob = librosa.pyin(y, fmin=70, fmax=1000, sr=SR, frame_length=2048, hop_length=HOP, center=True)
     n = min(len(rms), len(f0), S.shape[1])
-    np.savez_compressed(common.WORK / "vocal_feats.npz", hop_s=HOP / SR,
+    name = "vocal_feats.npz" if source == "vocals" else f"vocal_feats_{source}.npz"
+    np.savez_compressed(common.WORK / name, hop_s=HOP / SR,
                         rms_db=librosa.amplitude_to_db(rms[:n], ref=1.0),
                         hi_db=librosa.power_to_db(hi[:n] + 1e-10),
                         mid_db=librosa.power_to_db(mid[:n] + 1e-10),
@@ -33,4 +36,5 @@ def compute():
 
 
 if __name__ == "__main__":
-    compute()
+    import sys
+    compute(*(sys.argv[1:2] or ["vocals"]))

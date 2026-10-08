@@ -55,8 +55,8 @@ NOTES = (
 
 
 # ---------------------------------------------------------------------------
-def load_feats():
-    f = dict(np.load(common.WORK / "vocal_feats.npz"))
+def load_feats(source=None):
+    f = dict(np.load(common.WORK / ("vocal_feats.npz" if source is None else f"vocal_feats_{source}.npz")))
     f["hop"] = float(f.pop("hop_s"))
     return f
 
@@ -272,24 +272,28 @@ def align_set(E, src, idx, windows=True, margin=1.5):
     return word_table(sp, toks, line_ids=idx), score
 
 
-def main(plots=False):
+def main(plots=False, split=False, out=None, plot_lines=None):
+    """split: align the lead lines on the karaoke model's lead voice and the ensemble's interjections on the backing
+    (the Demucs vocals minus the lead), with the lead voice's features for the refinement (common.load_vocal_source).
+    out: write the lyrics there instead of data/monster/lyrics.json (to compare runs before merging lines)."""
     src = common.load_lyrics_src()
     lead = [i for i, s in enumerate(src) if s[2] == "lead"]
     ens = [i for i, s in enumerate(src) if s[2] != "lead"]
-    E = emissions(PRIMARY)
+    E = emissions("fused_lead" if split else PRIMARY)
     words, score = align_set(E, src, lead)
     alt = {}
     for k in ALTS:
-        Ek = emissions(k)
+        Ek = emissions(k + ("_lead" if split else ""))
         alt[k], _ = align_set(Ek, src, lead)
+    Ee = emissions("fused_backing") if split else E
     # the ensemble's interjections, each alone in its own window (they overlap the lead)
     ens_words = []
     for i in ens:
         t0 = src[i][0]
-        sub = E[int((t0 - 1.5) / 0.02): int((t0 + 3.0) / 0.02)]
+        sub = Ee[int((t0 - 1.5) / 0.02): int((t0 + 3.0) / 0.02)]
         sp, _, _, _ = align(sub, [src[i][1].split(" ")], margin=1.0, t_offset=int((t0 - 1.5) / 0.02) * 0.02)
         ens_words += word_table(sp, [src[i][1].split(" ")], line_ids=[i])
-    f = load_feats()
+    f = load_feats("lead" if split else None)
     words = refine(words, f, FIX)
     for k in range(1, len(words)):
         if words[k]["start"] < words[k - 1]["start"] + 0.02:
@@ -308,7 +312,7 @@ def main(plots=False):
             w["manual"] = True
         w["conf_final"] = round(float(min(1.0, 0.3 + w["conf"])), 2)
     allw = sorted(words + ens_words, key=lambda w: (w["li"], w["ti"]))
-    (common.WORK / "align_debug.json").write_text(json.dumps(dict(words=allw, alt=alt), indent=1, default=float))
+    (common.WORK / ("align_debug_split.json" if split else "align_debug.json")).write_text(json.dumps(dict(words=allw, alt=alt), indent=1, default=float))
 
     lines = []
     for li, (t0, text, voice) in enumerate(src):
@@ -322,20 +326,23 @@ def main(plots=False):
             out.append(d)
         lines.append(dict(i=li, text=text, start=out[0]["start"], end=out[-1]["end"], voice=voice, words=out))
     doc = dict(lines=lines, extras=detect_extras(allw, f), notes=NOTES)
-    (common.DATA / "lyrics.json").write_text(json.dumps(doc, indent=1, ensure_ascii=False))
-    print("wrote", common.DATA / "lyrics.json", "score", round(score, 1))
+    path = common.Path(out) if out else common.DATA / "lyrics.json"
+    path.write_text(json.dumps(doc, indent=1, ensure_ascii=False))
+    print("wrote", path, "score", round(score, 1))
     for l in lines:
         lo = min(w["conf"] for w in l["words"])
         print(f"{l['i']:2d} {l['start']:7.2f}-{l['end']:7.2f} (lrc {src[l['i']][0]:6.2f}) {'E' if l['voice'] != 'lead' else ' '} conf>={lo:4.2f}  {l['text']}")
     if plots:
-        make_plots(allw, alt, src)
+        make_plots(allw, alt, src, suffix="_split" if split else "", lines=plot_lines, source="lead" if split else "vocals")
     return allw, alt
 
 
-def make_plots(words, alt, src):
+def make_plots(words, alt, src, suffix="", lines=None, source="vocals"):
     from qa_plot import plot
     ww = whisper_words()
     for li, (t0, text, voice) in enumerate(src):
+        if lines is not None and li not in lines:
+            continue
         ws = [w for w in words if w["li"] == li]
         a = min(ws[0]["start"], ws[0]["ctc_start"]) - 0.8
         b = max(ws[-1]["end"], ws[-1]["ctc_end"]) + 0.6
@@ -349,8 +356,23 @@ def make_plots(words, alt, src):
             ("whisper", ww),
         ]
         del lead
-        plot(a, b, tracks, common.QA / f"line_{li:02d}.png", title=f"L{li} [{voice}]: {text}")
+        plot(a, b, tracks, common.QA / f"line_{li:02d}{suffix}.png", title=f"L{li} [{voice}]: {text}",
+             source=source if voice == "lead" else ("backing" if source != "vocals" else "vocals"))
+
+
+def _arg(name):
+    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else None
+
+
+def _lines(spec):
+    """'36-41,54-63' -> {36, ..., 41, 54, ..., 63}"""
+    out = set()
+    for part in (spec or "").split(","):
+        if part:
+            a, _, b = part.partition("-")
+            out.update(range(int(a), int(b or a) + 1))
+    return out or None
 
 
 if __name__ == "__main__":
-    main(plots="--plots" in sys.argv)
+    main(plots="--plots" in sys.argv, split="--split" in sys.argv, out=_arg("--out"), plot_lines=_lines(_arg("--lines")))
