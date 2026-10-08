@@ -4,8 +4,9 @@
 // black-figure vase, through which the lit clay shows.
 //   polyphemus(p, eye, t)              the one-eyed giant, head and shoulders over his flock, club in hand; eye 0 shut, 1 open
 //   circe(p, k, look)                  the witch with her staff in her cup; a man on all fours at the cup becomes a pig (k)
-//   poseidon(p, k, thrust, tip, look)  a wave heaving (k) and curling over; an arm drives the trident up through it
-//                                      (thrust); a galley before the wave pitches up (tip)
+//   poseidon(p, k, thrust, tip, ...)   a wave heaving (k) and curling over; an arm drives the trident up through it
+//                                      (thrust); a galley before the wave pitches up (tip), or a wave runs to it and
+//                                      capsizes it (run)
 //   trojanHorse(p, h1, h2, roll, look) the wooden horse on its wheeled platform; its hatch opens (h1), a rope ladder
 //                                      drops (h2); roll turns the wheels
 // look (0..1) opens frontal eyes on us: Circe's, the pig's, the horse's, an eye in the heart of the wave.
@@ -316,17 +317,36 @@ float poseidonGod(vec2 g, float thrust, float look, float hurl) {
   float ek = max(0.7, look);
   return frontEye(d, g, vec2(-0.26, 4.78), 0.13 * (1.0 + 0.6 * look), ek);
 }
-float poseidon(vec2 p, float k, float thrust, float tip, float look, float hurl) {
+// the running wave's profile about its crest (u = x - crest): a steep face in front (-x, where it runs), a trough behind
+float runWave(float u) { return u < 0.0 ? exp(-u * u / 0.3) : exp(-u * u / 1.4) - 0.4 * exp(-(u - 2.3) * (u - 2.3) / 0.9); }
+// run (the opening): a wave running along the sea band, its crest at run.x and run.y high; the galley rides it, rolled
+// over by run.z and sunk run.w (once rolling, it is behind the sea, which covers it). run.y 0: the sea at rest and the
+// galley pitched by tip about a fixed point. ship 0: no galley (the frieze). enter (the opening's changes): the sea
+// band lowered by enter.x, the god by enter.y more (behind it), the galley slid along it by enter.z
+float poseidon(vec2 p, float k, float thrust, float tip, float look, float hurl, vec4 run, float ship, vec3 enter) {
   // the god, rising out of the sea as it heaves
-  float d = poseidonGod(p - vec2(0.6, -5.2 * (1.0 - k)), thrust, look, hurl);
-  // the sea before him: a band with a running-wave border, swelling round him
-  float sea = p.y - (0.8 + 0.06 * sin(p.x * 2.1) + 0.35 * k * exp(-(p.x - 0.6) * (p.x - 0.6) / 3.0));
-  vec2 cp = vec2(mod(p.x + 0.8, 1.6) - 0.8, p.y - 1.08 - 0.35 * k * exp(-(p.x - 0.6) * (p.x - 0.6) / 3.0));
-  sea = min(sea, scroll(cp, 0.34, -0.5, 0.085, 1.1));
-  d = before(d, sea, 0.06);
-  // the galley beside him, its bow lifting
-  vec2 gp = rot2(0.6 * tip) * (p - vec2(-4.2, 1.15 + 0.3 * k));
-  return before(d, galley(gp * 1.1) / 1.1, 0.06);
+  float d = poseidonGod(p - vec2(0.6, -5.2 * (1.0 - k) - enter.x - enter.y), thrust, look, hurl);
+  // the sea before him: a band with a running-wave border, swelling round him; the running wave lifts it, and lifts and
+  // swells each scroll of the border whole as its crest passes
+  vec2 b = p + vec2(0.0, enter.x);
+  float rw = run.y > 0.0 ? run.y * runWave(b.x - run.x) : 0.0;
+  float sea = b.y - (0.8 + 0.06 * sin(b.x * 2.1) + 0.35 * k * exp(-(b.x - 0.6) * (b.x - 0.6) / 3.0) + rw);
+  float cx = mod(b.x + 0.8, 1.6) - 0.8, lift = run.y > 0.0 ? run.y * runWave(b.x - cx - run.x) : 0.0, sc = 1.0 + 0.6 * max(lift, 0.0);
+  vec2 cp = vec2(cx, b.y - 1.08 - 0.35 * k * exp(-(b.x - 0.6) * (b.x - 0.6) / 3.0) - lift);
+  sea = min(sea, scroll(cp / sc, 0.34, -0.5, 0.085, 1.1) * sc);
+  if (ship <= 0.0) return before(d, sea, 0.06);
+  // the galley beside him, on the band: it rides the water under its hull (stern, middle, bow), then rolls keel up
+  // and goes down behind the waves
+  vec2 gc = vec2(-4.2 + enter.z, 1.15 + 0.3 * k);
+  float ga = 0.6 * tip;
+  if (run.y > 0.0) {
+    float hs = run.y * runWave(-6.2 - run.x), hb = run.y * runWave(-2.2 - run.x);
+    gc.y += 0.25 * (hs + hb) + 0.5 * run.y * runWave(-4.2 - run.x) - run.w;
+    ga = atan(hb - hs, 4.0) + run.z;
+  }
+  float gal = galley((rot2(ga) * (b - gc)) * 1.1) / 1.1;
+  if (run.z < 0.0) return before(before(d, gal, 0.06), sea, 0.06);
+  return before(before(d, sea, 0.06), gal, 0.06);
 }
 
 // ---- the Trojan horse: a wooden horse on a wheeled platform, planked; two hatches in its belly

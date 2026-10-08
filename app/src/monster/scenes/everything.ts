@@ -24,7 +24,7 @@ import { POP, Stage, Word3D, popHinge, popWords, vkeys } from '../stage';
  * it rushes at us (frG about frGx, frGy) with its penumbra (frBlur); eyes open on us (frLook) and glow (eyeW).
  */
 const HOOKS = GLSL_FIGURES + /* glsl */ `
-uniform vec4 figW, figA, figB, figT;
+uniform vec4 figW, figA, figB, figT, figRun;
 uniform float figOn, figMode;
 uniform vec4 frX, frY, frS, frUp, frG, frGx, frGy, frBlur, frAct;
 uniform float frLook, frEye, frTime, eyeGlow;
@@ -32,18 +32,29 @@ uniform vec4 eyeW[5];
 float monsters(vec2 p) {
   vec2 q = (p - figT.xy) / figT.z;
   if (abs(q.x) > 13.0 || q.y > 10.5 || q.y < -1.0) return 1e3;
+  // into and out of Poseidon no shapes are blended: like puppets changed behind the stage, Circe is lowered out of
+  // sight below the floor line (the horse comes up from it), gone once her share is down to a quarter, as the sea band
+  // comes up, then the god rises from behind it and the galley slides in along it from the left (and out, the reverse)
+  if (figW.z > 0.001) {
+    vec4 dr = 11.5 * clamp(1.35 * (1.0 - figW), 0.0, 1.0);
+    float e = figW.z, d = 1e3;
+    vec3 enter = vec3(2.6 * (1.0 - sat(2.0 * e)), 6.0 * (1.0 - sat(2.0 * e - 1.0)), -10.0 * (1.0 - smoothstep(0.3, 0.85, e)));
+    if (figW.y > 0.001) d = min(d, circe(q + vec2(0.0, dr.y), figA.y, 0.0, 0.0));
+    d = min(d, poseidon(q, figA.z, figB.w, 0.0, 0.0, 0.0, figRun, 1.0, enter));
+    if (figW.w > 0.001) d = min(d, trojanHorse(q - vec2(figB.z, -dr.w), figA.w, figT.w, figB.z, 0.0, 0.0));
+    return d * figT.z;
+  }
   float d = 0.0;
   if (figW.x > 0.001) d += figW.x * polyphemus(q, figA.x, figB.y, 0.0);
   if (figW.y > 0.001) d += figW.y * circe(q, figA.y, 0.0, 0.0);
-  if (figW.z > 0.001) d += figW.z * poseidon(q, figA.z, figB.w, figB.x, 0.0, 0.0);
   if (figW.w > 0.001) d += figW.w * trojanHorse(q - vec2(figB.z, 0.0), figA.w, figT.w, figB.z, 0.0, 0.0);
   return d / max(dot(figW, vec4(1.0)), 1e-3) * figT.z;
 }
 float frMonster(int i, vec2 q) {
   if (i == 0) return polyphemus(q, frEye, frTime, frAct.x);
   if (i == 1) return circe(q, 1.0, frLook, frAct.y);
-  if (i == 2) {                                                                                     // the god and his trident only
-    float m = abs(q.x - 0.5) - 3.3, d = max(poseidon(q, 1.0, 1.0, 0.6, frLook, frAct.z), m);
+  if (i == 2) {                                                                     // the god and his trident, no galley
+    float m = abs(q.x - 0.5) - 3.3, d = max(poseidon(q, 1.0, 1.0, 0.0, frLook, frAct.z, vec4(0.0), 0.0, vec3(0.0)), m);
     return frAct.z > 0.0 ? min(d, max(trident(q - vec2(0.6, 0.0), 2.05, 7.2, frAct.z), -m)) : d;   // (thrown, past his side)
   }
   return trojanHorse(q, 1.0, 1.0, 0.0, frLook, frAct.w);
@@ -112,7 +123,7 @@ export default class Everything extends Scene {
     hooks: HOOKS,
     uniforms: {
       figW: { value: new THREE.Vector4(1, 0, 0, 0) }, figA: { value: new THREE.Vector4() }, figB: { value: new THREE.Vector4() },
-      figT: { value: new THREE.Vector4(0, 0, 1, 0) }, figOn: { value: 0 }, figMode: { value: 0 },
+      figT: { value: new THREE.Vector4(0, 0, 1, 0) }, figRun: { value: new THREE.Vector4() }, figOn: { value: 0 }, figMode: { value: 0 },
       frX: { value: new THREE.Vector4() }, frY: { value: new THREE.Vector4() }, frS: { value: new THREE.Vector4() }, frUp: { value: new THREE.Vector4() },
       frG: { value: new THREE.Vector4(1, 1, 1, 1) }, frGx: { value: new THREE.Vector4() }, frGy: { value: new THREE.Vector4() },
       frBlur: { value: new THREE.Vector4() }, frAct: { value: new THREE.Vector4() }, frLook: { value: 0 }, frEye: { value: 1 }, frTime: { value: 0 }, eyeGlow: { value: 0 },
@@ -156,9 +167,9 @@ export default class Everything extends Scene {
   /**
    * The opening (0 to the first word): the monsters' shadows, one per musical event, each turning into the next:
    * Polyphemus over his flock (his eye opens at the top of the swell), Circe at her cup (the man at it becomes a pig
-   * on the bass note), Poseidon (the wave heaves, the trident is driven up through it on the first note of the
-   * figure, the galley pitches up on the second), the wooden horse (rolls in on the third, its hatch opens on the
-   * fourth and a rope ladder drops on the fifth).
+   * on the bass note), Poseidon (he rises as the sea heaves, drives his trident down into it on the first note of the
+   * figure, and the wave it raises runs to the galley and capsizes it on the second), the wooden horse (rolls in on
+   * the third, its hatch opens on the fourth and a rope ladder drops on the fifth).
    */
   private opening(t: number) {
     const h = this.hits, hit = (i: number, d: number) => h[i] ?? d;
@@ -171,8 +182,17 @@ export default class Everything extends Scene {
     const eye = prog(t, 0.95, 1.4, ease.outCubic);
     const pig = prog(t, 1.95, 2.45, ease.inOutCubic);
     const wave = lerp(prog(t, OPEN.poseidon - 0.05, hit(0, 3.01), ease.outCubic), 0, prog(t, OPEN.horse, OPEN.horse + 0.25, ease.inCubic));
-    const thrust = prog(t, hit(0, 3.01) - 0.06, hit(0, 3.01) + 0.07, ease.outCubic);
-    const tip = prog(t, hit(1, 3.34) - 0.04, hit(1, 3.34) + 0.32, ease.outBack);
+    // he rises with the trident held low under the water and brings it up out of it; one gesture: on the first note he
+    // lifts it and drives its butt down into the water, then holds; a wave runs from there along the sea, reaches the
+    // galley on the second note and rolls it keel up, it goes down behind the waves, and the wave subsides; as the horse
+    // comes on he lowers the trident into the water and sinks behind the waves
+    const n0 = hit(0, 3.01), n1 = hit(1, 3.34);
+    const thrust = t < n0 - 0.15 ? -1.3 * (1 - prog(t, OPEN.poseidon + 0.08, n0 - 0.15, ease.inOutQuad))
+      : t < n0 - 0.05 ? 0.7 * prog(t, n0 - 0.15, n0 - 0.05, ease.outQuad)
+      : lerp(lerp(0.7, -0.1, prog(t, n0 - 0.05, n0, ease.inQuad)), -1.3, prog(t, OPEN.horse - 0.08, OPEN.horse + 0.02, ease.inQuad));
+    const run = [2.65 + (-4.2 - 2.65) * (t - n0) / Math.max(0.1, n1 - n0),
+      t <= n0 ? 0 : Math.max(1e-4, prog(t, n0, n0 + 0.12, ease.outCubic) * (1 - prog(t, n1 + 0.1, n1 + 0.21, ease.inOutQuad))),
+      -2.6 * prog(t, n1 + 0.04, n1 + 0.16, ease.outCubic), 3.6 * prog(t, n1 + 0.12, n1 + 0.18)] as const;
     const roll = -9 * (1 - prog(t, OPEN.horse - 0.02, hit(3, 3.84), ease.outCubic));
     const h1 = prog(t, hit(3, 3.84) - 0.02, hit(3, 3.84) + 0.2, ease.outCubic);
     const h2 = prog(t, hit(4, 4.18) - 0.02, hit(4, 4.18) + 0.2, ease.outCubic);
@@ -182,7 +202,8 @@ export default class Everything extends Scene {
     w.forEach((wi, i) => { px += wi * pl[i]![0]; ps += wi * pl[i]![1]; });
     (u.figW!.value as THREE.Vector4).set(...w);
     (u.figA!.value as THREE.Vector4).set(eye, pig, wave, h1);
-    (u.figB!.value as THREE.Vector4).set(tip, t, roll, thrust);
+    (u.figB!.value as THREE.Vector4).set(0, t, roll, thrust);
+    (u.figRun!.value as THREE.Vector4).set(...run);
     (u.figT!.value as THREE.Vector4).set(px + 0.03 * noise1(t * 5.3, 43), 0, ps * (1 + 0.006 * noise1(t * 6.1, 41)), h2);
     u.figOn!.value = 1; u.figMode!.value = 0; u.eyeGlow!.value = 0;
   }
