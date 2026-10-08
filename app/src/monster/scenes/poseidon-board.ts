@@ -60,6 +60,8 @@ export const BOARD_HOOKS = GLSL_FIGURES + GLSL_TRIDENT + /* glsl */ `
 #define BW ${BOARD.bw.toFixed(3)}
 #define DEPTH ${BOARD.depth.toFixed(3)}
 uniform float godOn, clarity, tNow;
+// the fire's pool on the board (x, z, radius, gain): it falls off to dark toward the edges
+uniform vec4 pool;
 uniform vec4 godT;
 uniform vec4 wreck[${NP}];
 uniform vec4 ring[${NP}];
@@ -134,7 +136,10 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   float dBox = max(dq.x, dq.y);                                   // (square corners)
   if (dBox > BW + 2.0 * aa) return C_INK;
   // ---- the clay border, lit; the trident's shadow and the words' fall on it as black-figure
-  vec3 clay = clayCol(b * 1.1 + 0.02);
+  vec2 pd = (xz - pool.xy) / pool.z;
+  float pl = exp(-dot(pd, pd));
+  float plB = exp(-dot(pd, pd) * 0.3);
+  vec3 clay = clayCol(b * 1.1 + 0.02) * (0.3 + 0.7 * plB);
   clay = mix(clay, C_INK * 0.85, waveBand(xz, max(dBox, 0.0), aa));
   // ---- the water: black glaze, wine-dark; it mirrors the pieces and the words; through it the clay seabed
   vec3 V = normalize(camPos - P);
@@ -150,12 +155,13 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   float bb = b;
   vec3 floorC = clayCol(bb * 0.95 + 0.015);
   // (faint through the dark water: the fleet shows plainly only when the water clears)
-  float wk = wrecks(bed, aa * 1.2) * (0.4 + 0.6 * smoothstep(0.3, 0.85, clarity));
+  float wk = wrecks(bed, aa * 1.2) * smoothstep(0.4, 0.8, clarity);
   floorC = mix(floorC, C_INK * 0.7, wk);
   // the water absorbs: the bed reads wine-dark, deeper as the water darkens
   vec3 through = floorC * mix(vec3(0.55, 0.085, 0.12), vec3(0.42, 0.12, 0.15), smoothstep(0.3, 0.85, clarity));
   vec3 deep = mix(C_INK * 0.9, C_WINE, wine);
-  vec3 water = mix(deep, through, clarity);
+  // black mirror water; only the fire's pool shows the seabed glowing through (so the trident's shadow reads there)
+  vec3 water = mix(deep, through, clarity * pl * pool.w);
   water += rt.rgb * rt.a * max(fres, 0.22) * gloss;
   float m = smoothstep(-aa, aa, dBox);
   vec3 c = mix(water, clay, m);
@@ -200,6 +206,8 @@ void main() {
   float sh = triShadowAA(sxz, 0.01);
   float lit = pow(max(ndl, 0.0), 1.3) * fall * (1.0 - 0.9 * sh);
   float tone = sat(lit * 1.35);
+  // (cut by the water a hull is open: its inside shows as black glaze, never see-through)
+  if (!gl_FrontFacing) { fragColor = vec4(C_INK * 0.6, 1.0); return; }
   float face = kind > 1.5 ? 0.0 : step(0.85, abs(dot(n0, faceAxis)));
   // the face: bone (added white), with a gangway down the hull; the sides black glaze with a narrow sheen
   vec3 faceC = C_BONE * min(0.08 + tone, 0.82);
@@ -243,7 +251,7 @@ export class Fleet {
         uniforms: { ...this.shared, ...this.tri, glow, kind: { value: kind }, faceAxis: { value: new THREE.Vector3(...axis) } },
       });
       const mHull = mk(0, [0, 1, 0]), mSail = mk(1, [0, 0, 1]), mBlack = mk(2, [0, 1, 0]);
-      mSail.side = THREE.DoubleSide;
+      for (const m of [mHull, mSail, mBlack]) m.side = THREE.DoubleSide;
       const grp = new THREE.Group();
       const hull = new THREE.Mesh(this.geo.hull, mHull), black = new THREE.Mesh(this.geo.black, mBlack);
       const sail = new THREE.Mesh(this.geo.sail, mSail);
