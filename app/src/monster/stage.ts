@@ -75,7 +75,8 @@ void main() {
   // black-figure (a reflection that answers back): black slip, its contour incised back to the clay; no light of its own
   if (bf > 0.5) {
     float inc = face * texture(incTex, (amap.xy + vec2(vP.x, -vP.y)) * amap.zw).r;
-    fragColor = vec4(mix(C_INK, mix(C_SIGNAL * 0.66, C_EMBER * 0.68, 0.3), inc), 1.0);
+    // (alpha 0.5 marks it in the mirrored render: a scene that defines REFL_KEEP keeps it out of the plain reflection)
+    fragColor = vec4(mix(C_INK, mix(C_SIGNAL * 0.66, C_EMBER * 0.68, 0.3), inc), 0.5);
     return;
   }
   float lit = pow(max(ndl, 0.0), 1.3) * fall;
@@ -587,10 +588,15 @@ void main() {
         if (tR < 1e8) { float o3; vec3 PR = P + R * tR; refl = PR.y > 0.0 ? clayWall(PR, wallNormal(PR), o3) : C_INK; }
         else refl = skyTint(R, C_INK);
         vec2 ruv = FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)}) + vec2(Nf.x, -Nf.z) * reflBend;
-        vec4 rt = vec4(0.0);
+        vec4 rt = vec4(0.0), rtAll = vec4(0.0);
         if (reflOn > 0.0) {
           rt = texture(reflTex, ruv);
           if (any(isnan(rt)) || any(isinf(rt))) rt = vec4(0.0);
+          rtAll = rt;
+#ifdef REFL_KEEP
+          // black-figure letters (alpha 0.5: an answer only the water hook shows) stay out of the plain reflection
+          rt.a = sat(rt.a * 2.0 - 1.0);
+#endif
           refl = mix(refl, rt.rgb, rt.a);
         }
         vec3 Hh = normalize(Lv + V);
@@ -599,7 +605,7 @@ void main() {
 #ifdef WATER_HOOK
         // a scene that paints into the water (hook: the reflection that answers) defines WATER_HOOK and
         // waterHook(px, ruv, rt, col): ruv is where the swell moved what this point mirrors, rt the mirrored scene there
-        col = waterHook(FRAG_PX, ruv, rt, col);
+        col = waterHook(FRAG_PX, ruv, rtAll, col);
 #endif
         // the flame mirrored: a broken column under it
         if (flameOn > 0.0) {
