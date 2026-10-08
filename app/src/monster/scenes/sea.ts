@@ -2,9 +2,9 @@
 // revision 1). His side of the line has become the sea: black mirror water with Homer's wine-dark tint, its swells
 // shown only by how they bend what it mirrors, lit by the fire behind us (never seen); far off, the line itself, now
 // a burning shore. On "threat" the word stands up on the far shore, black against the burning line, its reflection
-// broken by the swell. "across the sea": the camera is pulled back across the water and the word goes small; it
-// sinks; the water settles into hook 1's frame (the waterline at 0.71 H), and "Is me?" is asked where hook 1's
-// question will stand.
+// broken by the swell. "across the sea": the camera is pulled back across the water and the word goes small; it lies
+// down with that phrase; the water settles into hook 1's frame (the waterline at 0.71 H), and "Is me?" is asked
+// where hook 1's question will stand.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F } from '../../engine/type';
@@ -88,15 +88,17 @@ export default class Sea extends Scene {
     const at = pos.clone().add(new THREE.Vector3(lerp(-0.8, 0, back), lerp(0.4, 30 * END.pitch, Math.max(back, settle)), -30));
     this.st.cam.set(pos, at, 40);
 
-    // ---- THREAT: standing up on the far shore as sung, black against the line; sinking once the sea is between us
+    // ---- THREAT: standing up on the far shore as sung, black against the line; it lies down with "across the sea"
+    // (client note: it may linger after it is sung, but leaves when that phrase leaves, not after)
     const wd = this.word, n = wd.letters.length, s = CAP / wd.cap;
-    const sink = prog(t, sea.end + 0.1, sea.end + 1.4, ease.inCubic);
+    const tOut = sea.end + 0.9;
     for (let k = 0; k < n; k++) {
       const l = wd.letters[k]!;
-      l.x = -0.4 + (l.penX - wd.width / 2) * s; l.z = SHORE - 0.25; l.y = -CAP * 1.05 * sink; l.yaw = 0; l.s = s;
+      l.x = -0.4 + (l.penX - wd.width / 2) * s; l.z = SHORE - 0.25; l.y = 0; l.yaw = 0; l.s = s;
       const tk = threat.start + (k / (n - 1)) * Math.min(0.36, threat.end - threat.start);
-      l.hinge = popHinge(t, tk);
-      l.on = l.hinge < Math.PI / 2 - 1e-4 && sink < 0.999 ? 1 : 0;
+      const up = popHinge(t, tk), gone = prog(t, tOut + k * 0.01, tOut + k * 0.01 + 0.22, ease.inCubic);
+      l.hinge = up + (Math.PI / 2 - up) * gone;
+      l.on = l.hinge < Math.PI / 2 - 1e-4 && gone < 0.999 ? 1 : 0;
       l.mat.uniforms.glow!.value = 0.5 * pulse(t, tk, 0.14) * (t >= tk ? 1 : 0) * l.on;
       l.mat.uniforms.amb!.value = 0;
     }
@@ -116,7 +118,7 @@ export default class Sea extends Scene {
     popWords(q0, ws.slice(0, wi).map((w) => w.start), t, bobRow(cx(q0, 0.3, 0.75), -2.2, 0.3, q0), { exit: threat.start - 0.02 });
     popWords(q1, ws.slice(wi + 1, ai).map((w) => w.start), t, bobRow(cx(q1, 0.36, 0.5), -2.8, 0.36, q1), { exit: across.start - 0.02 });
     // "across the sea": one row tracked wide, spanning the water between us and the shore
-    popWords(pA, ws.slice(ai).map((w) => w.start), t, bobRow(cx(pA, 0.62, 0.2), -6.5, 0.62, pA), { exit: sea.end + 0.9, amb: 0.16 });
+    popWords(pA, ws.slice(ai).map((w) => w.start), t, bobRow(cx(pA, 0.62, 0.2), -6.5, 0.62, pA), { exit: tOut, amb: 0.16 });
     popWords(pM, this.l2.words.map((w) => w.start), t, bobRow(-1.75, END.z - 4.5, 0.3, pM));
 
     const u = this.st.bg.u;

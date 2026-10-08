@@ -13,7 +13,7 @@ import type { Line, Word } from '../../engine/lyrics';
 import { ease, lerp, noise1, prog, pulse } from '../../engine/util';
 import { flameState } from '../motifs';
 import { GLSL_FIGURES } from '../figures';
-import { Stage, Word3D, popHinge, popWords, vkeys } from '../stage';
+import { POP, Stage, Word3D, popHinge, popWords, vkeys } from '../stage';
 
 /**
  * The shadow theatre on the clay wall. The opening (figMode 0): one figure, morphing through the four (weights
@@ -210,7 +210,8 @@ export default class Everything extends Scene {
     popWords(this.howHas, [how.start, has.start], t, rowAt(-hw / 2, -6.2, hs), { exit: tThrow, exitDur: 0.18 });
     // the band below the word: "been turned", then "against" with a larger, nearer "us?"
     const bs = sv(this.beenTurned, 0.5), bw = this.beenTurned.width * bs;
-    popWords(this.beenTurned, [been.start, turned.start], t, rowAt(-bw / 2, -0.4, bs), { exit: against.start - 0.02 });
+    // (a crisp hand-over: "been turned" is flat again just as "against" starts to spring up, no overlap)
+    popWords(this.beenTurned, [been.start, turned.start], t, rowAt(-bw / 2, -0.4, bs), { exit: against.start - POP.lead - 0.135, exitDur: 0.07 });
     const ag = this.againstUs, a0 = ag.words[0]!, a1 = ag.words[1]!;
     const sa = sv(ag, 0.45), su = sv(ag, 0.95);
     popWords(ag, [against.start, us.start], t, (l) => {
