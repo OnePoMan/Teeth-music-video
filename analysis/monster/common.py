@@ -48,12 +48,30 @@ def load_stem(name, sr=None, mono=True):
     return y, s
 
 
+KARAOKE = WORK / "karaoke" / "mix_(Vocals)_mel_band_roformer_karaoke_aufr33_viperx_sdr_10.wav"
+
+
 def load_vocal_source(name, sr=None):
     """'vocals' = Demucs vocal stem (mono sum), 'vocL'/'vocR' = its left/right channel (double-tracked or
-    panned parts sit closer to a single voice in one channel)."""
+    panned parts sit closer to a single voice in one channel); 'lead' = the lead voice from the mel-band-roformer
+    karaoke model (audio-separator on work/monster/mix.wav, the gapless decode), 'backing' = the Demucs vocal stem
+    minus that lead (the ensemble's chants). Both are sample-aligned with the Demucs stems (checked: lag 0)."""
     if name in ("vocL", "vocR"):
         y, s = load_stem("vocals", sr=sr, mono=False)
         return y[0 if name == "vocL" else 1], s
+    if name in ("lead", "backing"):
+        import soundfile as sf
+        lead, s = sf.read(KARAOKE, dtype="float32", always_2d=True)
+        y = lead.mean(axis=1)
+        if name == "backing":
+            v, sv = load_stem("vocals")
+            assert sv == s
+            n = min(len(v), len(y))
+            y = v[:n] - y[:n]
+        if sr and sr != s:
+            import soxr
+            y, s = soxr.resample(y, s, sr), sr
+        return y, s
     return load_stem("vocals", sr=sr)
 
 

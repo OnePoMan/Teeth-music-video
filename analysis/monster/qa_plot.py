@@ -10,20 +10,23 @@ import matplotlib.pyplot as plt  # noqa: E402
 _cache = {}
 
 
-def _vocal():
-    if "y" not in _cache:
-        _cache["y"], _cache["sr"] = common.load_stem("vocals", sr=16000)
-        _cache["f"] = dict(np.load(common.WORK / "vocal_feats.npz"))
-        _cache["grid"] = common.grid()
-    return _cache["y"], _cache["sr"], _cache["f"], _cache["grid"]
+def _vocal(source="vocals"):
+    """The spectrogram's audio and features: the Demucs vocal stem, or another source of common.load_vocal_source
+    (with its own features when vocal_feats.py computed them)."""
+    if source not in _cache:
+        y, sr = common.load_stem("vocals", sr=16000) if source == "vocals" else common.load_vocal_source(source, sr=16000)
+        fp = common.WORK / ("vocal_feats.npz" if source == "vocals" else f"vocal_feats_{source}.npz")
+        f = dict(np.load(fp if fp.exists() else common.WORK / "vocal_feats.npz"))
+        _cache[source] = (y, sr, f, common.grid())
+    return _cache[source]
 
 
 COLORS = ["tab:red", "tab:blue", "tab:purple", "tab:orange", "k", "tab:green"]
 
 
-def plot(t0, t1, tracks, out, title="", marks=None):
-    """tracks: list of (name, [(label, start, end), ...])."""
-    y, sr, f, (P, OFF) = _vocal()
+def plot(t0, t1, tracks, out, title="", marks=None, source="vocals"):
+    """tracks: list of (name, [(label, start, end), ...]); source: the audio the spectrogram shows (see _vocal)."""
+    y, sr, f, (P, OFF) = _vocal(source)
     t0 = max(0.0, t0)
     t1 = min(t1, len(y) / sr - 0.01)
     a, b = int(t0 * sr), int(t1 * sr)
