@@ -26,7 +26,7 @@ const HERO_Z = -5.4, SMALL_Z = -4.0, FAR_Z = -4.25, SMALL_CAP = 0.32;
 const TROY = { z: -8, top: 7.6 }, HORSE = { x: -0.4, s: 1.0 };
 const FOV = 40;
 /** Hand-overs: the outgoing phrase folds in EXIT_DUR and is gone a frame before the next word springs. */
-const EXIT_DUR = 0.05, HAND = EXIT_DUR + 0.02;
+const EXIT_DUR = 0.001, HAND = 0.002;
 
 type Phrase = { w: Word3D; on: number[]; exit: number; x: number; z: number; cap: number };
 
@@ -39,7 +39,8 @@ export default class Horse extends Scene {
   private snares: number[] = [];
   private lampOut: number[] = [];
   private tTip = 108.33;
-  private tRe = 109.01;
+  private tRe = 109.354;
+  private orP!: Phrase;
 
   override async init() {
     const { lyrics, audio } = this.ctx;
@@ -76,10 +77,12 @@ export default class Horse extends Scene {
     mk(this.l1, iTo, iTro, hand(w1[iTro]!), 0, SMALL_Z);
     mk(this.l2, 0, w2.length - 1, hand(w2[w2.length - 1]!), 0, SMALL_Z);
     mk(this.l3, 0, iThrow, hand(w3[iThrow]!), 0, FAR_Z);
-    mk(this.l3, iThrow, iRem, hand(w3[iRem]!), 0, FAR_Z);
-    mk(this.l4, 0, iLives, T1 + 1, 0, -4.35);   // (its exit is set to the cut, tRe)
+    this.orP = this.phrases[this.phrases.length - 1]!;
+    mk(this.l3, iThrow, iRem, hand(w3[iRem]!), 0, -1.75);
+    this.phrases[this.phrases.length - 1]!.cap = 0.34;
+    mk(this.l4, 0, iLives + 1, T1 + 1, 0, -4.35);   // (up until the cut, tRe)
     const saveP = this.phrases[this.phrases.length - 1]!;
-    mk(this.l4, iLives, iGuile, T1 + 1, 0, -3.95);
+    mk(this.l4, iLives + 1, iGuile, T1 + 1, 0, -3.95);
     this.phrases[this.phrases.length - 1]!.cap = 0.22;
 
     this.snares = audio.events('snare', this.ctx.start - 0.1, T1).map(([t]) => t);
@@ -87,9 +90,10 @@ export default class Horse extends Scene {
     const kill = w1[ix(this.l1, 'kill')]!, vileW = w2[w2.length - 1]!;
     this.lampOut = this.snares.filter((t) => t >= kill.start - 0.25 && t < vileW.start).slice(0, NL);
     const rem = w3[iRem]!;
-    this.tTip = audio.events('snare', rem.start + 0.35, rem.start + 0.9).map(([t]) => t)[0] ?? rem.end;
-    this.tRe = audio.events('orch', rem.end + 0.3, w4[iLives]!.start).map(([t]) => t)[0] ?? w4[iLives]!.start - 0.15;
-    saveP.exit = this.tRe - EXIT_DUR - 0.02; saveP.cap = 0.28;
+    this.tTip = rem.end;
+    // the cut back to the hero view: the first downbeat after "lives"
+    this.tRe = audio.downbeats.find((d) => d > w4[iLives]!.start) ?? w4[iLives]!.start + 0.2;
+    saveP.exit = this.tRe - 0.002; saveP.cap = 0.28;
 
     // lamp positions in the gaps (deterministic), each going out in a shuffled order
     const r = mulberry32(31);
@@ -161,7 +165,7 @@ export default class Horse extends Scene {
         [orW.start, [0.0, 1.45, HERO_Z + 4.9], ease.linear],
         [b3, [0.0, 2.45, 1.3], ease.inOutCubic],
         [this.tTip, [0.0, 2.35, 1.0], ease.linear],
-        [this.tTip + 0.4, [0.0, 3.8, -1.1], ease.inOutQuad],
+        [this.tTip + 0.3, [0.0, 3.8, -1.1], ease.inOutQuad],
         [this.tRe - 0.001, [0.0, 3.9, -1.2], ease.linear],
         [this.tRe, camHero, ease.linear],
         [T1, [0.0, 1.42, HERO_Z + 4.65], ease.linear],
@@ -172,7 +176,7 @@ export default class Horse extends Scene {
         [orW.start, [0.0, 0.55, END_Z], ease.linear],
         [b3, [0.0, 0.25, -3.2], ease.inOutCubic],
         [this.tTip, [0.0, 0.3, -3.0], ease.linear],
-        [this.tTip + 0.4, [0.0, -2.5, -4.3], ease.inOutQuad],
+        [this.tTip + 0.3, [0.0, -2.5, -4.3], ease.inOutQuad],
         [this.tRe - 0.001, [0.0, -2.6, -4.3], ease.linear],
         [this.tRe, [0.0, 0.3, END_Z], ease.linear],
         [T1, [0.0, 0.3, END_Z], ease.linear],
@@ -193,56 +197,57 @@ export default class Horse extends Scene {
     // VILE? and its re-lettering into GUILE?
     const gCap = capFor(this.guile, heroDist, 0.62), gs = gCap / this.guile.cap;
     const vx = (l: Letter) => (l.penX - this.vile.width / 2) * gs, gx = (l: Letter) => (l.penX - this.guile.width / 2) * gs;
-    const tA = livesW.start + 0.06, mv = prog(t, tA + 0.08, tA + 0.42, ease.inOutCubic);
+    const withW = w4[w4.indexOf(livesW) + 1]!;
+    const tA = withW.start, mv = prog(t, tA + 0.05, tA + 0.27, ease.inOutCubic);
     const vileExit = orW.start - POP.lead - HAND;
     this.vile.letters.forEach((l, k) => {
       l.z = HERO_Z; l.y = 0; l.yaw = 0; l.s = gs;
       const first = popHinge(t, vileW.start, k), gone1 = prog(t, vileExit, vileExit + EXIT_DUR, ease.inCubic);
-      const again = popHinge(t, this.tRe + POP.lead, k);
+      const again = 0;
       let h = t < this.tRe ? first + (Math.PI / 2 - first) * gone1 : again;
       l.x = vx(l);
-      if (k === 0) h = Math.max(h, (Math.PI / 2) * prog(t, tA, tA + 0.12, ease.inCubic));   // V folds down
+      if (k === 0) h = Math.max(h, (Math.PI / 2) * prog(t, tA, tA + 0.08, ease.inCubic));   // V folds down
       else l.x = lerp(vx(l), gx(this.guile.letters[k + 1]!), mv);                            // I L E ? make room
       l.hinge = h;
-      l.on = h < 1.2 && t < tA + 0.42 ? 1 : 0;
-      const on = t < this.tRe ? vileW.start : this.tRe + POP.lead;
-      l.mat.uniforms.glow!.value = 0.32 * pulse(t, on, 0.08) * (t >= on - 0.02 ? 1 : 0) * l.on;
+      l.on = h < 1.2 && t < tA + 0.27 ? 1 : 0;
+      l.mat.uniforms.glow!.value = t < this.tRe ? 0.32 * pulse(t, vileW.start, 0.08) * (t >= vileW.start - 0.02 ? 1 : 0) * l.on : 0;
     });
     this.vile.update();
     this.guile.letters.forEach((l, k) => {
       l.z = HERO_Z; l.y = 0; l.yaw = 0; l.s = gs; l.x = gx(l);
       let h = Math.PI / 2;
       if (k === 0) {                                     // G slides in from the left, standing up as it comes
-        h = popHinge(t, tA + 0.3);
-        l.x = gx(l) - 1.4 * (1 - prog(t, tA + 0.26, tA + 0.56, ease.outCubic));
-      } else if (k === 1) {                              // U folds up where V was, then moves into its place
         h = popHinge(t, tA + 0.12);
+        l.x = gx(l) - 1.4 * (1 - prog(t, tA + 0.08, tA + 0.29, ease.outCubic));
+      } else if (k === 1) {                              // U folds up where V was, then moves into its place
+        h = popHinge(t, tA + 0.06);
         l.x = lerp(vx(this.vile.letters[0]!), gx(l), mv);
-      } else h = t >= tA + 0.42 ? 0 : Math.PI / 2;       // the rest take over from VILE's I L E ?
+      } else h = t >= tA + 0.27 ? 0 : Math.PI / 2;       // the rest take over from VILE's I L E ?
       l.hinge = h;
       l.on = h < 1.2 ? 1 : 0;
       l.mat.uniforms.glow!.value = 0.32 * pulse(t, guileW.start, 0.08) * (t >= guileW.start - 0.02 ? 1 : 0) * l.on
-        + 0.25 * pulse(t, k === 0 ? tA + 0.3 : tA + 0.12, 0.08) * (k < 2 ? 1 : 0) * l.on;
+        + 0.25 * pulse(t, k === 0 ? tA + 0.12 : tA + 0.06, 0.08) * (k < 2 ? 1 : 0) * l.on;
     });
     this.guile.update();
 
     // REMORSE: stands at the hatch's near edge, tips back into it and falls to the ground below
     const rCap = capFor(this.remorse, 4.2, 0.62), rs = rCap / this.remorse.cap;
-    const tip = this.tTip, fallT = Math.max(0, t - tip - 0.12);
+    const tip = this.tTip, fallT = Math.max(0, t - tip - 0.06);
     this.remorse.letters.forEach((l, k) => {
       l.x = (l.penX - this.remorse.width / 2) * rs; l.yaw = 0; l.s = rs;
       const up = popHinge(t, remW.start, k);
-      const back = (Math.PI / 2) * ease.inQuad(prog(t, tip, tip + 0.14));
+      const back = (Math.PI / 2) * ease.inQuad(prog(t, tip, tip + 0.08));
       l.hinge = t < tip ? up : back + 0.35 * fallT;
-      l.z = HATCH.zN + 0.1 - (HATCH.zN - hatchC + 0.1) * prog(t, tip + 0.05, tip + 0.4, ease.outQuad);
-      l.y = -0.5 * 14 * fallT * fallT;
-      l.on = t >= remW.start - POP.lead + k * POP.ripple && l.y > GROUND_Y + 0.3 && (l.hinge < 1.2 || t >= tip) ? 1 : 0;
+      l.z = HATCH.zN + 0.1 - (HATCH.zN - hatchC + 0.1) * prog(t, tip + 0.03, tip + 0.25, ease.outQuad);
+      l.y = -(4 * fallT + 30 * fallT * fallT);
+      l.on = t >= remW.start - POP.lead + k * POP.ripple && l.y > -3.0 && (l.hinge < 1.2 || t >= tip) ? 1 : 0;
       l.castShadow = true;
       l.mat.uniforms.glow!.value = 0.32 * pulse(t, remW.start, 0.08) * (t >= remW.start - 0.02 ? 1 : 0) * l.on;
     });
     this.remorse.update();
 
     // ---- small phrases
+    this.orP.cap = 0.32 * Math.max(1, this.st.cam.cam.position.distanceTo(new THREE.Vector3(0, 0.15, FAR_Z)) / 3.9);
     for (const p of this.phrases) {
       const s = p.cap / p.w.cap;
       popWords(p.w, p.on, t, (l) => { l.x = p.x - (p.w.width * s) / 2 + l.penX * s; l.z = p.z; l.y = 0; l.yaw = 0; l.s = s; },
@@ -285,7 +290,7 @@ export default class Horse extends Scene {
     const before = () => {
       below.length = 0;
       for (const o of [this.door.pivot, this.door.occluder]) if (o.visible) { below.push(o); o.visible = false; }
-      for (const l of this.remorse.letters) if (l.mesh.visible && l.y < -0.01) { below.push(l.mesh); l.mesh.visible = false; }
+      for (const l of this.remorse.letters) if (l.mesh.visible && t >= this.tTip) { below.push(l.mesh); l.mesh.visible = false; }
     };
     const after = () => { for (const o of below) o.visible = true; };
     this.st.render(renderer, out, t, L, inside ? { wall: 1, wallZ: END_Z } : { wall: 1, wallZ: TROY.z },

@@ -393,11 +393,13 @@ void main() {
         + mix(C_EMBER, C_BONE, 0.45) * spec * 0.15 * specK;
       // shallow: the painting shows through, darkened by the wine
       float depth = level - (CY - sqrt(max(RS * RS - r * r, 0.0)));
-      float a = smoothstep(0.0, 0.025, depth);
+      // the pool's edge: a hard meniscus where the surface meets the bowl (crisp at any slope of the bowl)
+      float rp = sqrt(max(RS * RS - (level - CY) * (level - CY), 0.0));
+      float a = smoothstep(-gPix, gPix, rp - r);
       vec3 under = bowlCol(Pb, D);
       col = mix(under + refl * 0.2 * gloss * (1.0 - a), liq, a);
       // the meniscus: a hair of light where the potion meets the wall
-      col += clayCol(lb) * 0.25 * (1.0 - smoothstep(0.0, 0.006 + gPix, depth - 0.0)) * a;
+      col += clayCol(lb) * 0.3 * (1.0 - smoothstep(gPix, 3.0 * gPix, rp - r)) * a;
     } else {
       col = bowlCol(Pb, D);
     }
@@ -504,7 +506,7 @@ export class CupStage {
     rips.forEach((r, i) => (u.rip!.value as THREE.Vector4[])[i]!.set(...r));
     u.nRip!.value = rips.length;
     u.tondoRot!.value = S.tondoRot ?? 0; u.dancePh!.value = S.dancePh ?? 0;
-    for (const w of this.words) w.light(Lc, L.I, L.reach, 1, this.cam.cam.position);
+    for (const w of this.words) w.light(Lc, L.I, L.reach, 0.2, this.cam.cam.position);   // (a low rim: the glazed sides stay black)
     // the potion mirrors the letters: the scene rendered upside down about its surface, clipped at it
     if (S.level > -CUP.D + 0.01) {
       this.refl ??= makeRT();

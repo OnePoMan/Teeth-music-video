@@ -25,12 +25,14 @@ import { centredRow, faceYaw, hideFlat, phrases, type Phrase } from './cyclops-k
 /** The clay wall; the camera's vertical fov. */
 const WALL_Z = -9, FOV = 42;
 /** The giant (world per figure unit, base y): small and low as in the opening, then loomed up. */
-const GIANT = { s0: 0.75, b0: -1.0, s1: 1.1, b1: 0 };
+const GIANT = { s0: 0.95, b0: -3.4, s1: 1.1, b1: 0 };
 /** Where the words stand: the hero before the wall, the small words nearer us; their cap heights; the hero's share
  *  of the frame's width. */
 const HERO_Z = -5.4, SMALL_Z = -2.0, SMALL_CAP = 0.36, HERO_CAP = 2.8, HERO_FILL = 0.62;
 /** A line whose hero is followed by small words: the hero a little narrower, the words beside it on its row. */
 const HERO_FILL_POST = 0.5, POST_CAP = 0.5;
+/** The club meets the wall this long before each snare (it is off the stroke again by the hit). */
+const STRIKE_LEAD = 0.03;
 /** The tally (figure units): six strokes beside his eye, the fifth across the first four. */
 const TALLY: [number, number, number, number][] = [
   [5.9, 5.55, 5.9, 7.05], [6.35, 5.55, 6.35, 7.05], [6.8, 5.55, 6.8, 7.05], [7.25, 5.55, 7.25, 7.05],
@@ -89,12 +91,13 @@ export default class Cyclops extends Scene {
       const ph = phrases(line, g, hero);
       const next = this.lines[li + 1];
       // (a crisp hand-over: the line is folded flat as the next line's first word springs up)
-      const lineExit = next ? next.words[0]!.start - POP.lead - 0.11 : this.ctx.end + 1;
+      const lineExit = next ? next.words[0]!.start - POP.lead - 0.05 : this.ctx.end + 1;
       const heroAt = ph.findIndex((p) => p.hero);
       ph.forEach((p, k) => {
         const nx = ph[k + 1];
-        let exit = lineExit, dur = 0.1;
-        if (k < heroAt) { exit = nx!.words[0]!.start - POP.lead - (k === heroAt - 1 ? 0 : 0.075); dur = k === heroAt - 1 ? 0.12 : 0.07; }
+        let exit = lineExit, dur = 0.05;
+        // (gone by the frame the next phrase starts to spring: onset - POP.lead)
+        if (k < heroAt) { exit = nx!.words[0]!.start - POP.lead - 0.055; dur = 0.05; }
         const w = p.hero ? new Word3D(heroText, HERO_FONT(), { size: 220 }) : new Word3D(p.text, SMALL_FONT(), { size: 200 });
         (p.hero ? heroes : smalls).push({ p, w, line: li, exit, dur, post: k > heroAt });
       });
@@ -109,23 +112,23 @@ export default class Cyclops extends Scene {
     this.tallyW = TALLY.map(([ax, ay, bx, by]) => [ax * S, GIANT.b1 + ay * S, bx * S, GIANT.b1 + by * S]);
     const aim = TALLY.map(([ax, ay, bx, by]) => Math.atan2((ay + by) / 2 - py, (ax + bx) / 2 - px));
     // ---- the club's angle through the plate (radians ccw, absolute): raised at rest; lifted back on the snare before
-    // "kills" and down beside the word on it; up again on "Or"; a blow on each snare of bar 3; sunk on "sleep"
-    const up = CLUB.phi0, back = up + 0.32, down = -0.62, slump = -0.95;
+    // "kills" and down beside the word on it; up again on "Or"; a blow on each snare of bar 3; at rest (upright, as in the opening) from then on
+    const up = CLUB.phi0, back = up + 0.32, down = -0.62;
     const k: Key[] = [[this.ctx.start, up], [ev.windup - 0.04, up, ease.linear], [ev.windup + 0.12, back, ease.outQuad],
       [ev.kills - 0.08, back + 0.04, ease.linear], [ev.kills, down, ease.inQuad], [ev.kills + 0.07, down + 0.05, ease.outQuad],
       [ev.kills + 0.16, down, ease.inQuad], [ev.or, down, ease.linear], [ev.or + 0.4, back, ease.inOutCubic]];
     let prev = ev.or + 0.4;
     this.strikes.forEach((s, i) => {
-      const gap = s - prev, dd = Math.min(0.09, gap * 0.45);
-      k.push([s - dd, back, ease.inOutQuad]);
-      k.push([s, aim[i]!, ease.inQuad]);
-      prev = s + Math.min(0.05, gap * 0.3);
-      k.push([prev, aim[i]!, ease.linear]);
+      // (the club meets the wall just ahead of the snare and springs off it at once, so the stroke shows on the hit)
+      const a = s - STRIKE_LEAD, gap = a - prev, dd = Math.min(0.09, gap * 0.45);
+      k.push([a - dd, back, ease.inOutQuad]);
+      k.push([a, aim[i]!, ease.inQuad]);
+      prev = a + Math.min(0.06, gap * 0.35);
+      k.push([prev, aim[i]! + 0.22, ease.outQuad]);
     });
     const last = prev;
     k.push([last + 0.3, up, ease.inOutCubic]);
     if (ev.sleep > last + 0.35) k.push([ev.sleep, up, ease.linear]);
-    k.push([Math.max(ev.sleep, last + 0.35) + 0.55, slump, ease.inOutCubic]);
     this.clubKeys = k;
   }
 
@@ -140,8 +143,8 @@ export default class Cyclops extends Scene {
       [e.or, [0, 2.45, 8.8], ease.inOutQuad],
       [e.or + 0.25, [0, 2.45, 8.78], ease.linear],
       [e.bar3, [3.6, 2.4, 8.9], (x) => ease.inOutQuart(x)],
-      [e.and, [3.85, 2.4, 8.75], ease.linear],
-      [e.bar4, [0, 2.35, 9.2], ease.inOutCubic],
+      [e.and - 0.09, [3.85, 2.4, 8.75], ease.linear],
+      [e.bar4, [0, 2.35, 9.2], ease.inOutQuad],
       [T1, [0, 2.35, 8.7], ease.linear],
     ]);
     const at = vkeys(t, [
@@ -152,8 +155,8 @@ export default class Cyclops extends Scene {
       [e.or, [0, 4.0, WALL_Z], ease.inOutQuad],
       [e.or + 0.25, [0, 4.0, WALL_Z], ease.linear],
       [e.bar3, [6.4, 4.1, WALL_Z], (x) => ease.inOutQuart(x)],
-      [e.and, [6.6, 4.1, WALL_Z], ease.linear],
-      [e.bar4, [0, 3.85, WALL_Z], ease.inOutCubic],
+      [e.and - 0.09, [6.6, 4.1, WALL_Z], ease.linear],
+      [e.bar4, [0, 3.85, WALL_Z], ease.inOutQuad],
       [T1, [0, 3.9, WALL_Z], ease.linear],
     ]);
     return { pos, at };
@@ -170,7 +173,7 @@ export default class Cyclops extends Scene {
     this.st.cam.set(pos, at, FOV);
 
     // ---- the giant: low and small, then loomed up on the drums' entry (a puppet's rise, overshooting a little)
-    const lu = prog(t, e.loom, e.loom + 0.6, (x) => ease.outBack(x, 1.2));
+    const lu = prog(t, e.loom, e.loom + 0.7, (x) => ease.outBack(x, 1.1));
     const gs = lerp(GIANT.s0, GIANT.s1, lu), gb = lerp(GIANT.b0, GIANT.b1, lu);
     const gx = 0.02 * noise1(t * 1.3, 7);
     (u.gT!.value as THREE.Vector4).set(gx, gb, gs, 1);
@@ -190,7 +193,7 @@ export default class Cyclops extends Scene {
     const tal = u.tal!.value as THREE.Vector4[], talOn = u.talOn!.value as number[];
     this.tallyW.forEach((s, i) => {
       tal[i]!.set(...s);
-      talOn[i] = prog(t, this.strikes[i]! - 0.005, this.strikes[i]! + 0.04, ease.outCubic);
+      talOn[i] = prog(t, this.strikes[i]! - STRIKE_LEAD, this.strikes[i]! - STRIKE_LEAD + 0.03, ease.outCubic);
     });
 
     // ---- the words. Each line stands on the camera's axis as it will be while it is up, facing it (no swimming): the
@@ -211,24 +214,27 @@ export default class Cyclops extends Scene {
       const w = s.w, ons = s.p.words.map((x: Word) => x.start);
       if (s.p.hero) {
         const R = heroRow(s.line), cp = R.cp, k = w.letters.length;
-        // the hero's letters land across its sung syllables (as CHANGE?), all up within ~0.22 s
+        // the hero pops as a whole (8 ms between letters) and folds away as one
         const w0 = s.p.words[0]!;
-        const tk = (i: number) => w0.start + (i / Math.max(1, k - 1)) * Math.min(0.22, Math.max(0.12, w0.end - w0.start - 0.05));
+        const tk = (i: number) => w0.start + i * 0.008;
         const place = centredRow(w, R.hx, HERO_Z, faceYaw(R.hx, HERO_Z, cp.x, cp.z), R.hs);
         w.letters.forEach((l, i) => {
           place(l);
           const upH = popHinge(t, tk(i));
-          const gone = prog(t, s.exit + i * 0.012, s.exit + i * 0.012 + s.dur, ease.inCubic);
+          const gone = prog(t, s.exit, s.exit + s.dur, ease.inCubic);
           l.hinge = upH + (Math.PI / 2 - upH) * gone;
           l.on = t >= tk(i) - POP.lead && gone < 0.999 ? 1 : 0;
-          l.mat.uniforms.glow!.value = 0.5 * pulse(t, tk(i), 0.07) * (t >= tk(i) - 0.02 ? 1 : 0) * l.on;
+          l.mat.uniforms.glow!.value = 0.45 * pulse(t, tk(i), 0.16) * (t >= tk(i) - 0.02 ? 1 : 0) * l.on;
         });
         w.update();
       } else if (s.post) {
         const R = heroRow(s.line);
         popWords(w, ons, t, centredRow(w, R.px, HERO_Z, faceYaw(R.px, HERO_Z, R.cp.x, R.cp.z), R.ps), { exit: s.exit, exitDur: s.dur, exitRipple: 0, glow: 0.3 });
       } else {
-        const tPose = (ons[0]! + Math.min(s.exit, ons[0]! + 1.2)) / 2;
+        // (a phrase sung during the swing back to the eye stands where the camera is halfway through it, so it stays
+        // inside the frame from its first word to the end of the swing)
+        const mid = (ons[0]! + Math.min(s.exit, ons[0]! + 1.2)) / 2, ev = this.ev;
+        const tPose = ons[0]! < ev.bar4 && s.exit > ev.bar4 ? (ev.and + ev.bar4) / 2 : mid;
         const { pos: cp, at: ca } = this.camera(tPose);
         const cx = cp.x + ((ca.x - cp.x) * (cp.z - SMALL_Z)) / (cp.z - ca.z);
         popWords(w, ons, t, centredRow(w, cx, SMALL_Z, faceYaw(cx, SMALL_Z, cp.x, cp.z), SMALL_CAP / w.cap), { exit: s.exit, exitDur: s.dur, exitRipple: 0, glow: 0.3 });
@@ -238,7 +244,7 @@ export default class Cyclops extends Scene {
 
     // ---- the fire behind us: low at the open, flaring up on the drums' entry; it breathes and flares on the orch hits
     const fireUp = lerp(0.38, 1, prog(t, e.loom - 0.02, e.loom + 0.15, ease.outCubic)) + 0.5 * pulse(t, e.loom, 0.18);
-    const L = keyLight(this.st.cam, audio, t, { seed: 15, right: 7.5, up: 0.2, back: 2.8, I: 1.5 * fireUp, reach: 34 });
+    const L = keyLight(this.st.cam, audio, t, { seed: 15, right: 3.8, up: 2.6, back: 2.8, I: 1.5 * fireUp, reach: 34 });
     // the fire's pool on the wall: centred where the camera looks, the edges of the frame falling off into the dark
     (u.pool!.value as THREE.Vector4).set(at.x - 0.6, at.y + 0.8, 7.0, 0.2);
     this.st.render(renderer, out, t, L, { wall: 1, wallZ: WALL_Z, gloss: 0.26 }, { noFlame: true, rim: 0.8, spec: 0.05 });

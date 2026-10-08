@@ -17,7 +17,7 @@ import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, lerp, mulberry32, noise1, prog, pulse } from '../../engine/util';
 import { flameState } from '../motifs';
-import { Stage, StageCam, Word3D, popWords, vkeys, type Letter } from '../stage';
+import { POP, Stage, StageCam, Word3D, popWords, vkeys, type Letter } from '../stage';
 import { BOARD_HOOKS, Fleet, NP, WALL_Z, tridentUniforms } from './poseidon-board';
 
 /** The fire behind us (a fixed world point: the trident's shadow and the words' must agree), its reach. */
@@ -43,17 +43,19 @@ const CORNER: Record<number, [number, number]> = Object.fromEntries(Object.entri
 const PIN_YAW = Math.atan2(-PIN_D.x, -PIN_D.z);
 /** Where words stand (NDC y of their baseline under the camera at their first onset) and how much of the frame the
  *  hero fills. */
-const HERO_Y = -0.5, SMALL_Y = -0.78, FILL = 0.55;
+const HERO_Y = -0.4, SMALL_Y = -0.58, FILL = 0.55;
+/** Every phrase leaves whole (all its letters together) and is gone before the next phrase's first letter springs. */
+const EXIT_DUR = 0.04;
 
 interface Phrase { w: Word3D; words: Word[]; exit: number; hero: boolean; x: number; z: number; yaw: number; cap: number }
 
 export default class Poseidon extends Scene {
   private tri = tridentUniforms();
   private st = new Stage({
-    hooks: `#define WALL_HOOK\nuniform float wallK;\nvec3 wallHook(vec3 P, vec3 col) { return col * wallK; }\n` + BOARD_HOOKS,
+    hooks: `#define WALL_HOOK\nuniform float wallK;\nvec3 wallHook(vec3 P, vec3 col) { return mix(C_INK, col, wallK); }\n` + BOARD_HOOKS,
     uniforms: {
       ...this.tri,
-      godOn: { value: 1 }, godT: { value: new THREE.Vector4(0.25, 0, 0.6, 0) }, clarity: { value: 0.28 }, tNow: { value: 0 }, wallK: { value: 1 },
+      godOn: { value: 1 }, godT: { value: new THREE.Vector4(0.25, 0, 0.6, 0) }, clarity: { value: 0.28 }, pool: { value: new THREE.Vector4(0, -1, 2.8, 1) }, tNow: { value: 0 }, wallK: { value: 1 },
       wreck: { value: Array.from({ length: NP }, () => new THREE.Vector4()) },
       ring: { value: Array.from({ length: NP }, () => new THREE.Vector4()) },
     },
@@ -92,7 +94,8 @@ export default class Poseidon extends Scene {
     this.orch = audio.events('orch', this.ctx.start, this.ctx.end).map(([t]) => t);
     this.sinkAt = Array.from({ length: NP }, () => Infinity);
     DROWNED.forEach((p, k) => { this.sinkAt[p] = this.stabs[k]!; });
-    RAKED.forEach((p, k) => { this.sinkAt[p] = last[Math.min(k, 2)]! + (k > 2 ? 0.05 : 0); });
+    // (two by two, so the board is swept and still before "dares")
+    RAKED.forEach((p, k) => { this.sinkAt[p] = last[Math.min(k >> 1, 1)]! + 0.04 * (k & 1); });
     const rnd = mulberry32(90);
     this.wreckR = Array.from({ length: NP }, (_, i) => {
       const a = rnd() * Math.PI * 2;
@@ -106,21 +109,22 @@ export default class Poseidon extends Scene {
     // ---- the words: the hero of each line (Archivo 75/900, frame scale) and its small phrases (112.5/600)
     const hero = (s: string) => new Word3D(s, F.archivo(75, 900), { size: 220 });
     const small = (ws: Word[]) => new Word3D(ws.map((w) => w.w).join(' '), F.archivo(112.5, 600), { size: 200 });
-    const P = (w: Word3D, words: Word[], exit: number, isHero = false, capK = 1): Phrase => {
+    const P = (w: Word3D, words: Word[], exit: number, isHero = false, capK = 1, at0?: [number, number]): Phrase => {
       // (a small phrase stands where the camera looks as its last word is sung: the camera may be moving)
-      const a = this.anchor(words[words.length - 1]!.start, isHero ? HERO_Y : SMALL_Y, w, isHero, capK);
+      const a = at0 ? this.anchor(at0[0], at0[1], w, isHero, capK) : this.anchor(words[words.length - 1]!.start, isHero ? HERO_Y : SMALL_Y, w, isHero, capK);
       return { w, words, exit, hero: isHero, ...a };
     };
     const at = (l: Line, i: number) => l.words[i]!.start;
-    const out = (t: number) => t - 0.06;
+    const out = (t: number) => t - POP.lead - EXIT_DUR;
     const w1 = l1.words, w2 = l2.words, w3 = l3.words, w4 = l4.words;
     this.phrases = [
       // heroes first: they cast the shadows (a stage holds four casting runs)
       P(hero('DROWN'), [drown], out(at(l2, 0)), true),
       P(hero('SCARED?'), [wd(l2, 'scared')], out(at(l3, 0)), true),
       P(hero('CHECK'), [check], out(at(l4, 0)), true),
-      P(hero('DARES?'), [wd(l4, 'dares')], this.ctx.end + 1, true),
-      P(small(w1.slice(0, 3)), w1.slice(0, 3), out(at(l1, 3))),
+      // (low and a little smaller: the sunk fleet reads above it)
+      P(hero('DARES?'), [wd(l4, 'dares')], this.ctx.end + 1, true, 0.85, [wd(l4, 'dares').start, -0.47]),
+      P(small(w1.slice(0, 3)), w1.slice(0, 3), out(at(l1, 3)), false, 1, [this.ctx.start, -0.63]),
       P(small(w1.slice(3, 5)), w1.slice(3, 5), out(at(l1, 5))),
       P(small(w1.slice(5, 9)), w1.slice(5, 9), out(drown.start)),
       P(small(w2.slice(0, 2)), w2.slice(0, 2), out(at(l2, 3))),
@@ -129,9 +133,9 @@ export default class Poseidon extends Scene {
       P(small(w3.slice(0, 4)), w3.slice(0, 4), out(at(l3, 4))),
       P(small(w3.slice(4, 6)), w3.slice(4, 6), out(at(l3, 7))),
       P(small(w3.slice(7, 10)), w3.slice(7, 10), out(at(l3, 10))),
-      P(small(w3.slice(10, 12)), w3.slice(10, 12), out(at(l4, 0)), false, 1.35),
+      P(small(w3.slice(10, 12)), w3.slice(10, 12), out(at(l4, 0)), false, 1.15),
       P(small(w4.slice(0, 4)), w4.slice(0, 4), out(at(l4, 5))),
-      P(small(w4.slice(5, 9)), w4.slice(5, 9), this.ctx.end + 1),
+      P(small(w4.slice(5, 9)), w4.slice(5, 9), this.ctx.end + 1, false, 1, [wd(l4, 'to').start, -0.68]),
     ];
     this.phrases.forEach((p, i) => this.st.add(p.w, { shadows: i < 4 }));
   }
@@ -153,8 +157,8 @@ export default class Poseidon extends Scene {
       // "Or": round behind the trident's hand, looking down its shadow into the corner where he plays
       [d3, [PIN.x - PIN_D.x * 6.6 + 0.4, 5.4, PIN.z - PIN_D.z * 6.6 + 0.5], ease.inOutCubic],
       [d4 - 0.45, [PIN.x - PIN_D.x * 6.2 + 0.4, 5.2, PIN.z - PIN_D.z * 6.2 + 0.5], ease.linear],
-      [d4, [0, 8.0, 4.7], ease.inOutCubic],
-      [T1, [0, 7.7, 4.45], ease.linear],
+      [d4, [0, 8.0, 5.6], ease.inOutCubic],
+      [T1, [0, 7.7, 5.35], ease.linear],
     ]);
     const at = vkeys(t, [
       [T0, [0, 1.5, WALL_Z]],
@@ -162,10 +166,10 @@ export default class Poseidon extends Scene {
       [d1, [0, 0, 0.3], ease.inOutCubic],
       [d2, [0.1, 0, 0.2], ease.inOutQuad],
       [or, [-0.1, 0, 0.25], ease.inOutQuad],
-      [d3, [PIN.x - PIN_D.x * 1.9, 0, PIN.z - PIN_D.z * 1.9], ease.inOutCubic],
-      [d4 - 0.45, [PIN.x - PIN_D.x * 1.8, 0, PIN.z - PIN_D.z * 1.8], ease.linear],
-      [d4, [0, 0, -0.15], ease.inOutCubic],
-      [T1, [0, 0, -0.2], ease.linear],
+      [d3, [PIN.x - PIN_D.x * 2.6, 0, PIN.z - PIN_D.z * 2.6], ease.inOutCubic],
+      [d4 - 0.45, [PIN.x - PIN_D.x * 2.5, 0, PIN.z - PIN_D.z * 2.5], ease.linear],
+      [d4, [0, 0, 0.75], ease.inOutCubic],
+      [T1, [0, 0, 0.7], ease.linear],
     ]);
     return { pos, at, d1, d4 };
   }
@@ -183,7 +187,7 @@ export default class Poseidon extends Scene {
     const view = at.clone().sub(pos).normalize();
     const d = A.clone().sub(pos).dot(view);
     const fh = 2 * d * Math.tan((FOV * Math.PI) / 360), fw = fh * (16 / 9);
-    const cap = hero ? Math.min((FILL * fw) / (w.width / w.cap), 0.24 * fh) : 0.052 * fh * capK;
+    const cap = (hero ? Math.min((FILL * fw) / (w.width / w.cap), 0.22 * fh) : 0.052 * fh) * capK;
     return { x: A.x, z: A.z, yaw: Math.atan2(pos.x - A.x, pos.z - A.z), cap };
   }
 
@@ -259,11 +263,13 @@ export default class Poseidon extends Scene {
     }
     const trem = this.tremble(t, 1.3);
     th += 0.012 * trem; r += 0.05 * trem;
-    // it lifts away on "off": its shadow grows toward us, blurs and is gone
+    // it lifts away on "off": the shadow withdraws whole toward the hand behind us, softening, and is gone
     const off = wd(this.lines[3], 'off');
-    const lift = 2.4 * ease.inQuad(prog(t, off.start, this.ctx.end));
-    const alpha = 1 - prog(t, off.start + 0.15, this.ctx.end - 0.02, ease.inQuad);
-    return { th, r, lift, alpha };
+    const wd2 = ease.inCubic(prog(t, off.start, off.start + 0.37));
+    r -= 3.5 * wd2;
+    const lift = 0, soft = 0.12 * wd2;
+    const alpha = 1 - prog(t, off.start + 0.12, off.start + 0.37, ease.inQuad);
+    return { th, r, lift, alpha, soft };
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
@@ -282,14 +288,15 @@ export default class Poseidon extends Scene {
 
     // ---- the opening: the god on the wall (the fire leaves the wall as the camera cranes up over the board)
     const toBoard = prog(t, d1 - 0.38, d1, ease.inOutCubic);
-    u.godOn!.value = 1 - prog(t, d1 - 0.2, d1, ease.inQuad);
+    u.godOn!.value = 1 - prog(t, d1 - 0.3, d1 - 0.15, ease.inQuad);
     (u.godT!.value as THREE.Vector4).set(0.25 + 0.02 * noise1(t * 5.3, 43), 0, 0.6 * (1 + 0.005 * noise1(t * 6.1, 41)), 0);
-    u.wallK!.value = 1 - toBoard;
+    u.wallK!.value = 1 - prog(t, d1 - 0.38, d1 - 0.15, ease.inOutQuad);   // (gone before the tilt ends: no second horizon)
+    void toBoard;
 
     // ---- the trident's shadow
     const tp = this.tridentPose(t);
     (this.tri.triA.value as THREE.Vector4).set(HAND.x, HAND.z, tp.th, tp.r);
-    (this.tri.triB.value as THREE.Vector4).set(TS, tp.lift, tp.alpha * prog(t, T0, d1), 0.02);
+    (this.tri.triB.value as THREE.Vector4).set(TS, tp.lift, tp.alpha * prog(t, T0, d1), 0.02 + tp.soft);
     (this.tri.triC.value as THREE.Vector2).set(FIRE.x * 0.6, FIRE.z * 0.5);
 
     // ---- the pieces
@@ -297,20 +304,20 @@ export default class Poseidon extends Scene {
     this.fleet.pieces.forEach((pc, i) => {
       const ts = this.sinkAt[i]!;
       const p = this.piecePos(i, Math.min(t, ts));
-      const sink = prog(t, ts - 0.02, ts + 0.45);
+      const sink = prog(t, ts - 0.02, ts + 0.3);
       const g = pc.grp;
       const trem = this.tremble(t, i * 1.7);
       // pinned: once "check" has struck, the raked pieces stop bobbing and jolt down
       const pinned = CORNER[i] && t >= check.start ? 1 : 0;
       const bob = (1 - pinned) * 0.012 * Math.sin(t * 2.1 + i * 1.3);
-      g.position.set(p.x, bob - 0.85 * ease.inQuad(sink) - 0.02 * pinned * pulse(t, check.start, 0.08) + 0.012 * trem, p.z);
+      g.position.set(p.x, bob - 1.0 * sink - 0.02 * pinned * pulse(t, check.start, 0.08) + 0.012 * trem, p.z);
       g.scale.setScalar(PIECE_S);
       g.rotation.set(-1.0 * ease.inOutQuad(sink) + 0.02 * Math.sin(t * 1.7 + i), lerp(Math.PI / 2, PIN_YAW, CORNER[i] ? ease.inOutQuad(this.rake(Math.min(t, ts))) : 0) + 0.04 * Math.sin(i * 2.3), (1 - pinned) * 0.035 * Math.sin(t * 1.9 + i * 0.7) + 0.06 * trem + 0.4 * ease.inQuad(sink) * (i % 2 ? 1 : -1), 'YXZ');
       g.visible = sink < 1;
       // "respect": the sails are brailed up to the yard
       const br = prog(t, respect.start - 0.04 + 0.035 * RAKED.indexOf(i), respect.start + 0.18 + 0.035 * RAKED.indexOf(i), ease.inOutCubic);
       pc.sail.scale.y = CORNER[i] ? 1 - 0.85 * br : 1;
-      pc.glow.value = t >= ts ? 0.7 * pulse(t, ts, 0.09) : 0;
+      pc.glow.value = 0;
       // the wreck it leaves, painted on the seabed; the rings where it went under
       const wr = this.wreckR[i]!;
       const spread = CORNER[i] ? 1 : 0;
@@ -326,30 +333,41 @@ export default class Poseidon extends Scene {
       const x0 = ph.x - (dx * W) / 2, z0 = ph.z - (dz * W) / 2;
       popWords(ph.w, ph.words.map((w) => w.start), t, (l: Letter) => {
         l.x = x0 + dx * l.penX * s; l.z = z0 + dz * l.penX * s; l.y = 0; l.yaw = ph.yaw; l.s = s;
-      }, { exit: ph.exit, exitDur: ph.hero ? 0.16 : 0.1, exitRipple: ph.hero ? 0.01 : 0, glow: ph.hero ? 0.55 : 0.4, amb: ph.hero ? 0.04 : 0.08 });
+      }, { exit: ph.exit, exitDur: EXIT_DUR, exitRipple: 0, glow: 0.18, amb: 0 });
       const lean = Math.min(1.1, Math.max(0, Math.atan2(camP.y - ph.cap * 0.4, Math.hypot(camP.x - ph.x, camP.z - ph.z))));
       for (const l of ph.w.letters) {
         l.hinge = lean + l.hinge * (1 - lean / (Math.PI / 2));
-        if (l.hinge > 1.2) l.on = 0;
+        // (a nearly flat letter shows its lit top as a block only to a low camera; from above its face reads)
+        if (lean < 0.6 && l.hinge > 1.2) l.on = 0;
       }
       ph.w.update();
     }
 
+    const fl = flameState(audio, t, 0);
     // ---- the water: still and clear once the board is swept ("no one dares"), the fleet painted on the seabed
     const still = prog(t, d4, d4 + 0.6, ease.inOutQuad);
     u.clarity!.value = lerp(0.3, 0.85, still);
+    // the fire's pool: over the fleet, then on the trident's head wherever it plays; it opens over the whole board
+    // when the water clears
+    const dir = { x: Math.cos(tp.th), z: Math.sin(tp.th) };
+    const head = { x: HAND.x + dir.x * (tp.r + 0.6 * TIP), z: HAND.z + dir.z * (tp.r + 0.6 * TIP) };
+    const onB = prog(t, wd(this.lines[0], 'comes').start, wd(this.lines[0], 'down').start + 0.3, ease.inOutQuad);
+    const pc = { x: lerp(0, head.x, onB), z: lerp(-1.0, head.z, onB) };
+    (u.pool!.value as THREE.Vector4).set(lerp(pc.x, -0.6, still), lerp(pc.z, -1.2, still), lerp(2.2, 3.4, still) * (1 + 0.06 * (fl.I - 1)), 1.25);
     u.tNow!.value = t;
 
     // ---- the fire behind us, flaring on the orchestra's hits
-    const fl = flameState(audio, t, 0);
     const L = { base: FIRE, h: 0.6, I: 2.3 * fl.I * (0.75 + 0.25 * prog(t, T0, T0 + 0.25)), reach: REACH };
     this.fleet.light(this.st.lightCentre(L).clone(), L.I, L.reach, camP);
     const clip = this.fleet.shared.clipSign;
     this.st.render(renderer, out, t, L, { wall: 1, wallZ: WALL_Z, gloss: 0.8, swell: lerp(0.35, 0, still), wine: 0.7, reflBend: 0.3 }, {
       noFlame: true, rim: 0.8, spec: 0.05,
-      mirror: { before: () => { clip.value = -1; }, after: () => { clip.value = 1; } },
+      mirror: {
+        before: () => { clip.value = -1; for (const ph of this.phrases) ph.w.group.visible = false; },
+        after: () => { clip.value = 1; for (const ph of this.phrases) ph.w.group.visible = true; },
+      },
     });
-    return { bloom: 0.55, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0.0015 * jolt, 0.003 * jolt] };
+    return { bloom: 0.4, bloomThreshold: 0.95, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0.0015 * jolt, 0.003 * jolt] };
   }
 }
 
