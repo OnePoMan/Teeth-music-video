@@ -40,7 +40,7 @@ const FIRE = new THREE.Vector3(2.8, 2.8, 15.5), REACH = 40, WALL_Z = -10.6, FIG 
 /** The faces: hero (Archivo 75/900, as CHANGE?) and the small voice (Archivo 112.5/600). */
 const HERO = () => F.archivo(75, 900), VOICE3D = () => F.archivo(112.5, 600);
 /** Small type's cap height on the potion (world). */
-const SMALL = 0.3;
+const SMALL = 0.26;
 /** A world direction on the potion for an angle a (0: -z, screen-up when the camera's roll is 0; +pi/2: +x). */
 const dir = (a: number) => ({ x: Math.sin(a), z: -Math.cos(a) });
 
@@ -208,7 +208,7 @@ export default class Circe extends Scene {
     /** Width-fitted cap height for a hero (world width wW). */
     const fit = (w: Word3D, wW: number) => (wW / w.width) * w.cap;
     const small = (k: number) => ({ x: back.x * k, z: back.z * k });
-    const pS = small(2.15 - 0.75 * clamp((el - 1.15) / 0.3)), pH = small(0.75);
+    const pS = small(1.9 - 0.5 * clamp((el - 1.15) / 0.3)), pH = small(0.75);
     const lv = level;
     /** Pops a run on the potion: each word comes up out of it on its onset (from flat, rising through the surface), and
      *  on `exit` folds flat and sinks. */
@@ -221,14 +221,14 @@ export default class Circe extends Scene {
         kIn.set(l.word, k + 1);
         const on = onsets[Math.min(l.word, onsets.length - 1)]!;
         const uu = 1 - popHinge(t, on, k) / (Math.PI / 2);
-        const gone = prog(t, exit + k * rip, exit + k * rip + dur, ease.inOutQuad);
+        const gone = prog(t, exit + k * rip, exit + k * rip + dur, o.sink ? ease.linear : ease.inOutQuad);
         const capW = w.cap * l.s;
         const ln = lean(l.x, l.z, lv);
         const h = ln + (Math.PI / 2 - ln) * (1 - uu);
         l.hinge = h + (Math.PI / 2 + 0.05 - h) * gone * (o.sink ? 0.5 : 1);
         const bob = 0.02 * Math.sin(t * 2.3 + l.x * 1.7 + l.z);
-        l.y = lv + bob * (stopped ? 0.2 : 1) * (1 - gone) - capW * 0.55 * (1 - Math.min(uu, 1)) - capW * (o.sink ? 1.1 * gone : 0.7 * Math.max(0, (gone - 0.55) / 0.45));
-        l.on = t >= on - POP.lead + k * POP.ripple && t < exit + k * rip + dur ? 1 : 0;
+        l.y = lv + bob * (stopped ? 0.2 : 1) * (1 - gone) - capW * 0.55 * (1 - Math.min(uu, 1)) - capW * (o.sink ? 1.05 * Math.max(0.3, Math.cos(h)) * gone : 0.7 * Math.max(0, (gone - 0.55) / 0.45));
+        l.on = t >= on - POP.lead + k * POP.ripple && t < exit + k * rip + dur && popHinge(t, on, k) <= 0.75 ? 1 : 0;   // (hideFlat)
         l.mat.uniforms.glow!.value = 0.3 * Math.pow(0.5, Math.max(0, t - on) / 0.08) * (t >= on - 0.02 ? 1 : 0) * l.on;
       }
       w.update();
@@ -239,8 +239,8 @@ export default class Circe extends Scene {
     const menCap = fit(this.pigs, 4.6), heroX = pH.x, heroZ = pH.z;
     cupPop(this.men, [men.start], rowAt(this.men, heroX, heroZ, menCap), { exit: pigs.start - 0.15, exitDur: 0.15, sink: true });
     cupPop(this.to1, [W1[5]!.start], rowAt(this.to1, pS.x, pS.z, SMALL), { exit: W1[7]!.start - POP.lead - 0.06, exitDur: 0.1 });
-    cupPop(this.pigs, [pigs.start], rowAt(this.pigs, heroX, heroZ, menCap), { exit: W2[0]!.start - POP.lead - 0.16, exitDur: 0.15 });
-    cupPop(this.sB, W1.slice(7, 11).map((x) => x.start), rowAt(this.sB, pS.x, pS.z, SMALL), { exit: W2[0]!.start - POP.lead - 0.06, exitDur: 0.12 });
+    cupPop(this.pigs, [pigs.start], rowAt(this.pigs, heroX, heroZ, menCap), { exit: W2[0]!.start - POP.lead - 0.18, exitDur: 0.16, sink: true });
+    cupPop(this.sB, W1.slice(7, 11).map((x) => x.start), rowAt(this.sB, pS.x, pS.z, SMALL), { exit: W2[0]!.start - POP.lead - 0.18, exitDur: 0.16, sink: true });
     // line 2: "is she going" | INSANE? round the vortex
     cupPop(this.sC, W2.slice(0, 3).map((x) => x.start), rowAt(this.sC, pS.x, pS.z, SMALL), { exit: ins.start - 0.02, exitDur: 0.12 });
     {
