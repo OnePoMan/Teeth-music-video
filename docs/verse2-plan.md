@@ -86,3 +86,20 @@ Open on the wooden horse from the opening (its silhouette on its platform) befor
 - `app/src/monster/scenes/<plate>.ts` (+ helpers) covering the whole window at prototype quality: the set, the camera, the hero words and the supporting words on their onsets, the open, the "Or" turn and the end image.
 - Stills (`bun scripts/render.ts stills --only <plate> --t ...`) at: the first frame, each hero word ~0.25 s after its onset, the "Or" turn's first downbeat + 0.3 s, and the last frame. Look at every one.
 - Typecheck clean (`bunx tsc --noEmit -p .`), frame cost noted (`render.ts perf`, SwiftShader is ~10–20× slower than the laptop's GTX 1650).
+
+## Status after the critic loop (2026-10-08, end of the cloud session)
+
+All four plates are built over their whole windows, in `app/src/monster/scenes/{cyclops,circe,poseidon,horse}.ts` (+ helpers), and went through the critic step (`docs/critic-checklist.md`): fresh critics, blind pairs against approved frames, fixes, repeat. Each critic round found real defects, and the fixes are in (crisp hand-overs on the frame the next word springs, no leftover letters, no flat letter blocks, hero words popping as a whole, hits on the snares, no pop-before-cut glitches, title-safe type, no debris). The words' mirror images on liquid were dropped in `circe` (potion) and `poseidon` (board) after the critics read them as ghost duplicates, as the client found in chorus 1 (v7 note 8). Not yet seen in a clip: motion was judged from frame sequences only.
+
+Blind pairs (new frame vs approved frame; wins/losses for the new frame, by round): cyclops 1–5, 3–3, 2–4; circe 1–5, ~4–1, 3–3; poseidon 0–6, 0–6 (round 2 named the ghost mirror copy of every word, fixed in the last round); horse 2–3, 0–6. The recurring gaps named blind: value range (mid-orange fields with few darks), hero words doubled by their reflection in the glaze, and some compositions (cyclops' figure crowded left with the right half empty; the boulder beside the open eye reading as an eyepatch or a balloon). These are partly design calls for the client (below).
+
+For the client (taste calls the critics raised, not fixed):
+- Hero-word mirror images on the black-glaze floors (cyclops, horse; verse 1 has them too): drop them as on water? The blind critics read them as doubled type. (`docs/HANDOFF.md` dependency 9.)
+- Value range: more darks within the look (a stronger falloff of the fire's pool) would answer the most common blind gap; the client's rule is "don't push the design further".
+- `cyclops`: the open eye reads as an eyeball with a moon pupil more than as a cave mouth onto the night, and the boulder beside it as an eyepatch; the "Or" turn is a modest pan; the four heroes share one layout over his torso.
+- `circe`: 9 s of the same top-down cup framing; a nearly empty bar after "Or" (84.9–86.0); MEN's sink reads as a cut-off word in a still.
+- `poseidon`: the board can read as a toy tabletop in a black void; "respect" is small under CHECK (RESPECT as a second hero?); the opening shows the god's silhouette with the board, close to restaging the opening's wall.
+- `horse`: "UILE?" is a non-word for ~0.2 s during the re-lettering; GUILE? is up ~0.4 s before "guile" is sung; three of the four heroes share the corridor framing.
+- The horse→hook 2 cut inside "guile" (dependency 5).
+
+Critic files and reference frames were in the cloud container's scratchpad and are gone. Reference frames to regenerate for the next critic rounds (into `out/ref/`, gitignored): Monster 6.5, 8.4, 12.5, 18.6, 22.6, 24.6, 29.6, 33.5 (`--only everything,endless,symbolon,change,souls`); P(doom) 12.5, 26.5, 44.0, 74.0, 84.0 (`--song pdoom --only loss,room,spacetime,bureau,leftturn`).
