@@ -113,7 +113,7 @@ void main() {
 }`;
 
 /** Splits glyph path commands (y down) into contours, classifies holes by winding, returns extrudable shapes (y up). */
-function glyphShapes(cmds: PathCommand[], div: number): THREE.Shape[] {
+export function glyphShapes(cmds: PathCommand[], div: number): THREE.Shape[] {
   const paths: THREE.Path[] = [];
   let cur: THREE.Path | null = null;
   for (const c of cmds) {
@@ -413,7 +413,7 @@ float extraShadow(vec3 P, bool wall) { return 0.0; }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) { return col; }
 vec3 skyTint(vec3 D, vec3 col) { return col; }`;
 
-const BG_FRAG = (hooks: string) => /* glsl */ `
+const BG_FRAG = (hooks: string, NC = MAX_CARDS) => /* glsl */ `
 uniform mat4 invVP; uniform vec3 camPos;
 uniform vec3 Lc; uniform float LI, reach, rL;
 uniform int wallMode; uniform float wallZ; uniform vec3 cyl;
@@ -425,8 +425,8 @@ uniform float vase, floorLineAmt, gloss, reflOn, flameOn, flameHpx, specK;
 uniform float swell, wine, reflBend, stageT;
 uniform vec2 flamePx;
 uniform sampler2D reflTex;
-uniform mat4 cardM[${MAX_CARDS}]; uniform vec4 cardBox[${MAX_CARDS}]; uniform vec4 cardMap[${MAX_CARDS}];
-uniform float cardS[${MAX_CARDS}]; uniform float cardAt[${MAX_CARDS}]; uniform int nCards;
+uniform mat4 cardM[${NC}]; uniform vec4 cardBox[${NC}]; uniform vec4 cardMap[${NC}];
+uniform float cardS[${NC}]; uniform float cardAt[${NC}]; uniform int nCards;
 uniform sampler2D atlas0, atlas1, atlas2, atlas3;
 float atlasA(float k, vec2 uv, float lod) {
   if (k < 0.5) return textureLod(atlas0, uv, lod).a;
@@ -437,7 +437,7 @@ float atlasA(float k, vec2 uv, float lod) {
 
 float cardShadow(vec3 P) {
   float lit = 1.0;
-  for (int i = 0; i < ${MAX_CARDS}; i++) {
+  for (int i = 0; i < ${NC}; i++) {
     if (i >= nCards) break;
     vec3 p = (cardM[i] * vec4(P, 1.0)).xyz;
     vec3 l = (cardM[i] * vec4(Lc, 1.0)).xyz;
@@ -660,9 +660,12 @@ export class Stage {
   words: Word3D[] = [];
   /** `hooks`: GLSL defining carve(xz), extraShadow(P, wall) and surfaceTint(P, wall, b, col) (see STAGE_HOOKS_DEFAULT),
    *  with their own uniforms passed in `uniforms`. */
-  constructor(o: { hooks?: string; uniforms?: Record<string, THREE.IUniform> } = {}) {
-    const arr = <T>(f: () => T) => Array.from({ length: MAX_CARDS }, f);
-    this.bg = new FSPass(BG_FRAG(o.hooks ?? STAGE_HOOKS_DEFAULT), {
+  /** Shadow cards this stage holds (default MAX_CARDS; each costs ~8 fragment uniform vectors). */
+  readonly maxCards: number;
+  constructor(o: { hooks?: string; uniforms?: Record<string, THREE.IUniform>; maxCards?: number } = {}) {
+    this.maxCards = o.maxCards ?? MAX_CARDS;
+    const arr = <T>(f: () => T) => Array.from({ length: this.maxCards }, f);
+    this.bg = new FSPass(BG_FRAG(o.hooks ?? STAGE_HOOKS_DEFAULT, this.maxCards), {
       ...(o.uniforms ?? {}),
       invVP: { value: new THREE.Matrix4() }, camPos: { value: new THREE.Vector3() },
       Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, rL: { value: 0.1 },
@@ -726,7 +729,7 @@ export class Stage {
     let n = 0;
     if (o.cards !== false) this.casters.forEach((w, k) => {
       for (const l of w.letters) {
-        if (n >= MAX_CARDS || l.on <= 0.001 || l.castShadow === false) continue;
+        if (n >= this.maxCards || l.on <= 0.001 || l.castShadow === false) continue;
         const ss = l.shadowS ?? 1;
         this.m4.copy(l.mesh.matrixWorld);
         if (ss !== 1) this.m4.multiply(this.m5.makeScale(ss, ss, ss));
