@@ -50,7 +50,7 @@ Until 2026-10-07 the work ran in Claude Code cloud sessions (an ephemeral contai
   - The camera ends with the waterline at about 0.536 H.
   - Known and accepted for now: mid-dip (45.4–45.6) the swell bends the reflected word strongly. If the client minds, lower the bend near the word, e.g. in `waterHook` re-sample `reflTex` at an `ruv` mixed toward `FRAG_PX`.
 
-**Working style (client, current).** Delegate most of the work to subagents (the client asked for Opus 5.5 at medium effort). Review their results yourself, with stills or clips, before committing. Commit and push often, and keep this file and `docs/MONSTER.md` current.
+**Working style (client, current).** Delegate most of the work to subagents (the client asked for Opus 5.5 at medium effort). Review their results yourself, with stills or clips, before committing. Since 2026-10-08 every new plate also passes a critic before the client sees it (the client's choice, after a discussion of "gauntlet loops"): a fresh agent, blind to the builder's reasoning, inspects the rendered frames against the spec, the rules and `docs/critic-checklist.md`, judges blind pairs against approved reference frames (`app/scripts/blind-pairs.sh`), and names the single biggest defect; the builder fixes it and a new critic looks again, until the biggest remaining item is a taste call for the client. Commit and push often, and keep this file and `docs/MONSTER.md` current.
 
 ## The job
 
