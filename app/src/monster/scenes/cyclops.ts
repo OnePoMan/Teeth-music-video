@@ -96,7 +96,8 @@ export default class Cyclops extends Scene {
       ph.forEach((p, k) => {
         const nx = ph[k + 1];
         let exit = lineExit, dur = 0.05;
-        if (k < heroAt) { exit = nx!.words[0]!.start - POP.lead - (k === heroAt - 1 ? 0 : 0.075); dur = k === heroAt - 1 ? 0.12 : 0.07; }
+        // (gone by the frame the next phrase starts to spring: onset - POP.lead)
+        if (k < heroAt) { exit = nx!.words[0]!.start - POP.lead - 0.055; dur = 0.05; }
         const w = p.hero ? new Word3D(heroText, HERO_FONT(), { size: 220 }) : new Word3D(p.text, SMALL_FONT(), { size: 200 });
         (p.hero ? heroes : smalls).push({ p, w, line: li, exit, dur, post: k > heroAt });
       });
@@ -111,8 +112,8 @@ export default class Cyclops extends Scene {
     this.tallyW = TALLY.map(([ax, ay, bx, by]) => [ax * S, GIANT.b1 + ay * S, bx * S, GIANT.b1 + by * S]);
     const aim = TALLY.map(([ax, ay, bx, by]) => Math.atan2((ay + by) / 2 - py, (ax + bx) / 2 - px));
     // ---- the club's angle through the plate (radians ccw, absolute): raised at rest; lifted back on the snare before
-    // "kills" and down beside the word on it; up again on "Or"; a blow on each snare of bar 3; sunk on "sleep"
-    const up = CLUB.phi0, back = up + 0.32, down = -0.62, slump = -0.95;
+    // "kills" and down beside the word on it; up again on "Or"; a blow on each snare of bar 3; at rest (upright, as in the opening) from then on
+    const up = CLUB.phi0, back = up + 0.32, down = -0.62;
     const k: Key[] = [[this.ctx.start, up], [ev.windup - 0.04, up, ease.linear], [ev.windup + 0.12, back, ease.outQuad],
       [ev.kills - 0.08, back + 0.04, ease.linear], [ev.kills, down, ease.inQuad], [ev.kills + 0.07, down + 0.05, ease.outQuad],
       [ev.kills + 0.16, down, ease.inQuad], [ev.or, down, ease.linear], [ev.or + 0.4, back, ease.inOutCubic]];
@@ -128,7 +129,6 @@ export default class Cyclops extends Scene {
     const last = prev;
     k.push([last + 0.3, up, ease.inOutCubic]);
     if (ev.sleep > last + 0.35) k.push([ev.sleep, up, ease.linear]);
-    k.push([Math.max(ev.sleep, last + 0.35) + 0.55, slump, ease.inOutCubic]);
     this.clubKeys = k;
   }
 
@@ -143,8 +143,8 @@ export default class Cyclops extends Scene {
       [e.or, [0, 2.45, 8.8], ease.inOutQuad],
       [e.or + 0.25, [0, 2.45, 8.78], ease.linear],
       [e.bar3, [3.6, 2.4, 8.9], (x) => ease.inOutQuart(x)],
-      [e.and, [3.85, 2.4, 8.75], ease.linear],
-      [e.bar4, [0, 2.35, 9.2], ease.inOutCubic],
+      [e.and - 0.09, [3.85, 2.4, 8.75], ease.linear],
+      [e.bar4, [0, 2.35, 9.2], ease.inOutQuad],
       [T1, [0, 2.35, 8.7], ease.linear],
     ]);
     const at = vkeys(t, [
@@ -155,8 +155,8 @@ export default class Cyclops extends Scene {
       [e.or, [0, 4.0, WALL_Z], ease.inOutQuad],
       [e.or + 0.25, [0, 4.0, WALL_Z], ease.linear],
       [e.bar3, [6.4, 4.1, WALL_Z], (x) => ease.inOutQuart(x)],
-      [e.and, [6.6, 4.1, WALL_Z], ease.linear],
-      [e.bar4, [0, 3.85, WALL_Z], ease.inOutCubic],
+      [e.and - 0.09, [6.6, 4.1, WALL_Z], ease.linear],
+      [e.bar4, [0, 3.85, WALL_Z], ease.inOutQuad],
       [T1, [0, 3.9, WALL_Z], ease.linear],
     ]);
     return { pos, at };
@@ -231,7 +231,10 @@ export default class Cyclops extends Scene {
         const R = heroRow(s.line);
         popWords(w, ons, t, centredRow(w, R.px, HERO_Z, faceYaw(R.px, HERO_Z, R.cp.x, R.cp.z), R.ps), { exit: s.exit, exitDur: s.dur, exitRipple: 0, glow: 0.3 });
       } else {
-        const tPose = (ons[0]! + Math.min(s.exit, ons[0]! + 1.2)) / 2;
+        // (a phrase sung during the swing back to the eye stands where the camera is halfway through it, so it stays
+        // inside the frame from its first word to the end of the swing)
+        const mid = (ons[0]! + Math.min(s.exit, ons[0]! + 1.2)) / 2, ev = this.ev;
+        const tPose = ons[0]! < ev.bar4 && s.exit > ev.bar4 ? (ev.and + ev.bar4) / 2 : mid;
         const { pos: cp, at: ca } = this.camera(tPose);
         const cx = cp.x + ((ca.x - cp.x) * (cp.z - SMALL_Z)) / (cp.z - ca.z);
         popWords(w, ons, t, centredRow(w, cx, SMALL_Z, faceYaw(cx, SMALL_Z, cp.x, cp.z), SMALL_CAP / w.cap), { exit: s.exit, exitDur: s.dur, exitRipple: 0, glow: 0.3 });
