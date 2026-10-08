@@ -4,8 +4,10 @@
 // cup, Poseidon's wave and trident, the wooden horse. "How has" stands up on the floor under the horse. On
 // "everything" the camera is thrown back and the word folds up out of the floor letter by letter, lit by the fire,
 // and its shadow on the wall is all four monsters, each unfolding with its letter. On "turned" their eyes open on
-// us; "against us?" stands up near the camera; and on the notes of the rising figure they rush at us one by one,
-// swelling and blurring, until the wall is black.
+// us; "against us?" stands up near the camera; and on the notes of the rising figure they strike at the word one by
+// one, like puppets (client: the zoom at the camera felt cheesy): Polyphemus' club comes down, Circe levels her staff
+// and the pig charges, Poseidon hurls his trident, soldiers pour out of the horse; the letters beneath each one jolt,
+// and on the last hit the fire gutters into the cut.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F } from '../../engine/type';
@@ -24,24 +26,24 @@ import { POP, Stage, Word3D, popHinge, popWords, vkeys } from '../stage';
 const HOOKS = GLSL_FIGURES + /* glsl */ `
 uniform vec4 figW, figA, figB, figT;
 uniform float figOn, figMode;
-uniform vec4 frX, frY, frS, frUp, frG, frGx, frGy, frBlur;
+uniform vec4 frX, frY, frS, frUp, frG, frGx, frGy, frBlur, frAct;
 uniform float frLook, frEye, frTime, eyeGlow;
 uniform vec4 eyeW[5];
 float monsters(vec2 p) {
   vec2 q = (p - figT.xy) / figT.z;
   if (abs(q.x) > 13.0 || q.y > 10.5 || q.y < -1.0) return 1e3;
   float d = 0.0;
-  if (figW.x > 0.001) d += figW.x * polyphemus(q, figA.x, figB.y);
-  if (figW.y > 0.001) d += figW.y * circe(q, figA.y, 0.0);
-  if (figW.z > 0.001) d += figW.z * poseidon(q, figA.z, figB.w, figB.x, 0.0);
-  if (figW.w > 0.001) d += figW.w * trojanHorse(q - vec2(figB.z, 0.0), figA.w, figT.w, figB.z, 0.0);
+  if (figW.x > 0.001) d += figW.x * polyphemus(q, figA.x, figB.y, 0.0);
+  if (figW.y > 0.001) d += figW.y * circe(q, figA.y, 0.0, 0.0);
+  if (figW.z > 0.001) d += figW.z * poseidon(q, figA.z, figB.w, figB.x, 0.0, 0.0);
+  if (figW.w > 0.001) d += figW.w * trojanHorse(q - vec2(figB.z, 0.0), figA.w, figT.w, figB.z, 0.0, 0.0);
   return d / max(dot(figW, vec4(1.0)), 1e-3) * figT.z;
 }
 float frMonster(int i, vec2 q) {
-  if (i == 0) return polyphemus(q, frEye, frTime);
-  if (i == 1) return circe(q, 1.0, frLook);
-  if (i == 2) return max(poseidon(q, 1.0, 1.0, 0.6, frLook), abs(q.x - 0.7) - 3.1);            // the god and his trident only
-  return trojanHorse(q, 1.0, 1.0, 0.0, frLook);
+  if (i == 0) return polyphemus(q, frEye, frTime, frAct.x);
+  if (i == 1) return circe(q, 1.0, frLook, frAct.y);
+  if (i == 2) return max(poseidon(q, 1.0, 1.0, 0.6, frLook, frAct.z), abs(q.x - 0.5) - 3.3);     // the god and his trident only
+  return trojanHorse(q, 1.0, 1.0, 0.0, frLook, frAct.w);
 }
 float frieze(vec2 p) {
   float lit = 1.0;
@@ -110,7 +112,7 @@ export default class Everything extends Scene {
       figT: { value: new THREE.Vector4(0, 0, 1, 0) }, figOn: { value: 0 }, figMode: { value: 0 },
       frX: { value: new THREE.Vector4() }, frY: { value: new THREE.Vector4() }, frS: { value: new THREE.Vector4() }, frUp: { value: new THREE.Vector4() },
       frG: { value: new THREE.Vector4(1, 1, 1, 1) }, frGx: { value: new THREE.Vector4() }, frGy: { value: new THREE.Vector4() },
-      frBlur: { value: new THREE.Vector4() }, frLook: { value: 0 }, frEye: { value: 1 }, frTime: { value: 0 }, eyeGlow: { value: 0 },
+      frBlur: { value: new THREE.Vector4() }, frAct: { value: new THREE.Vector4() }, frLook: { value: 0 }, frEye: { value: 1 }, frTime: { value: 0 }, eyeGlow: { value: 0 },
       eyeW: { value: Array.from({ length: 5 }, () => new THREE.Vector4()) },
     },
   });
@@ -189,14 +191,25 @@ export default class Everything extends Scene {
     const ev = this.w('everything'), been = this.w('been'), turned = this.w('turned'), against = this.w('against'), us = this.w('us');
     const tThrow = ev.start - 0.03;                   // the camera is thrown back as "everything" sounds
     const R = this.rush;
+    // ---- the strikes, one per note of the figure, each with a little wind-up; and when each lands
+    const club = t < R[0]! - 0.04 ? -0.35 * prog(t, R[0]! - 0.24, R[0]! - 0.04, ease.outQuad)
+      : lerp(-0.35, 2.15, ease.outBack(prog(t, R[0]! - 0.04, R[0]! + 0.1)));
+    const circeAct = prog(t, R[1]! - 0.04, R[1]! + 0.32, ease.outCubic);
+    const hurl = prog(t, R[2]! - 0.05, R[2]! + 0.14, ease.inQuad);
+    const burst = prog(t, R[3]! - 0.02, R[3]! + 0.32);
+    const lands = [R[0]! + 0.06, R[1]! + 0.12, R[2]! + 0.14, R[3]! + 0.2];
+    /** EVERYTHING's letters beneath each monster (E V | E R Y | T H | I N G). */
+    const under = (k: number) => (k < 2 ? 0 : k < 5 ? 1 : k < 7 ? 2 : 3);
 
-    // ---- EVERYTHING: an arc before the wall; each letter lands on its share of the sung word
+    // ---- EVERYTHING: an arc before the wall; each letter lands on its share of the sung word, and jolts when the
+    // monster above it strikes
     const wd = this.hero, n = wd.letters.length, s = CAP / wd.cap;
     const tk = (k: number) => ev.start + (k / (n - 1)) * Math.max(0.2, ev.end - ev.start - 0.12);
     for (let k = 0; k < n; k++) {
       const l = wd.letters[k]!;
       const th = ((l.penX - wd.width / 2) * s) / ARC.R;
-      l.x = ARC.R * Math.sin(th); l.z = ARC.cz - ARC.R * Math.cos(th); l.y = 0;
+      l.x = ARC.R * Math.sin(th); l.z = ARC.cz - ARC.R * Math.cos(th);
+      l.y = 0.22 * Math.sin(Math.PI * prog(t, lands[under(k)]! + 0.015 * k, lands[under(k)]! + 0.015 * k + 0.17));
       l.yaw = -th; l.s = s;
       l.hinge = popHinge(t, tk(k));
       l.on = l.hinge < Math.PI / 2 - 1e-4 ? 1 : 0;
@@ -237,8 +250,8 @@ export default class Everything extends Scene {
       [tThrow + 0.9, [0.0, 3.3, WALL_Z], ease.outExpo],
       [this.ctx.end, [0.0, 3.2, WALL_Z], ease.linear],
     ]);
-    // the rush: a jolt on each note
-    const jolt = R.reduce((a, r) => a + pulse(t, r, 0.09), 0);
+    // a jolt as each strike lands
+    const jolt = lands.reduce((a, r) => a + pulse(t, r, 0.08), 0);
     pos.x += 0.05 * jolt * noise1(t * 40, 3); pos.y += 0.05 * jolt * noise1(t * 40, 5);
     this.st.cam.set(pos, at, 40);
 
@@ -254,22 +267,20 @@ export default class Everything extends Scene {
       FRIEZE.forEach((m, i) => {
         let x: number = m.x, y = FR_Y, sc: number = m.s, up = Math.cos(popHinge(t, tk(m.letter)));
         if (i === 3) { x = lerp(-0.2, m.x, toSlot); y = FR_Y * toSlot; sc = lerp(1.12, m.s, toSlot); up = 1; }
-        // the rush: swelling about its point, blurring as it nears the fire
-        const r = prog(t, R[i]! - 0.03, R[i]! + 0.42, ease.outCubic);
-        const g = 1 + (3.4 + 1.4 * i) * r;
         v('frX').setComponent(i, x); v('frY').setComponent(i, y); v('frS').setComponent(i, sc); v('frUp').setComponent(i, up);
-        v('frG').setComponent(i, g); v('frGx').setComponent(i, x + sc * m.g[0]); v('frGy').setComponent(i, y + sc * m.g[1]);
-        v('frBlur').setComponent(i, 0.015 + 0.32 * r);
-        for (const e of m.eyes) eyes[ei++]!.set(x + sc * e[0], y + sc * e[1], sc * e[2] * 1.6, up > 0.5 ? 1 - r : 0);
+        v('frG').setComponent(i, 1); v('frGx').setComponent(i, x + sc * m.g[0]); v('frGy').setComponent(i, y + sc * m.g[1]);
+        v('frBlur').setComponent(i, 0.015);
+        for (const e of m.eyes) eyes[ei++]!.set(x + sc * e[0], y + sc * e[1], sc * e[2] * 1.6, up > 0.5 ? 1 : 0);
       });
+      (u.frAct!.value as THREE.Vector4).set(club, circeAct, hurl, burst);
       u.frLook!.value = look; u.frEye!.value = lerp(0.14, 1, look); u.frTime!.value = t;
       u.eyeGlow!.value = look * (0.35 + 1.1 * pulse(t, turned.start + 0.05, 0.25));
       u.figOn!.value = 1; u.figMode!.value = 1;
     }
 
-    // the fire sinks as the last of them reaches it
+    // on the last hit the fire gutters into the cut
     const L = this.fire(t);
-    L.I *= 1 - 0.7 * prog(t, R[2]!, R[3]! + 0.3, ease.inOutQuad);
+    L.I *= 1 - 0.85 * prog(t, this.ctx.end - 0.2, this.ctx.end - 0.03, ease.inQuad);
     // the glaze mirrors the wall only: here the word's dark double is its shadow
     this.st.render(renderer, out, t, L, { wall: 1, wallZ: WALL_Z }, { noFlame: true, cards: false, reflect: false, rim: 0.6, spec: 0.05 });
     return { bloom: 0.55, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0, 0.003 * jolt] };

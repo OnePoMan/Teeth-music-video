@@ -30,10 +30,10 @@ const HOOKS = GLSL_FIGURES + /* glsl */ `
 uniform vec4 mX, mY, mS, mOn;                       // each monster: feet on the wall (x, y), scale, shown (0..1)
 uniform float mT;
 float monster(int i, vec2 q) {
-  if (i == 0) return polyphemus(q, 1.0, mT);
-  if (i == 1) return circe(q, 1.0, 0.0);
-  if (i == 2) return max(poseidon(q, 1.0, 1.0, 0.6, 0.0), abs(q.x - 0.7) - 3.1);
-  return trojanHorse(q, 1.0, 1.0, 0.0, 0.0);
+  if (i == 0) return polyphemus(q, 1.0, mT, 0.0);
+  if (i == 1) return circe(q, 1.0, 0.0, 0.0);
+  if (i == 2) return max(poseidon(q, 1.0, 1.0, 0.6, 0.0, 0.0), abs(q.x - 0.7) - 3.1);
+  return trojanHorse(q, 1.0, 1.0, 0.0, 0.0, 0.0);
 }
 float carve(vec2 xz) { return 0.0; }
 float floorLines(vec3 P, float u) { return u; }

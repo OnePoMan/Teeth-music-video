@@ -67,7 +67,7 @@ float sheepRest(vec2 p, float w) {
 }
 
 // ---- Polyphemus: a giant from the chest up, facing us; his one eye a cut-out in the brow; a club; his flock
-float polyphemus(vec2 p, float eye, float t) {
+float polyphemus(vec2 p, float eye, float t, float club) {
   vec2 h = p - vec2(0.0, 6.4);
   float d = sdEll(h, vec2(1.85, 2.25)) + 0.11 * snoise(p * 1.6) * smoothstep(-0.5, 1.8, h.y);   // shaggy head
   d = smin(d, sdEll(p - vec2(0.0, 5.2), vec2(1.55, 1.1)) + 0.1 * snoise(p * 2.2), 0.3);            // cheeks and jaw
@@ -76,14 +76,18 @@ float polyphemus(vec2 p, float eye, float t) {
   d = smin(d, sdBox(p - vec2(0.0, 4.1), vec2(1.0, 0.7)), 0.4);                                     // neck
   d = smin(d, max(sdEll(p - vec2(0.0, 2.3), vec2(4.7, 2.4)), p.y - 4.3), 0.6);                    // shoulders
   d = min(d, sdBox(p - vec2(0.0, 0.9), vec2(4.2, 1.1)));
-  // the club in his fist, rising past his head, knotted
-  vec2 c0 = vec2(3.65, 2.3), c1 = vec2(4.95, 8.9), cn = vec2(0.981, -0.193);
-  d = smin(d, sdEll(p - vec2(3.85, 3.45), vec2(0.78, 0.64)), 0.2);
-  d = min(d, sdCap(p, c0, c1, 0.26, 0.62) + 0.07 * snoise(p * 3.0));
+  // the club in his fist, rising past his head, knotted; 'club' (radians) swings it about the fist, back, then over his
+  // head and down before him, parted from him by a line of clay where it crosses him
+  vec2 c0 = vec2(3.65, 2.3), c1 = vec2(4.95, 8.9), cn = vec2(0.981, -0.193), piv = vec2(3.85, 3.45);
+  d = smin(d, sdEll(p - piv, vec2(0.78, 0.64)), 0.2);
+  vec2 pc = piv + rot2(club) * (p - piv);
+  float cl = sdCap(pc, c0, c1, 0.26, 0.62) + 0.07 * snoise(pc * 3.0);
   for (int i = 0; i < 3; i++) {
     float f = 0.5 + 0.15 * float(i), s = (i == 1) ? -1.0 : 1.0;
-    d = min(d, sdCircle(p - mix(c0, c1, f) - s * cn * (0.26 + 0.36 * f) * 0.85, 0.17));
+    cl = min(cl, sdCircle(pc - mix(c0, c1, f) - s * cn * (0.26 + 0.36 * f) * 0.85, 0.17));
   }
+  float cg = 0.06 * smoothstep(0.25, 0.7, club);
+  d = min(mix(d, max(d, cg - cl), smoothstep(0.0, 0.03, cg)), cl);
   // the beard: shaggy, from the jaw down over his chest, parted from the chest by a line of clay that fades out at
   // the chin (no line across the face)
   float beard = min(sdEll(p - vec2(0.0, 4.55), vec2(1.3, 0.95)), sdEll(p - vec2(0.0, 3.85), vec2(1.0, 0.85))) + 0.11 * snoise(p * 3.2) + 0.05 * snoise(p * 7.0);
@@ -115,7 +119,7 @@ float polyphemus(vec2 p, float eye, float t) {
 }
 
 // ---- a man on all fours at the cup, facing -x (k 0); a pig (k 1)
-float circeMan(vec2 p, float k, float look) {
+float circeMan(vec2 p, float k, float look, float gallop) {
   float man = sdSegment(p, vec2(0.72, 1.42), vec2(-0.5, 1.5)) - 0.32;                              // back
   man = smin(man, sdCircle(p - vec2(-1.02, 1.66), 0.27), 0.1);                                     // head, raised to the cup
   man = smin(man, sdSegment(p, vec2(-0.55, 1.4), vec2(-0.82, 0.05)) - 0.12, 0.1);                  // arms
@@ -128,7 +132,8 @@ float circeMan(vec2 p, float k, float look) {
   pig = min(pig, sdTrap(rot2(0.55) * (p - vec2(-0.86, 1.56)), 0.15, 0.02, 0.2));                   // ear
   for (int i = 0; i < 4; i++) {
     float x = (i < 2) ? -0.62 + 0.24 * float(i) : 0.52 + 0.24 * float(i - 2);
-    pig = min(pig, sdSegment(p, vec2(x, 0.6), vec2(x, 0.0)) - 0.1);                               // legs
+    float sw = gallop > 0.0 ? 0.22 * sin(gallop + float(i) * 1.9) : 0.0;
+    pig = min(pig, sdSegment(p, vec2(x, 0.6), vec2(x + sw, 0.0)) - 0.1);                          // legs
   }
   float a = atan(p.y - 1.28, p.x - 1.33);
   pig = min(pig, max(abs(length(p - vec2(1.33, 1.28)) - 0.17) - 0.045, -(a + 0.6)));              // the curled tail
@@ -139,7 +144,7 @@ float circeMan(vec2 p, float k, float look) {
 }
 
 // ---- Circe: robed, her hair down her back, her staff in the cup on its stand; the man (the pig) at the cup
-float circe(vec2 p, float k, float look) {
+float circe(vec2 p, float k, float look, float act) {
   vec2 q = p - vec2(-3.4, 0.0);
   float d = sdTrap(q - vec2(0.05, 1.98), 1.0, 0.3, 1.98);                                          // the skirt, flaring to the floor
   d = smin(d, sdEll(q - vec2(0.02, 4.55), vec2(0.34, 0.66)), 0.12);                               // the body above the belt
@@ -159,8 +164,21 @@ float circe(vec2 p, float k, float look) {
   d = smin(d, sdSegment(q, vec2(0.1, 5.0), vec2(0.78, 4.62)) - 0.1, 0.06);
   d = smin(d, sdSegment(q, vec2(0.78, 4.62), vec2(1.62, 5.22)) - 0.085, 0.05);
   d = min(d, sdCircle(q - vec2(1.7, 5.25), 0.13));                                                  // hand
-  d = min(d, sdSegment(q, vec2(1.25, 6.6), vec2(2.75, 2.55)) - 0.065);                              // the staff, into the cup
-  d = min(d, sdCircle(q - vec2(1.25, 6.6), 0.15));
+  // the staff, in the cup; levelled (act) it swings up about her hand to point out over the cup, and a spell flies
+  vec2 hand = vec2(1.7, 5.25);
+  float sa = 1.22 * sat(act * 1.6);
+  vec2 s0 = hand + rot2(-sa) * (vec2(1.25, 6.6) - hand), s1 = hand + rot2(-sa) * (vec2(2.75, 2.55) - hand);
+  d = min(d, sdSegment(q, s0, s1) - 0.065);
+  d = min(d, sdCircle(q - s0, 0.15));
+  if (act > 0.0) {
+    vec2 dir = normalize(s1 - s0);
+    for (int j = 0; j < 6; j++) {
+      float u = sat(act * 1.4 - 0.1 * float(j));
+      if (u <= 0.0 || u >= 1.0) continue;
+      vec2 sp = s1 + dir * (2.6 * u) + vec2(0.0, -2.2 * u * u) + vec2(0.0, 0.25 * sin(float(j) * 2.3)) * u;
+      d = min(d, sdCircle(q - sp, 0.13 * (1.0 - 0.7 * u)));
+    }
+  }
   // incisions: the belt, the folds fanning from it, a zigzag border at the hem
   d = incise(d, abs(q.y - 3.92) + max(0.0, abs(q.x - 0.03) - 0.45), 0.035);
   for (int i = 0; i < 3; i++) {
@@ -184,10 +202,15 @@ float circe(vec2 p, float k, float look) {
   for (int i = 0; i < 3; i++) {
     float x0 = -0.5 + 0.5 * float(i);
     vec2 w = c - vec2(x0 + 0.18 * sin(c.y * 2.6 + float(i) * 1.7), 0.0);
-    d = min(d, max(abs(w.x) - 0.06 * (1.0 - sat((c.y - 3.0) / 2.2)), max(3.0 - c.y, c.y - 5.2)));
+    float top = 5.2 + 1.3 * act;
+    d = min(d, max(abs(w.x) - 0.06 * (1.0 + 1.2 * act) * (1.0 - sat((c.y - 3.0) / (top - 3.0))), max(3.0 - c.y, c.y - top)));
   }
   d = frontEye(d, p, vec2(-3.15, 5.82), 0.13 * (1.0 + 0.5 * look), look);
-  return min(d, circeMan((p - vec2(2.9, 0.0)) / 1.25, k, look) * 1.25);
+  // the pig: at her word it turns on us and charges
+  float ch = act > 0.0 ? 1.2 * (1.0 - pow(1.0 - sat(act * 1.3), 3.0)) : 0.0;
+  vec2 pp = (p - vec2(2.9 + ch, 0.0)) / 1.25;
+  if (act > 0.02) pp.x = -pp.x;
+  return min(d, circeMan(pp, k, look, act > 0.0 ? act * 26.0 : 0.0) * 1.25);
 }
 
 // ---- Poseidon: the god himself, bearded, rising waist-deep out of the sea (k) with his trident raised (thrust); the
@@ -217,7 +240,7 @@ float galley(vec2 p) {
   for (int i = 0; i < 3; i++) d = incise(d, abs(p.x + 0.5 * float(i - 1)) + max(0.0, abs(p.y - 1.9) - 0.6), 0.025);   // the sail's seams
   return d;
 }
-float poseidonGod(vec2 g, float thrust, float look) {
+float poseidonGod(vec2 g, float thrust, float look, float hurl) {
   // g: his own space, the waist at y 0.6, the ship to his left (-x)
   float d = sdTrap(g - vec2(0.0, 2.1), 0.72, 1.28, 1.5);                                          // torso
   d = smin(d, sdCircle(g - vec2(-1.16, 3.36), 0.4), 0.2);                                          // shoulders
@@ -241,15 +264,26 @@ float poseidonGod(vec2 g, float thrust, float look) {
   d = smin(d, sdCap(g, sh, el, 0.3, 0.24), 0.1);
   d = smin(d, sdCap(g, el, hand, 0.24, 0.2), 0.08);
   d = min(d, sdEll(g - hand, vec2(0.25, 0.22)));                                                     // the fist
-  float tri = sdSegment(g, vec2(tx, ty - 5.2), vec2(tx, ty + 0.15)) - 0.085;
-  tri = min(tri, sdBox(g - vec2(tx, ty), vec2(0.78, 0.09)));
+  // the trident, in its own frame (the crossbar at the origin, prongs up); hurled (hurl), it flies in an arc from his
+  // hand and stabs into the sea before him, prongs first
+  float hu = sat(hurl), ra = 2.4 * hu * hu;
+  vec2 o0 = vec2(tx, ty), o1 = vec2(-0.43, 1.68);
+  vec2 org = mix(o0, o1, hu) + vec2(0.0, 2.2 * sin(3.14159265 * hu));
+  vec2 tq = rot2(ra) * (g - org);
+  float tri = sdSegment(tq, vec2(0.0, -5.2), vec2(0.0, 0.15)) - 0.085;
+  tri = min(tri, sdBox(tq, vec2(0.78, 0.09)));
   for (int i = 0; i < 3; i++) {
-    float x = tx - 0.75 + 0.75 * float(i), pt = ty + (i == 1 ? 1.5 : 1.12);
-    tri = min(tri, sdSegment(g, vec2(x, ty), vec2(x, pt)) - 0.075);
-    vec2 b = g - vec2(x, pt);
+    float x = -0.75 + 0.75 * float(i), pt = (i == 1 ? 1.5 : 1.12);
+    tri = min(tri, sdSegment(tq, vec2(x, 0.0), vec2(x, pt)) - 0.075);
+    vec2 b = tq - vec2(x, pt);
     tri = min(tri, max(abs(b.x) * 1.5 + b.y - 0.24, -b.y - 0.2));                                   // barbed point
   }
-  d = min(d, tri);
+  // (once thrown it crosses his body: parted from him by a line of clay)
+  float tg = 0.055 * smoothstep(0.0, 0.15, hu);
+  d = min(mix(d, max(d, tg - tri), smoothstep(0.0, 0.02, tg)), tri);
+  // the splash where it strikes
+  float sp = sat((hu - 0.85) / 0.15);
+  for (int j = 0; j < 5; j++) if (sp > 0.0) d = min(d, sdCircle(g - vec2(-1.6 + 0.28 * float(j - 2), 0.9 + 0.9 * sp * (1.0 - 0.15 * abs(float(j - 2)))), 0.1 * (1.0 - 0.5 * sp)));
   // incisions, as the vase painters drew a strong man: the chest, the arch of the ribs, the line down the belly, the
   // navel; the fingers round the shaft; the beard's and the hair's strands; the eye, archaic and frontal
   d = incise(d, max(abs(length((g - vec2(-0.5, 3.15)) * vec2(1.0, 1.5)) - 0.48), g.y - 3.15), 0.035);
@@ -257,15 +291,15 @@ float poseidonGod(vec2 g, float thrust, float look) {
   d = incise(d, max(max(abs(length((g - vec2(0.0, 1.95)) * vec2(1.0, 1.25)) - 0.78), 2.2 - g.y), 0.22 - abs(g.x)), 0.03);
   d = incise(d, sdSegment(g, vec2(0.0, 2.85), vec2(0.0, 1.85)), 0.028);
   d = incise(d, length(g - vec2(0.0, 1.55)), 0.06);
-  for (int i = 0; i < 3; i++) d = incise(d, sdSegment(g, hand + vec2(-0.2, 0.1 - 0.1 * float(i)), hand + vec2(0.2, 0.1 - 0.1 * float(i))), 0.018);
+  for (int i = 0; i < 3; i++) if (hu <= 0.0) d = incise(d, sdSegment(g, hand + vec2(-0.2, 0.1 - 0.1 * float(i)), hand + vec2(0.2, 0.1 - 0.1 * float(i))), 0.018);
   for (int i = 0; i < 3; i++) d = incise(d, sdSegment(g, vec2(-0.36 + 0.15 * float(i), 4.08), vec2(-0.5 + 0.1 * float(i), 3.5 + 0.12 * float(i))), 0.022);
   for (int i = 0; i < 3; i++) d = incise(d, sdSegment(g, vec2(0.28 + 0.15 * float(i), 4.85), vec2(0.5 + 0.13 * float(i), 3.75)), 0.022);
   float ek = max(0.7, look);
   return frontEye(d, g, vec2(-0.26, 4.78), 0.13 * (1.0 + 0.6 * look), ek);
 }
-float poseidon(vec2 p, float k, float thrust, float tip, float look) {
+float poseidon(vec2 p, float k, float thrust, float tip, float look, float hurl) {
   // the god, rising out of the sea as it heaves
-  float d = poseidonGod(p - vec2(0.6, -5.2 * (1.0 - k)), thrust, look);
+  float d = poseidonGod(p - vec2(0.6, -5.2 * (1.0 - k)), thrust, look, hurl);
   // the sea before him: a band with a running-wave border, swelling round him
   float sea = p.y - (0.8 + 0.06 * sin(p.x * 2.1) + 0.35 * k * exp(-(p.x - 0.6) * (p.x - 0.6) / 3.0));
   vec2 cp = vec2(mod(p.x + 0.8, 1.6) - 0.8, p.y - 1.08 - 0.35 * k * exp(-(p.x - 0.6) * (p.x - 0.6) / 3.0));
@@ -286,7 +320,17 @@ float wheel(vec2 p, float a) {
   d = min(d, max(spokes, r - 0.45));
   return min(d, r - 0.13);
 }
-float trojanHorse(vec2 p, float h1, float h2, float roll, float look) {
+// a hoplite, small, falling or landing: crested helmet, round shield, spear (feet at the origin, about 1.3 tall)
+float hoplite(vec2 p) {
+  float d = sdCircle(p - vec2(0.0, 1.06), 0.12);
+  d = min(d, max(length(p - vec2(-0.03, 1.12)) - 0.22, 1.1 - p.y));                                // the crest
+  d = smin(d, sdSegment(p, vec2(0.0, 0.95), vec2(0.0, 0.55)) - 0.09, 0.04);                        // body
+  d = min(d, sdCircle(p - vec2(0.13, 0.72), 0.2));                                                   // the shield
+  d = min(d, sdSegment(p, vec2(-0.04, 0.55), vec2(-0.14, 0.0)) - 0.045);                            // legs
+  d = min(d, sdSegment(p, vec2(0.04, 0.55), vec2(0.15, 0.0)) - 0.045);
+  return min(d, sdSegment(p, vec2(-0.2, 0.25), vec2(-0.02, 1.5)) - 0.025);                          // spear
+}
+float trojanHorse(vec2 p, float h1, float h2, float roll, float look, float burst) {
   float d = sdBox(p - vec2(0.0, 1.07), vec2(3.4, 0.2));                                            // platform
   for (int i = 0; i < 4; i++) d = min(d, wheel(p - vec2(-2.6 + 1.73 * float(i), 0.6), -roll / 0.6));
   for (int i = 0; i < 4; i++) {                                                                     // stiff legs, hooves
@@ -328,6 +372,16 @@ float trojanHorse(vec2 p, float h1, float h2, float roll, float look) {
   float drop = 1.75 * h2;                                                                           // the ladder: two ropes, rungs
   float lad = max(min(abs(hp.x + 0.62) - 0.025, abs(hp.x + 0.22) - 0.025), max(hp.y, -drop - hp.y));
   lad = min(lad, max(max(abs(hp.x + 0.42) - 0.2, abs(fract(hp.y / 0.25) - 0.5) * 0.25 - 0.022), max(hp.y + 0.05, -drop - hp.y)));
-  return min(d, mix(1e3, lad, step(0.001, h2)));
+  d = min(d, mix(1e3, lad, step(0.001, h2)));
+  // the soldiers pour out of the hatch and down onto the ground before the horse, parted from it by a line of clay
+  float sol = 1e3;
+  for (int j = 0; j < 4; j++) {
+    float u = sat(burst * 1.8 - 0.22 * float(j));
+    if (u <= 0.0) continue;
+    float side = mod(float(j), 2.0) < 0.5 ? -1.0 : 1.0;
+    vec2 at = vec2(-0.15 + side * (1.1 + 0.9 * float(j)) * u, mix(2.4, 0.0, u * u) + 1.6 * u * (1.0 - u));
+    sol = min(sol, hoplite((p - at) / 1.55) * 1.55);
+  }
+  return before(d, sol, 0.06);
 }
 `;
