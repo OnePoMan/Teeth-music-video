@@ -29,7 +29,7 @@ Each item cites the client note it comes from.
 16. One horizon line: no doubled line with a black sliver between (v7 note 8).
 17. Nothing reads as debris: every shape is recognisably something, or plainly intended (v7 note 6: "What's that to the left of Poseidon's hand? It reads as random debris").
 18. Figures recognisable at a glance (v5 note 2); no faces (archaic frontal eyes only); the cyclops' is the one eye in the video.
-19. Palette only: ink, ink2, graphite, ash, bone, signal, ember, blood; dawn only for home. Only signal and ember glow; bone type crisp, never blooming.
+19. Palette only: ink, ink2, graphite, ash, bone, signal, ember, blood; dawn only for home. Only signal and ember glow; bone type crisp, never blooming. Not a defect: the ember flash as a word pops (`popWords` in `stage.ts`: glow 0.45 halving every 0.16 s, approved in verse 1). A defect: a flash much stronger or longer than that, or a halo on settled type.
 20. Full value range and full-frame detail (Grammar 5), within "don't push the design further" (see above).
 21. Not a repeat of an earlier shot, not trite (v7 note 4: "the monsters in the background repeat earlier shots", "letters changing colour on the beat feel trite").
 
