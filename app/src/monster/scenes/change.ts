@@ -18,6 +18,8 @@ import { Stage, Word3D, keyLight, popHinge, popWords, row, vkeys } from '../stag
 import { ShardWord, type Shard } from '../shards';
 
 const CAP = 1.2, ROW_Z = -2.3, WALL_Z = -6.2;
+/** "Do I need to": its cap height and where it stands. */
+const ASK_CAP = 0.36, ASK_Z = ROW_Z + 0.75;
 /** Seconds each wave of sherds flies before it lands on its note. */
 const FLIGHT = 0.15;
 /** The camera's vertical fov (degrees) and the share of the frame's width CHANGE? fills when it lands. */
@@ -41,6 +43,8 @@ export default class Change extends Scene {
   /** Each sherd's face swap as the camera sees it, and as the glaze's mirror image sees it. */
   private flips: number[] = [];
   private flipsM: number[] = [];
+  /** Which sherds cast shadows. */
+  private casts: boolean[] = [];
   private m = new THREE.Matrix4();
   private sv = new THREE.Vector3();
 
@@ -61,6 +65,9 @@ export default class Change extends Scene {
     const order = sh.map((l, i) => ({ i, k: l.wc.x / this.word.width + (l.r[0]! - 0.5) * 0.45 })).sort((a, b) => a.k - b.k);
     this.wave = new Array(sh.length).fill(0);
     order.forEach((o, rank) => { this.wave[o.i] = Math.min(3, Math.floor((rank * 4) / sh.length)); });
+    // (frame cost) the smallest sherds cast no shadow: the whole word's shadow is still there to within a few slivers
+    const meanA = sh.reduce((a, l) => a + l.area, 0) / sh.length;
+    this.casts = sh.map((l) => l.area >= 0.45 * meanA);
   }
 
   /** A sherd standing in the word (its glyph folded up by `hinge`): its centre and orientation. */
@@ -80,7 +87,7 @@ export default class Change extends Scene {
     const gap = 0.018 * prog(t, this.crack, this.crack + 0.1, ease.outCubic);
     const rx = (l.wc.x - this.word.width / 2) * s, ry = (l.wc.y - this.word.cap * 0.45) * s;
     const rl = Math.hypot(rx, ry) || 1;
-    const D = new THREE.Vector3(rx * 0.42 + (r[1]! - 0.5) * 0.9, ry * 0.7 + 0.3 + r[2]! * 0.95, -1.3 + r[3]! * 1.9);
+    const D = new THREE.Vector3(rx * 0.3 + (r[1]! - 0.5) * 0.6, ry * 0.7 + 0.3 + r[2]! * 0.95, -1.4 + r[3]! * 1.8);
     const off = new THREE.Vector3(rx / rl, ry / rl, 0).multiplyScalar(gap).addScaledVector(D, G);
     // a slow drift of its own while it hangs
     const dr = Math.min(1, Math.max(0, u));
@@ -103,26 +110,41 @@ export default class Change extends Scene {
     const tPop = (k: number) => change.start + (k / (nG - 1)) * Math.min(0.36, change.end - change.start);
     const notes = this.notes;
 
-    // ---- the camera: CHANGE? fills the frame as it lands; through the hush a slow orbit from the right that pushes in
-    // among the hanging sherds; as the figure starts it draws back to the word, front on, and holds
+    // ---- the camera (an orbit about the word's centre: azimuth, distance, height). It opens high over the empty stage
+    // and cranes down onto the spot where the words will stand, landing on "Do"; it eases back as the phrase grows;
+    // on CHANGE?'s onset it draws back to frame the word; through the hush it orbits left and cranes up so the
+    // hanging cloud sits over the dark glaze; it comes down and back before the first note, front on, and holds
     const wordW = wd.width * s;
-    const Rh = wordW / (FILL * 2 * Math.tan((FOV * Math.PI) / 360) * (16 / 9));
+    const tanH = 2 * Math.tan((FOV * Math.PI) / 360) * (16 / 9);
+    const Rh = wordW / (FILL * tanH);
+    const askW = this.ask.width * (ASK_CAP / this.ask.cap);
+    const Rp = askW / (0.6 * tanH) + (ASK_Z - ROW_Z);         // the phrase fills ~60% of the frame
     const ck = (az: number, R: number, y: number): [number, number, number] => [az, R, y];
     const keys: [number, [number, number, number], ((u: number) => number)?][] = [
-      [T0, ck(0.42, Rh * 1.3, 1.45)],
-      [change.start, ck(0.3, Rh * 1.02, 0.85), ease.outCubic],
+      [T0, ck(0.45, Rp * 1.2, 2.7)],
+      [doW.start - 0.05, ck(0.16, Rp, 0.5), ease.inOutCubic],
+      [change.start - 0.04, ck(0.22, Rp * 1.1, 0.55), ease.outQuad],
+      [change.start + 0.3, ck(0.3, Rh * 1.02, 0.85), ease.outCubic],
       [this.crack, ck(0.27, Rh, 0.85), ease.linear],
-      [23.3, ck(-0.3, Rh * 1.1, 3.3), ease.inOutQuad],
-      [23.5, ck(-0.32, Rh * 1.1, 3.25), ease.linear],
-      [23.95, ck(-0.1, Rh * 0.95, 0.85), ease.inOutCubic],
-      [T1, ck(-0.06, Rh * 0.84, 0.8), ease.linear],
+      [22.55, ck(0.02, Rh * 1.04, 1.25), ease.inOutQuad],
+      [23.3, ck(-0.3, Rh * 0.95, 3.0), ease.inOutQuad],
+      [23.62, ck(-0.33, Rh * 0.95, 2.95), ease.linear],
+      [23.98, ck(-0.1, Rh * 1.0, 0.85), ease.inOutCubic],
+      [T1, ck(-0.06, Rh * 0.9, 0.8), ease.linear],
     ];
     const cv = vkeys(t, keys);
     const [az, R, cy] = [cv.x, cv.y, cv.z];
     const C = new THREE.Vector3(0, CAP * 0.48, ROW_Z);
     const kick = notes.reduce((a, tn) => a + (t >= tn ? Math.exp(-(t - tn) / 0.05) * Math.cos((t - tn) * 60) : 0), 0);
     const pos = new THREE.Vector3(C.x + R * Math.sin(az), cy + 0.012 * kick, C.z + R * Math.cos(az));
-    const at = new THREE.Vector3(C.x - 0.15 * Math.sin(az), C.y + 0.12 + 0.25 * prog(t, this.crack, 23.3, ease.inOutQuad) * (1 - prog(t, 23.5, 23.95, ease.inOutCubic)), C.z);
+    // what it looks at: the phrase, then the word, then the middle of the hanging cloud (it rises as the sherds do)
+    const uc = Math.min(1, Math.max(0, (t - this.crack) / (24.0 - this.crack)));
+    const ul = Math.min(1, Math.max(0, (uc - 0.25) / 0.5));
+    const lift = 0.65 * ul * ul * (3 - 2 * ul) * (1 - prog(t, 23.62, 23.98, ease.inOutCubic));
+    // (aimed a little toward the camera's side: seen from an angle, the near end of the row looms larger)
+    const atW = new THREE.Vector3(C.x + 0.9 * Math.sin(az), C.y + 0.12 + lift, C.z);
+    const atP = vkeys(t, [[T0, [0.1, 0, ASK_Z - 0.4]], [doW.start - 0.05, [0.3, ASK_CAP * 0.55, ASK_Z]]]);
+    const at = atP.lerp(atW, prog(t, change.start - 0.04, change.start + 0.3, ease.inOutQuad));
     this.st.cam.set(pos, at, FOV);
     const camP = this.st.cam.cam.position;
 
@@ -134,6 +156,7 @@ export default class Change extends Scene {
       const hinge = popHinge(t, tPop(l.glyph));
       l.on = hinge < Math.PI / 2 - 1e-4 ? 1 : 0;
       l.s = s;
+      l.castShadow = this.casts[i];
       const u = l.mat.uniforms;
       const tn = notes[this.wave[i]!]!, tf0 = tn - FLIGHT;
       let flip = 0, flipM = 0, glow = glowC;
@@ -178,14 +201,16 @@ export default class Change extends Scene {
     wd.update();
 
     // "Do I need to": standing just behind where CHANGE? will stand; it falls back as CHANGE? rises
-    const as = 0.68 / this.ask.cap;
-    popWords(this.ask, [doW.start, iW.start, need.start, to.start], t, row(-(this.ask.width * as) / 2, ROW_Z - 0.7, 0, as), { exit: change.start - 0.02, exitDur: 0.2 });
+    // (one step in front of where CHANGE? stands; it lies down, all at once, as CHANGE? springs up behind it)
+    const as = ASK_CAP / this.ask.cap;
+    popWords(this.ask, [doW.start, iW.start, need.start, to.start], t, row(-(this.ask.width * as) / 2, ASK_Z, 0, as),
+      { exit: change.start - 0.045, exitDur: 0.12, exitRipple: 0 });
 
     // ---- the fire behind us, over the right shoulder, high: the word's shadow falls to the left on the clay. Through
     // the hush it sinks and draws in (a shorter reach): the far wall darkens round the hanging sherds, which stay lit;
     // it comes back on the first note
-    const hush = prog(t, this.crack + 0.4, 22.6, ease.inOutQuad) * (1 - prog(t, notes[0]! - 0.16, notes[0]!, ease.inQuad));
-    const L = keyLight(this.st.cam, audio, t, { seed: 9, right: 5.5, up: 0.5, back: 2.5, I: 1.55 * lerp(1, 2.8, hush), reach: lerp(30, 8, hush) });
+    const hush = prog(t, this.crack + 0.4, 22.6, ease.inOutQuad) * (1 - prog(t, notes[0]! - 0.05, notes[0]! + 0.03, ease.inQuad));
+    const L = keyLight(this.st.cam, audio, t, { seed: 9, right: 5.5, up: 0.5, back: 2.5, I: 1.55 * lerp(1, 3.1, hush) * lerp(0.6, 1, prog(t, T0, doW.start, ease.inOutQuad)), reach: lerp(30, 7, hush) });
     const setFlips = (f: number[]) => wd.letters.forEach((l, i) => { l.mat.uniforms.flip!.value = f[i] ?? 0; });
     this.st.render(renderer, out, t, L, { wall: 1, wallZ: WALL_Z }, {
       noFlame: true, rim: 0.8, spec: 0.05,
