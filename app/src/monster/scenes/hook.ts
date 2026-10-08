@@ -21,66 +21,11 @@ import { F, font, layout, measure, type TextLayout } from '../../engine/type';
 import type { Word } from '../../engine/lyrics';
 import { ease, lerp, prog, pulse, noise1 } from '../../engine/util';
 import { meanderBand } from '../motifs';
-import { SHORE, Stage, Word3D, keyLight, popHinge, popWords, type Letter } from '../stage';
+import { SHORE, Stage, Word3D, keyLight, popHinge, popWords } from '../stage';
+import { LOW, SHORE_KEY, SHORE_OPTS, SHORE_POST, SHORE_SURF, VOICE, WORD_Z, bob as bobAt, heroScale, hideFlat, setRegion, shoreStage, wordBox } from '../shore';
 
 /** The ground line of the black-figure frieze (n=3). */
 const GROUND = H * 0.78;
-/** MONSTER? stands on the water just short of the shore line. */
-const WORD_Z = SHORE.z + 0.4;
-/** The camera after the dip: just over the water, nearly level (the waterline at 0.536 H), a little closer. */
-const LOW = { y: 0.055, z: 8.4, pitch: 0.0262 };
-/** MONSTER?'s width in frame after the dip, and the voice's cap height (world) and place afloat near us. */
-const BIG_W = 0.72, VOICE = { cap: 0.13, x0: -1.2, z: 6.4 };
-
-const HOOKS = /* glsl */ `
-#define WATER_HOOK
-uniform float shoreZ, skyI, develop, wordL, wordR, wordB, wordH, creep;
-float carve(vec2 xz) { return 0.0; }
-float floorLines(vec3 P, float u) { return u; }
-float extraShadow(vec3 P, bool wall) { return 0.0; }
-/** The clay's orange as the water shows it (q: screen px of the mirrored image, depth below the word's foot). */
-vec3 clayField(vec2 q, float depth) {
-  return mix(C_SIGNAL * 0.6, C_EMBER * 0.62, 0.2 + 0.2 * snoise(vec2(q.x / 500.0, depth / 200.0)));
-}
-/** (n=2) The orange climbing a little above the line behind the word. */
-vec3 creepUp(vec3 col) {
-  if (creep <= 0.0) return col;
-  vec2 px = FRAG_PX;
-  float up = px.y - wordB;
-  float across = smoothstep(wordL - 90.0, wordL + 30.0, px.x) * (1.0 - smoothstep(wordR - 30.0, wordR + 90.0, px.x));
-  return mix(col, clayField(px, 0.0), creep * across * exp(-max(up, 0.0) / (0.35 * wordH)) * 0.6);
-}
-// the far shore: a last trace of its burning, low over the horizon (as \`sea\` leaves it)
-vec3 skyTint(vec3 D, vec3 col) {
-  float e = max(D.y, 0.0);
-  return creepUp(col + mix(C_BLOOD, C_SIGNAL, 0.45) * skyI * (0.6 * exp(-e * 30.0) + 0.06 * exp(-e * 9.0)));
-}
-vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
-  if (wall) return col;
-  // the water ends at the far shore, and the shore is the line: a bone hairline
-  float beyond = smoothstep(shoreZ + 0.02, shoreZ - 0.02, P.z);
-  float lineG = exp(-abs(P.z - shoreZ) / max(0.06, gPix * 1.5));
-  col = mix(col, creepUp(C_INK), beyond);
-  return col + C_BONE * 0.8 * lineG;
-}
-// the reflection answers: under the word the water develops the clay's orange, and the mirrored word (black slip,
-// its contour incised, no question mark) shows on it at full strength; deeper down the swell breaks it into strips
-vec3 waterHook(vec2 px, vec2 ruv, vec4 rt, vec3 col) {
-  if (develop <= 0.0) return col;
-  vec2 q = ruv * vec2(${W.toFixed(1)}, ${H.toFixed(1)});      // where the swell has moved what this point mirrors
-  float depth = wordB - q.y;
-  if (depth < -4.0) return col;
-  float t = stageT;
-  float edgeN = 26.0 * snoise(vec2(depth / 30.0, t * 0.4));
-  float across = smoothstep(wordL - 70.0, wordL + 10.0, q.x + edgeN) * (1.0 - smoothstep(wordR - 10.0, wordR + 70.0, q.x + edgeN));
-  float down = smoothstep(-4.0, 2.0, depth) * (1.0 - smoothstep(wordH * 0.9, wordH * 2.3, depth + edgeN * 0.5));
-  float band = sin(depth * 0.21 - t * 1.7 + 0.6 * snoise(vec2(q.x / 260.0, t * 0.35)));
-  float strips = mix(1.0, smoothstep(-0.35, 0.55, band), smoothstep(wordH * 0.75, wordH * 1.3, depth));
-  float field = develop * across * down * strips * (0.9 + 0.1 * band);
-  col = mix(col, clayField(q, depth), field);
-  return mix(col, rt.rgb, rt.a * smoothstep(0.08, 0.35, field));
-}`;
-
 interface Placed { w: Word; text: string; fam: string; size: number; x: number; base: number; lay: TextLayout; big: boolean }
 
 export default class Hook extends Scene {
@@ -110,13 +55,7 @@ export default class Hook extends Scene {
     if (this.n === 3) return this.init3(ws, bi);
     this.bigW = ws[bi]!;
     this.small = ws.slice(0, bi);
-    this.st = new Stage({
-      hooks: HOOKS,
-      uniforms: {
-        shoreZ: { value: SHORE.z }, skyI: { value: 0.06 }, develop: { value: 0 }, creep: { value: 0 },
-        wordL: { value: 0 }, wordR: { value: W }, wordB: { value: 0 }, wordH: { value: 150 },
-      },
-    });
+    this.st = shoreStage();
     const voice = F.archivo(112.5, 600);
     this.big = new Word3D(this.bigW.w.toUpperCase().replace(/[,.]$/, ''), F.archivo(112.5, 900), { size: 220, incise: true });
     this.big.lightMul = 2.8;                                // far off on the shore, lit as brightly as the near words
@@ -132,8 +71,7 @@ export default class Hook extends Scene {
     }
     for (const w of this.st.words) for (const l of w.letters) l.mat.side = THREE.DoubleSide;
     // MONSTER? fills BIG_W of the frame once the camera is down
-    const dist = LOW.z - WORD_Z, fov = 40;
-    this.bigS = (BIG_W * 2 * dist * Math.tan((fov * Math.PI) / 360) * (W / H)) / this.big.width;
+    this.bigS = heroScale(this.big);
   }
 
   private init3(ws: Word[], bi: number) {
@@ -209,14 +147,8 @@ export default class Hook extends Scene {
 
     // ---- the question afloat near us, bobbing on the swell, facing us, truly reflected; it lies down as MONSTER?
     // stands. (n=1) "Is me?" from `sea` lies down first, from exactly where it stood.
-    const bob = (x0: number, z0: number, cap: number, w: Word3D, amp: number) => (l: Letter) => {
-      const sc = cap / w.cap;
-      l.x = x0 + l.penX * sc; l.z = z0; l.s = sc;
-      l.y = amp * Math.sin(t * 2.1 + l.penX * 0.004 + z0);
-      l.yaw = Math.atan2(cam.x - (x0 + (w.width * sc) / 2), cam.z - z0);
-    };
-    // a letter nearly flat (rising or folding) is hidden: the low camera sees its lit top as a block on the water
-    const hideFlat = (w: Word3D) => { for (const l of w.letters) if (l.hinge > 1.2) l.on = 0; w.update(); };
+    const bob = (x0: number, z0: number, cap: number, w: Word3D, amp: number) => bobAt(t, cam, x0, z0, cap, w, amp);
+    // (a letter nearly flat, rising or folding, is hidden: hideFlat)
     if (this.prev) {
       popWords(this.prev, this.prevOn, t, bob(-1.75, C.z - 4.5, 0.3, this.prev, 0.025), { exit: T0 + 0.02, exitDur: 0.24 });
       hideFlat(this.prev);
@@ -228,13 +160,10 @@ export default class Hook extends Scene {
     hideFlat(this.voice);
 
     // ---- the answer in the water: where the mirrored word stands on screen, and how far the orange has developed
-    const u = this.st.bg.u, sc = this.st.cam;
+    const u = this.st.bg.u;
     const lead = this.n === 2 ? 0.15 : 0;                   // (n=2) the reflection moves first
     const ink = this.big.letters.filter((l) => l.ch !== '?');
-    const xL = Math.min(...ink.map((l) => l.x + l.box[0] * l.s)), xR = Math.max(...ink.map((l) => l.x + l.box[2] * l.s));
-    const pL = sc.project({ x: xL, y: 0, z: WORD_Z }), pR = sc.project({ x: xR, y: 0, z: WORD_Z });
-    const pB = sc.project({ x: 0, y: 0, z: WORD_Z }), pT = sc.project({ x: 0, y: this.big.cap * this.bigS, z: WORD_Z });
-    u.wordL!.value = pL.x; u.wordR!.value = pR.x; u.wordB!.value = H - pB.y; u.wordH!.value = Math.max(1, pB.y - pT.y);
+    setRegion(this.st, wordBox(this.st, ink, this.bigS, this.big.cap));
     u.develop!.value = ease.outCubic(prog(t, bw.start + 0.05 - lead, bw.start + 0.7 - lead));
     u.creep!.value = this.n === 2 ? 0.25 * prog(t, bw.start, bw.start + 0.6) : 0;
 
@@ -252,12 +181,10 @@ export default class Hook extends Scene {
       },
     };
     // the fire behind us (as `sea`); the water mirrors, wine-dark, its swells bending what it mirrors
-    this.st.render(renderer, out, t, keyLight(this.st.cam, audio, t, { seed: 21, I: 1.3, reach: 25 }),
-      { wall: 0, gloss: 0.75, swell: 0.45, wine: 0.85, reflBend: 0.3 },
-      { noFlame: true, cards: false, rim: 1.0, spec: 0.05, mirror });
+    this.st.render(renderer, out, t, keyLight(this.st.cam, audio, t, SHORE_KEY), SHORE_SURF, { ...SHORE_OPTS, mirror });
 
     const hit = pulse(t, bw.start, 0.08);
-    return { bloom: 0.7, bloomThreshold: 0.9, vignette: 0.5, grain: 0.06, ca: 0.6, halation: 0.35,
+    return { ...SHORE_POST,
       shake: [noise1(t * 60, 1) * 6 * hit, noise1(t * 60, 2) * 6 * hit] };
   }
 
