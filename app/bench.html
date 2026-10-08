@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Monster Render Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=IBM+Plex+Mono:wght@400;500&display=swap" />
+<style>
+  /* Layout: one measured column, the live frame as the hero, a ledger of timings under it.
+     The video's own world: ink ground, bone type, one signal orange. */
+  :root {
+    --ink: #0a0a0b; --panel: #151517; --rule: #34322f; --dim: #9c978f; --fg: #eee9df; --signal: #ff4d12;
+    --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  html, body { background: var(--ink); color: var(--fg); }
+  body { font: 400 15px/1.55 var(--body); font-stretch: 100%; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 56px; display: grid; gap: 28px; }
+  .eyebrow { font: 500 12px/1 var(--mono); letter-spacing: 0.18em; text-transform: uppercase; color: var(--signal); }
+  h1 { margin: 10px 0 0; font: 800 clamp(30px, 6vw, 56px)/0.98 var(--display); font-stretch: 75%; letter-spacing: -0.01em; text-wrap: balance; }
+  .lede { margin: 12px 0 0; max-width: 62ch; color: var(--dim); }
+  .lede b { color: var(--fg); font-weight: 600; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  label.lab { font: 500 12px/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+  select, input[type="text"] { font: 400 15px/1.2 var(--body); color: var(--fg); background: var(--panel); border: 1px solid var(--rule); border-radius: 2px; padding: 9px 10px; min-width: 0; }
+  button { font: 700 15px/1 var(--display); font-stretch: 87.5%; letter-spacing: 0.02em; color: var(--ink); background: var(--signal); border: 0; border-radius: 2px; padding: 12px 18px; cursor: pointer; }
+  button.ghost { color: var(--fg); background: transparent; border: 1px solid var(--rule); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+  .frame { position: relative; padding: 14px; }
+  .frame::before, .frame::after { content: ""; position: absolute; width: 22px; height: 22px; border: 1px solid var(--dim); opacity: 0.6; }
+  .frame::before { left: 0; top: 0; border-right: 0; border-bottom: 0; }
+  .frame::after { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+  canvas#c { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; height: auto; background: #000; }
+  progress#bar { width: 100%; height: 3px; appearance: none; border: 0; background: var(--rule); display: block; margin-top: 10px; }
+  progress#bar::-webkit-progress-bar { background: var(--rule); }
+  progress#bar::-webkit-progress-value { background: var(--signal); }
+  progress#bar::-moz-progress-bar { background: var(--signal); }
+  .status { font: 400 13px/1.5 var(--mono); color: var(--fg); margin-top: 10px; min-height: 1.5em; }
+  .meta { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font: 400 13px/1.5 var(--mono); }
+  .meta dt { color: var(--dim); text-transform: uppercase; letter-spacing: 0.12em; font-size: 11px; padding-top: 2px; }
+  .meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+  .warn { color: var(--signal); font: 400 13px/1.5 var(--mono); }
+  h2 { margin: 0 0 10px; font: 700 13px/1 var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font: 500 11px/1.3 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); padding: 0 12px 8px 0; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.gpu { font: 400 12px/1.4 var(--mono); color: var(--dim); max-width: 22ch; overflow-wrap: anywhere; }
+  .verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .verdict div { background: var(--ink); padding: 16px; display: grid; gap: 6px; }
+  .verdict .k { font: 500 11px/1.3 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+  .verdict .v { font: 800 34px/1 var(--display); font-stretch: 75%; font-variant-numeric: tabular-nums; }
+  .verdict .v.hot { color: var(--signal); }
+  .note { font-size: 13px; color: var(--dim); max-width: 70ch; }
+  pre#copy-text { white-space: pre-wrap; overflow-wrap: anywhere; font: 400 12px/1.4 var(--mono); background: var(--panel); padding: 10px; margin: 0; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="eyebrow">Monster · render bench</div>
+    <h1>Which of your machines should render the video?</h1>
+    <p class="lede">Open this page in <b>Chrome</b> on each device, pick the device, press <b>Run</b>. It renders five plates of the P(doom) video with the real engine at 1920×1080 and times each frame, about one to three minutes per device. Keep the tab in front while it runs.</p>
+  </header>
+
+  <section class="controls" aria-label="Run the bench">
+    <label class="lab" for="device">Device</label>
+    <select id="device">
+      <option>Gaming laptop</option>
+      <option>Work laptop</option>
+      <option>Steam Deck</option>
+      <option>Chromebook Plus</option>
+      <option>Other</option>
+    </select>
+    <input id="device-other" type="text" placeholder="Name this device" hidden />
+    <button id="run" disabled>Run</button>
+    <button id="copy" class="ghost" hidden>Copy results</button>
+  </section>
+
+  <section>
+    <div class="frame"><canvas id="c" aria-label="Live frame from the engine"></canvas></div>
+    <progress id="bar" value="0" max="1"></progress>
+    <div id="status" class="status">Starting…</div>
+    <pre id="copy-text" hidden></pre>
+  </section>
+
+  <dl class="meta">
+    <dt>GPU</dt><dd id="gpu">—</dd>
+    <dt>Browser</dt><dd id="browser">—</dd>
+  </dl>
+  <div id="warn" class="warn"></div>
+
+  <section>
+    <h2>This device</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Plate</th><th>Kind</th><th class="num">Per frame</th><th class="num">Cloud container</th><th class="num">Faster</th></tr></thead>
+        <tbody id="results"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="verdict" class="verdict" hidden>
+    <div><span class="k">Overall vs. cloud container</span><span id="v-speed" class="v hot">—</span></div>
+    <div><span class="k">Draft render, 3:39 at 1080p60</span><span id="v-draft" class="v">—</span></div>
+    <div><span class="k">Final render with motion blur</span><span id="v-final" class="v">—</span></div>
+  </section>
+  <p class="note">Estimates assume a plate mix like P(doom)'s and about 36 motion-blur sub-frames per frame for the final (P(doom)'s adaptive blur averages near that). The cloud container is this project's CPU-only machine, where WebGL runs on four CPU cores.</p>
+
+  <section>
+    <h2>All devices</h2>
+    <p id="runs-note" class="note">Saved runs need you to be signed in to Claude. Without it, use Copy results and paste them into the chat.</p>
+    <p id="runs-empty" class="note">No runs saved yet. Run the bench on any device and it appears here.</p>
+    <div id="runs-table" class="scroll" hidden>
+      <table>
+        <thead><tr><th>Device</th><th>GPU</th><th class="num">Type</th><th class="num">Paper</th><th class="num">Lines</th><th class="num">Lattice</th><th class="num">Shoggoth</th><th class="num">Faster</th><th class="num">Final</th></tr></thead>
+        <tbody id="runs"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script type="module" src="/src/bench.ts"></script>
+</body>
+</html>

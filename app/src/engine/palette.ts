@@ -1,7 +1,7 @@
 import { hexToLinear } from './util';
 
 // The whole video lives in a restrained palette: ink, bone, and one signal colour.
-// One rare accent (acid, the shrooms moment) — see docs/TREATMENT.md.
+// One rare accent per song (P(doom): acid, the shrooms moment, docs/TREATMENT.md; Monster: dawn, docs/MONSTER.md).
 export const HEX = {
   ink: '#0A0A0B', // background black (slightly warm)
   ink2: '#151517', // raised black (panels, paper-in-the-dark)
@@ -12,6 +12,7 @@ export const HEX = {
   ember: '#FF8A3D', // hotter, lighter orange for cores/highlights
   blood: '#C21D0B', // deep red-orange for shadows of signal
   acid: '#D8FF3C', // acid: only for the shrooms moment
+  dawn: '#F4A99B', // Monster's rare accent: Homer's rosy-fingered dawn, owned by home (Penelope, Telemachus, Ithaca)
 } as const;
 
 export type PaletteKey = keyof typeof HEX;

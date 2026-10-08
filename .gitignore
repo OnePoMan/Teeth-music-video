@@ -12,3 +12,11 @@ analysis/__pycache__/
 analysis/stems/
 analysis/work/
 analysis/qa/
+
+# Monster: the commercial recording is not redistributed; place your copy at audio/monster.mp3
+audio/monster.mp3
+__pycache__/
+app/dist-bench/
+
+# git worktrees made for parallel agent work (Claude Code)
+.claude/worktrees/
