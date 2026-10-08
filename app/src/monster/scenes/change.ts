@@ -38,6 +38,9 @@ export default class Change extends Scene {
   private q1 = new THREE.Quaternion();
   private q2 = new THREE.Quaternion();
   private qz = new THREE.Quaternion();
+  /** Each sherd's face swap as the camera sees it, and as the glaze's mirror image sees it. */
+  private flips: number[] = [];
+  private flipsM: number[] = [];
   private m = new THREE.Matrix4();
   private sv = new THREE.Vector3();
 
@@ -77,7 +80,7 @@ export default class Change extends Scene {
     const gap = 0.018 * prog(t, this.crack, this.crack + 0.1, ease.outCubic);
     const rx = (l.wc.x - this.word.width / 2) * s, ry = (l.wc.y - this.word.cap * 0.45) * s;
     const rl = Math.hypot(rx, ry) || 1;
-    const D = new THREE.Vector3(rx * 0.42 + (r[1]! - 0.5) * 0.9, ry * 0.7 + 0.3 + r[2]! * 0.95, -1.0 + r[3]! * 2.2);
+    const D = new THREE.Vector3(rx * 0.42 + (r[1]! - 0.5) * 0.9, ry * 0.7 + 0.3 + r[2]! * 0.95, -1.3 + r[3]! * 1.9);
     const off = new THREE.Vector3(rx / rl, ry / rl, 0).multiplyScalar(gap).addScaledVector(D, G);
     // a slow drift of its own while it hangs
     const dr = Math.min(1, Math.max(0, u));
@@ -109,8 +112,9 @@ export default class Change extends Scene {
       [T0, ck(0.42, Rh * 1.3, 1.45)],
       [change.start, ck(0.3, Rh * 1.02, 0.85), ease.outCubic],
       [this.crack, ck(0.27, Rh, 0.85), ease.linear],
-      [23.75, ck(-0.42, Rh * 0.72, 1.3), ease.inOutQuad],
-      [24.3, ck(-0.1, Rh * 0.92, 0.85), ease.inOutCubic],
+      [23.3, ck(-0.3, Rh * 1.1, 3.3), ease.inOutQuad],
+      [23.5, ck(-0.32, Rh * 1.1, 3.25), ease.linear],
+      [23.95, ck(-0.1, Rh * 0.95, 0.85), ease.inOutCubic],
       [T1, ck(-0.06, Rh * 0.84, 0.8), ease.linear],
     ];
     const cv = vkeys(t, keys);
@@ -118,7 +122,7 @@ export default class Change extends Scene {
     const C = new THREE.Vector3(0, CAP * 0.48, ROW_Z);
     const kick = notes.reduce((a, tn) => a + (t >= tn ? Math.exp(-(t - tn) / 0.05) * Math.cos((t - tn) * 60) : 0), 0);
     const pos = new THREE.Vector3(C.x + R * Math.sin(az), cy + 0.012 * kick, C.z + R * Math.cos(az));
-    const at = new THREE.Vector3(C.x - 0.15 * Math.sin(az), C.y + 0.12 + 0.25 * prog(t, this.crack, 23.5, ease.inOutQuad) * (1 - prog(t, 23.75, 24.3, ease.inOutCubic)), C.z);
+    const at = new THREE.Vector3(C.x - 0.15 * Math.sin(az), C.y + 0.12 + 0.25 * prog(t, this.crack, 23.3, ease.inOutQuad) * (1 - prog(t, 23.5, 23.95, ease.inOutCubic)), C.z);
     this.st.cam.set(pos, at, FOV);
     const camP = this.st.cam.cam.position;
 
@@ -132,7 +136,7 @@ export default class Change extends Scene {
       l.s = s;
       const u = l.mat.uniforms;
       const tn = notes[this.wave[i]!]!, tf0 = tn - FLIGHT;
-      let flip = 0, glow = glowC;
+      let flip = 0, flipM = 0, glow = glowC;
       this.restPose(l, hinge, rp, rq);
       if (t < this.crack) { P.copy(rp); Q.copy(rq); }
       else {
@@ -154,12 +158,16 @@ export default class Change extends Scene {
         P.copy(rp).add(off);
         Q.setFromAxisAngle(H.axis, th).multiply(this.qz.setFromAxisAngle(EZ, ph)).multiply(rq);
         // turned over: the faces swap at the instant the sherd is edge-on to the camera
-        const v = camP.clone().sub(P);
-        const A = v.z, B = H.axis.y * v.x - H.axis.x * v.y;
-        const thStar = A > 1e-6 ? Math.atan2(B, A) - Math.PI / 2 + 2 * Math.PI : 1.5 * Math.PI;
-        flip = th >= thStar ? 1 : 0;
+        // (and for the glaze's mirror image, as seen from the camera mirrored in the floor)
+        const swapAt = (cx: number, cy: number, cz: number) => {
+          const vx = cx - P.x, vy = cy - P.y, A = cz - P.z, B = H.axis.y * vx - H.axis.x * vy;
+          return A > 1e-6 ? Math.atan2(B, A) - Math.PI / 2 + 2 * Math.PI : 1.5 * Math.PI;
+        };
+        flip = th >= swapAt(camP.x, camP.y, camP.z) ? 1 : 0;
+        flipM = th >= swapAt(camP.x, -camP.y, camP.z) ? 1 : 0;
       }
       u.flip!.value = flip;
+      this.flips[i] = flip; this.flipsM[i] = flipM;
       u.glowK!.value = glow;
       u.crackA!.value = t >= this.crack - 0.03 ? 1 : 0;
       u.crackR!.value = crackR;
@@ -173,9 +181,16 @@ export default class Change extends Scene {
     const as = 0.68 / this.ask.cap;
     popWords(this.ask, [doW.start, iW.start, need.start, to.start], t, row(-(this.ask.width * as) / 2, ROW_Z - 0.7, 0, as), { exit: change.start - 0.02, exitDur: 0.2 });
 
-    // ---- the fire behind us, over the right shoulder, high: the word's shadow falls to the left on the clay
-    const L = keyLight(this.st.cam, audio, t, { seed: 9, right: 5.5, up: 0.5, back: 2.5, I: 1.55, reach: 30 });
-    this.st.render(renderer, out, t, L, { wall: 1, wallZ: WALL_Z }, { noFlame: true, rim: 0.8, spec: 0.05 });
+    // ---- the fire behind us, over the right shoulder, high: the word's shadow falls to the left on the clay. Through
+    // the hush it sinks and draws in (a shorter reach): the far wall darkens round the hanging sherds, which stay lit;
+    // it comes back on the first note
+    const hush = prog(t, this.crack + 0.4, 22.6, ease.inOutQuad) * (1 - prog(t, notes[0]! - 0.16, notes[0]!, ease.inQuad));
+    const L = keyLight(this.st.cam, audio, t, { seed: 9, right: 5.5, up: 0.5, back: 2.5, I: 1.55 * lerp(1, 2.8, hush), reach: lerp(30, 8, hush) });
+    const setFlips = (f: number[]) => wd.letters.forEach((l, i) => { l.mat.uniforms.flip!.value = f[i] ?? 0; });
+    this.st.render(renderer, out, t, L, { wall: 1, wallZ: WALL_Z }, {
+      noFlame: true, rim: 0.8, spec: 0.05,
+      mirror: { before: () => setFlips(this.flipsM), after: () => setFlips(this.flips) },
+    });
     const jolt = notes.reduce((a, tn) => a + pulse(t, tn, 0.05), 0);
     return { bloom: 0.55, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0.002 * jolt, 0.005 * jolt] };
   }

@@ -154,7 +154,7 @@ export class ShardWord {
   readonly glyphs: { ch: string; penX: number; box: [number, number, number, number]; lines: [number, number, number][] }[] = [];
   lightMul = 1;
   constructor(readonly text: string, family: string, o: ShardOpts = {}) {
-    const size = o.size ?? 220, depth = o.depth ?? size * 0.1, div = o.div ?? 10, h = depth / 2;
+    const size = o.size ?? 220, depth = o.depth ?? size * 0.045, div = o.div ?? 10, h = depth / 2;
     const rnd = mulberry32(o.seed ?? 7);
     const f = ot(family);
     const lay = layout(text, family, size, 0);
