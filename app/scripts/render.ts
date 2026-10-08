@@ -5,6 +5,10 @@
 //   plates:  bun scripts/render.ts plates   (renders one representative JPEG per plate into public/plates/ (used by the outro's rewind), times from plates.json or entry midpoints)
 //   perf:    bun scripts/render.ts perf --from 20 --to 25 [--only ids] [--samples 1] [--shutter 0.5]   (avg ms per frame incl. GPU sync and the export's pixel readback)
 //   video:   bun scripts/render.ts video [--from 0] [--to <duration>] [--fps 60] [--crf 16] [--x264 aq-mode=3] [--samples 1] [--shutter 0.5] [--out ../out/<song>.mp4] [--noaudio]
+//   lint:    bun scripts/render.ts lint --only ids --from A --to B [--fps 30] [--out ../out/lint/<from>-<to>.json] [--strict] [--draw]
+//            frame checker (scripts/lint.ts): steps the scenes without drawing and checks every 3D letter against the
+//            sung timings (early/late pops, pops before a cut, overlaps, leftovers, crops, edge-on, two lines at once);
+//            --strict exits 1 on errors, --draw keeps the draw calls (slow; the checks are the same)
 //   --song monster|pdoom (all modes, default monster): which video (src/song.ts). `plates` is P(doom)-only.
 //   --browser <path> / $CHROME_PATH: a Chromium binary instead of Google Chrome; --swiftshader: WebGL on the CPU (no GPU)
 //            --samples N averages N sub-frames per frame over shutter×(1/fps): motion blur + temporal AA;
@@ -17,6 +21,7 @@
 import { chromium, type Page } from 'playwright-core';
 import { mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
+import { lint } from './lint';
 
 const argv = process.argv.slice(2);
 const mode = argv[0] ?? 'stills';
@@ -219,6 +224,14 @@ try {
   } else if (mode === 'video') {
     const dur: number = await page.evaluate(() => (window as any).__pdoom.duration);
     await video(page, +opt('from', '0')!, +opt('to', String(dur))!, +opt('fps', '60')!, path.resolve(opt('out', path.join(ROOT, `out/${SONG}.mp4`))!));
+  } else if (mode === 'lint') {
+    const dur: number = await page.evaluate(() => (window as any).__pdoom.duration);
+    const from = +opt('from', '0')!, to = +opt('to', String(dur))!;
+    process.exitCode = await lint(page, {
+      from, to, fps: +opt('fps', '30')!, draw: flag('draw'), strict: flag('strict'),
+      lyrics: path.join(ROOT, `data/${SONG}/lyrics.json`),
+      out: path.resolve(opt('out', path.join(ROOT, `out/lint/${from}-${to}.json`))!),
+    });
   }
   if (logs.length) console.error('BROWSER LOG:\n' + logs.slice(0, 40).join('\n'));
 } finally {
