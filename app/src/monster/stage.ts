@@ -818,12 +818,12 @@ function springStepFast(x: number) {
 
 /**
  * Poses a run of lyric words (a Word3D built from the words joined by spaces) and animates it: each word pops
- * up on its onset (letters rippling 14 ms apart), flashes ember, and after `exit` falls back flat and vanishes.
- * `place(l, i)` sets each letter's x, z, yaw, s (and y if needed).
+ * up on its onset (letters rippling 14 ms apart), flashes ember, and after `exit` falls back flat (letters
+ * `exitRipple` apart, default 10 ms) and vanishes. `place(l, i)` sets each letter's x, z, yaw, s (and y if needed).
  */
 export function popWords(w: Word3D, onsets: number[], t: number, place: (l: Letter, i: number) => void,
-  o: { exit?: number; exitDur?: number; glow?: number; amb?: number } = {}) {
-  const exit = o.exit ?? 1e9, dur = o.exitDur ?? 0.22;
+  o: { exit?: number; exitDur?: number; exitRipple?: number; glow?: number; amb?: number } = {}) {
+  const exit = o.exit ?? 1e9, dur = o.exitDur ?? 0.22, rip = o.exitRipple ?? 0.01;
   const kInWord = new Map<number, number>();
   w.letters.forEach((l, i) => {
     place(l, i);
@@ -831,7 +831,7 @@ export function popWords(w: Word3D, onsets: number[], t: number, place: (l: Lett
     kInWord.set(l.word, k + 1);
     const on = onsets[Math.min(l.word, onsets.length - 1)]!;
     const up = popHinge(t, on, k);
-    const gone = prog(t, exit + k * 0.01, exit + k * 0.01 + dur, ease.inCubic);
+    const gone = prog(t, exit + k * rip, exit + k * rip + dur, ease.inCubic);
     l.hinge = up + (Math.PI / 2 - up) * gone;
     l.on = t >= on - POP.lead + k * POP.ripple && gone < 0.999 ? 1 : 0;
     l.mat.uniforms.glow!.value = (o.glow ?? 0.45) * Math.pow(0.5, Math.max(0, t - on) / 0.16) * (t >= on - 0.02 ? 1 : 0) * l.on;

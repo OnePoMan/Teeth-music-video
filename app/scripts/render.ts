@@ -11,6 +11,8 @@
 //            --samples auto picks the count per frame (4, 12, 36, 108 or 324, see Engine.render)
 //   --scale N (all modes): render at N× the 1920x1080 layout (--scale 2 = true 3840x2160); stills are then saved
 //            full-res from the pixel buffer, videos are encoded at the physical size.
+//   $CHROME_ARGS: extra Chrome flags, space-separated; on a laptop with two GPUs (Windows) --force_high_performance_gpu
+//            picks the discrete one (check with `render.ts gpu`)
 // Uses the Vite dev server at --url (default http://localhost:5173); starts a private one if unreachable.
 import { chromium, type Page } from 'playwright-core';
 import { mkdirSync, existsSync } from 'node:fs';
@@ -56,7 +58,7 @@ async function openPage(url: string) {
   const browser = await chromium.launch({
     ...(exe ? { executablePath: exe } : { channel: 'chrome' }),
     headless: !flag('headed'),
-    args: [...gpuArgs, '--enable-gpu-rasterization', '--ignore-gpu-blocklist', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'],
+    args: [...gpuArgs, '--enable-gpu-rasterization', '--ignore-gpu-blocklist', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', ...(process.env.CHROME_ARGS ?? '').split(' ').filter(Boolean)],
   });
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
   const logs: string[] = [];

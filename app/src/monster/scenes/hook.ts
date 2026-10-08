@@ -215,16 +215,17 @@ export default class Hook extends Scene {
       l.y = amp * Math.sin(t * 2.1 + l.penX * 0.004 + z0);
       l.yaw = Math.atan2(cam.x - (x0 + (w.width * sc) / 2), cam.z - z0);
     };
-    if (this.prev) popWords(this.prev, this.prevOn, t, bob(-1.75, C.z - 4.5, 0.3, this.prev, 0.025), { exit: T0 + 0.02, exitDur: 0.24 });
-    // it folds away as the camera starts down, gone before MONSTER? is up (one phrase at a time); a letter nearly flat
-    // is hidden, since the low camera sees its lit top as a white block on the reflection
-    const vOut = tD0;
-    popWords(this.voice, this.small.map((w) => w.start), t, bob(VOICE.x0, VOICE.z, VOICE.cap, this.voice, 0.012),
-      { exit: vOut, exitDur: 0.12 });
-    if (t > vOut) {
-      for (const l of this.voice.letters) if (l.hinge > 1.2) l.on = 0;
-      this.voice.update();
+    // a letter nearly flat (rising or folding) is hidden: the low camera sees its lit top as a block on the water
+    const hideFlat = (w: Word3D) => { for (const l of w.letters) if (l.hinge > 1.2) l.on = 0; w.update(); };
+    if (this.prev) {
+      popWords(this.prev, this.prevOn, t, bob(-1.75, C.z - 4.5, 0.3, this.prev, 0.025), { exit: T0 + 0.02, exitDur: 0.24 });
+      hideFlat(this.prev);
     }
+    // it folds away as the camera starts down, all its letters at once and fast: "the" is up only from 45.095, and
+    // the question is gone before MONSTER?'s first letter starts up (45.275; one phrase at a time)
+    popWords(this.voice, this.small.map((w) => w.start), t, bob(VOICE.x0, VOICE.z, VOICE.cap, this.voice, 0.012),
+      { exit: tD0, exitDur: 0.06, exitRipple: 0 });
+    hideFlat(this.voice);
 
     // ---- the answer in the water: where the mirrored word stands on screen, and how far the orange has developed
     const u = this.st.bg.u, sc = this.st.cam;

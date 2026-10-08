@@ -31,7 +31,8 @@ URL=${RENDER_URL:-http://localhost:5190}
 SEGS=("0 9.3333333" "9.3333333 19.3333333" "19.3333333 25.3333333" "25.3333333 36" "36 46.0333333")
 
 run() { if [ -n "$DRY" ]; then echo "+ $*"; else "$@"; fi; }
-nframes() { ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets -of csv=p=0 "$1"; }
+# tr: ffprobe on Windows ends its lines with CRLF, which breaks the string compares and $((...)) below
+nframes() { ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets -of csv=p=0 "$1" | tr -d '\r'; }
 
 render_seg() { # $1 = segment number
   local i=$1; set -- ${SEGS[$((i-1))]}
@@ -66,7 +67,7 @@ join_all() {
   if [ -n "$DRY" ]; then return 0; fi
   # 4) check the duration (46.6 s +- 1 frame)
   local fr=$(nframes $FINAL)
-  local d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 $FINAL)
+  local d=$(ffprobe -v error -show_entries format=duration -of csv=p=0 $FINAL | tr -d '\r')
   echo "joined $FINAL: $fr frames, $d s (expected $END_FRAMES frames, $END s)"
   awk -v d=$d -v e=$END -v r=$FPS 'BEGIN{exit !(d-e<=1/r && e-d<=1/r)}' && [ $((fr-END_FRAMES)) -le 1 ] && [ $((END_FRAMES-fr)) -le 1 ] \
     || { echo "DURATION CHECK FAILED"; return 1; }

@@ -270,7 +270,10 @@ export default class Everything extends Scene {
         v('frX').setComponent(i, x); v('frY').setComponent(i, y); v('frS').setComponent(i, sc); v('frUp').setComponent(i, up);
         v('frG').setComponent(i, 1); v('frGx').setComponent(i, x + sc * m.g[0]); v('frGy').setComponent(i, y + sc * m.g[1]);
         v('frBlur').setComponent(i, 0.015);
-        for (const e of m.eyes) eyes[ei++]!.set(x + sc * e[0], y + sc * e[1], sc * e[2] * 1.6, up > 0.5 ? 1 : 0);
+        m.eyes.forEach((e, j) => {
+          const ex = i === 1 && j === 1 ? pigEyeX(e[0], circeAct) : e[0];   // the pig's eye goes with it as it charges
+          eyes[ei++]!.set(x + sc * ex, y + sc * e[1], sc * e[2] * 1.6, up > 0.5 ? 1 : 0);
+        });
       });
       (u.frAct!.value as THREE.Vector4).set(club, circeAct, hurl, burst);
       u.frLook!.value = look; u.frEye!.value = lerp(0.14, 1, look); u.frTime!.value = t;
@@ -285,6 +288,13 @@ export default class Everything extends Scene {
     this.st.render(renderer, out, t, L, { wall: 1, wallZ: WALL_Z }, { noFlame: true, cards: false, reflect: false, rim: 0.6, spec: 0.05 });
     return { bloom: 0.55, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0, 0.003 * jolt] };
   }
+}
+
+/** Circe's pig's eye (figure-local x, `ex` as it stands at the cup) once she acts: circe() in figures.ts moves the
+ *  pig by `ch` and, past act 0.02, mirrors it about its own origin (2.9 + ch) as it turns to charge. */
+function pigEyeX(ex: number, act: number) {
+  const ch = act > 0 ? 1.2 * (1 - (1 - Math.min(1, act * 1.3)) ** 3) : 0;
+  return act > 0.02 ? 5.8 + ch - ex : ex + ch;
 }
 
 /** Letters in a row standing on the floor at z0, facing the camera (+z), from x0. */
