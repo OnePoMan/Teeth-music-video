@@ -7,12 +7,16 @@
 #   review-v7.sh 5 ...    render only the listed segments (if missing), join only if all 5 exist
 #   DRY=1 review-v7.sh    print the render/ffmpeg commands instead of running them (skip logic still applies)
 #
+# Where it runs: by default Google Chrome with the GPU (a laptop or desktop). The cloud container has no GPU and no
+# Chrome: CHROME_PATH=/opt/pw-browsers/chromium RENDER_GL=--swiftshader review-v7.sh. RENDER_URL picks the dev
+# server (default http://localhost:5190; render.ts starts a private one if nothing answers there).
+#
 # Frame mapping (render.ts video -> main.ts stream): frames n = round(from*30) .. round(to*30)-1, frame n at
 # time n/30, `--to` exclusive. Segment 5 ends at the hook1|mirror cut (mirror scene does not exist yet):
 #   cut = timeOfBeat(floor(beatAt(46.52 + 0.02))) = beats[69] = 46.022 s (data/monster/audio.json)
 #   frames with t < 46.022: n <= 1380 (1380/30 = 46.0, 1381/30 = 46.0333) -> --to 46.0333333 (round(*30) = 1381)
 #   so segment 5 = frames 1080..1380 (301 frames), joined total = 1381 frames, then hold 17 frames -> 1398 = 46.6 s.
-cd /home/user/Teeth-music-video/app || exit 1
+cd "$(dirname "$0")/.." || exit 1
 # paths are overridable for testing only (V7_*), defaults are the real ones
 OUT=${V7_OUT:-../out/review/v7}
 FINAL=${V7_FINAL:-../out/review/pilot-v7.mp4}
@@ -22,6 +26,8 @@ FPS=30
 END=46.6
 END_FRAMES=1398   # round(46.6*30)
 JOIN_FRAMES=1381  # round(46.0333333*30): frames before the hold
+GL=${RENDER_GL:-}
+URL=${RENDER_URL:-http://localhost:5190}
 SEGS=("0 9.3333333" "9.3333333 19.3333333" "19.3333333 25.3333333" "25.3333333 36" "36 46.0333333")
 
 run() { if [ -n "$DRY" ]; then echo "+ $*"; else "$@"; fi; }
@@ -31,7 +37,7 @@ render_seg() { # $1 = segment number
   local i=$1; set -- ${SEGS[$((i-1))]}
   local f=$OUT/s$i.mp4
   if [ -s "$f" ]; then echo "skip $f"; return 0; fi
-  local cmd=(env CHROME_PATH=/opt/pw-browsers/chromium bun scripts/render.ts video --swiftshader --url http://localhost:5190 --from $1 --to $2 --fps 30 --samples 1 --preset medium --noaudio --out $OUT/tmp$i.mp4)
+  local cmd=(bun scripts/render.ts video $GL --url $URL --from $1 --to $2 --fps 30 --samples 1 --preset medium --noaudio --out $OUT/tmp$i.mp4)
   if [ -n "$DRY" ]; then echo "+ ${cmd[*]} > $OUT/log$i.txt 2>&1 && mv $OUT/tmp$i.mp4 $f"; return 0; fi
   mkdir -p "$OUT"
   "${cmd[@]}" > $OUT/log$i.txt 2>&1 && mv $OUT/tmp$i.mp4 $f || { echo "segment $i failed"; tail -3 $OUT/log$i.txt; return 1; }
