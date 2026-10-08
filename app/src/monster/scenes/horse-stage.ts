@@ -128,7 +128,7 @@ float soldierRow(float u, float y, float side, float row) {
       if (r <= 0.0) continue;
       float r1 = r - 1.0;
       r = 1.0 + 2.70158 * r1 * r1 * r1 + 1.70158 * r1 * r1;              // out-back: they stand up (no pow of a negative)
-      float feet = y0 - past * 1.25 + solJolt * (0.05 + 0.04 * hk) + (solMarch > 0.0 ? 0.05 * abs(sin(pos * 4.0 + hk)) : 0.0);
+      float feet = y0 - past * 1.25 + solJolt * (0.05 + 0.04 * hk) + (solMarch > 0.0 ? 0.11 * abs(sin(pos * 3.2 + hk * 6.0)) : 0.0);
       vec2 q = vec2(dir * (u - pos), y - feet) / sc;
       q.y /= max(r, 0.05);
       if (abs(q.x) > 0.6 || q.y > 1.7 || q.y < -0.2) continue;
@@ -227,7 +227,9 @@ vec3 wallCol(vec3 P, int kind) {
     float wy = wallTop - 0.9, kx = floor((P.x - 1.2) / 2.4 + 0.5), hx = hash11(kx * 3.7 + 1.3);
     vec2 wp = vec2(P.x - 1.2 - kx * 2.4 - (hx - 0.5) * 0.5, P.y - wy);
     float win = sdBox(wp, vec2(0.2, 0.3));
-    if (hx > 0.3 && win < 0.0) {
+    vec2 wc = vec2(P.x - wp.x, wy);
+    bool behind = horseT.w > 0.0 && trojanHorse((wc - horseT.xy) / horseT.z, horseA.x, horseA.y, horseA.z, horseA.w, 0.0) * horseT.z < 0.6;
+    if (hx > 0.3 && win < 0.0 && !behind) {
       float lg = length(wp - vec2(0.0, -0.08));
       float k = 0.9 + 0.1 * sin(tNow * 9.0 + kx * 1.9);
       c = C_INK * 0.4 + mix(C_SIGNAL, C_EMBER, 0.7) * k * (2.2 * (1.0 - smoothstep(0.05, 0.085, lg)) + 0.4 * exp(-lg / 0.12));
@@ -246,10 +248,11 @@ vec3 holeCol(vec3 P, vec3 D) {
   float through = smoothstep(-soft, soft, hatchR.x - abs(X.x)) * smoothstep(-soft, soft, hatchR.y - X.z) * smoothstep(-soft, soft, X.z - hatchR.z);
   float occ = cardShadow(Q);
   float grain = 0.9 + 0.1 * snoise(Q.xz * 1.3) + 0.05 * snoise(Q.xz * 17.0);
-  vec3 c = clayCol(fallOff(Q) * 2.2 * through * (1.0 - occ)) * grain;
+  vec3 c = clayCol(0.04 + fallOff(Q) * 4.0 * through * (1.0 - occ)) * grain;
   // the hole's cut edge: the planks' thickness, dark
   float rim = min(min(hatchR.x - abs(P.x), hatchR.y - P.z), P.z - hatchR.z);
-  return mix(clayCol(0.08) * 0.5, c, smoothstep(0.02, 0.06, rim));
+  float farEdge = 1.0 - smoothstep(0.0, 0.09, P.z - hatchR.z);
+  return mix(mix(clayCol(0.08) * 0.5, clayCol(0.6 * fallOff(P)), farEdge), c, smoothstep(0.02, 0.06, rim) * (1.0 - farEdge));
 }
 
 void main() {
@@ -329,15 +332,15 @@ const DOOR_VERT = /* glsl */ `
 precision highp float;
 in vec3 position; in vec3 normal;
 uniform mat4 modelMatrix, viewMatrix, projectionMatrix;
-out vec3 vW; out vec3 vN; out vec3 vNL;
+out vec3 vW; out vec3 vN; out vec3 vNL; out vec3 vP;
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
-  vW = w.xyz; vN = mat3(modelMatrix) * normal; vNL = normal;
+  vW = w.xyz; vN = mat3(modelMatrix) * normal; vNL = normal; vP = position;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 const DOOR_FRAG = /* glsl */ `
 precision highp float;
-in vec3 vW; in vec3 vN; in vec3 vNL;
+in vec3 vW; in vec3 vN; in vec3 vNL; in vec3 vP;
 out vec4 fragColor;
 ${GLSL_COMMON}
 uniform vec3 Lc; uniform float LI, reach;
@@ -349,8 +352,14 @@ void main() {
   float lit = max(dot(N, L), 0.0) * fall;
   vec3 clay = mix(mix(C_BLOOD, C_SIGNAL, 0.75), C_EMBER, 0.2) * 0.8;
   // its top is the floor's black glaze; its underside and edges bare wood (clay), planked
-  float top = step(0.5, vNL.y);
-  vec3 col = top > 0.5 ? C_INK * (0.6 + 0.5 * lit) : clay * (0.03 + 0.6 * lit);
+  // planks run along the door (z): seams across x every 0.39; the glazed top keeps them reserved in the clay
+  float seam = 1.0 - smoothstep(0.008, 0.016, abs(fract(vP.x / 0.65 + 0.5) - 0.5) * 0.65);
+  float batten = 1.0 - smoothstep(0.06, 0.075, abs(abs(vP.z) - 0.5));
+  vec3 wood = clay * (0.08 + 0.75 * lit);
+  vec3 col;
+  if (vNL.y > 0.5) col = mix(C_INK * (0.6 + 0.5 * lit) + clay * 0.04, wood * 0.45, max(seam * 0.7, batten * 0.5));
+  else if (vNL.y < -0.5) col = wood * (1.0 - 0.6 * seam);
+  else col = clay * (0.25 + 0.9 * lit);                      // the edges: bare wood, catching the light
   if (any(isnan(col)) || any(isinf(col))) col = vec3(0.0);
   fragColor = vec4(col, 1.0);
 }`;
@@ -361,7 +370,7 @@ export class HatchDoor {
   readonly mat: THREE.RawShaderMaterial;
   readonly occluder = new THREE.Group();
   constructor(hx: number, zN: number, zF: number) {
-    const len = zN - zF, th = 0.07;
+    const len = zN - zF, th = 0.12;
     this.mat = new THREE.RawShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: DOOR_VERT, fragmentShader: DOOR_FRAG,
       uniforms: { Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 20 } },
