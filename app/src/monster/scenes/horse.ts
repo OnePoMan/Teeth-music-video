@@ -21,7 +21,7 @@ import { HatchDoor, HorseStage, NL, NR } from './horse-stage';
 /** The vault (radius, axis height), the chest's z, the ground under the hatch, the hatch (half-width, near z, far z). */
 const BAR = { R: 2.7, yc: 1.1 }, END_Z = -8.0, GROUND_Y = -6.5, HATCH = { hx: 1.95, zN: -2.0, zF: -3.7 };
 /** Where the heroes stand; where the small phrases stand (before the hatch, and beyond it once it is open). */
-const HERO_Z = -5.4, SMALL_Z = -3.0, FAR_Z = -4.25, SMALL_CAP = 0.32;
+const HERO_Z = -5.4, SMALL_Z = -4.0, FAR_Z = -4.25, SMALL_CAP = 0.32;
 /** Outside: Troy's wall (z, top), the horse's shadow (x, scale). */
 const TROY = { z: -8, top: 7.6 }, HORSE = { x: -0.4, s: 1.0 };
 const FOV = 40;
@@ -164,9 +164,9 @@ export default class Horse extends Scene {
         [T1, [0.0, 1.42, HERO_Z + 4.65], ease.linear],
       ]);
       at = vkeys(t, [
-        [tCut, [0.0, 1.25, END_Z]],
-        [b2, [0.0, 1.28, END_Z], ease.inOutQuad],
-        [orW.start, [0.0, 1.28, END_Z], ease.linear],
+        [tCut, [0.0, 0.9, END_Z]],
+        [b2, [0.0, 0.55, END_Z], ease.inOutQuad],
+        [orW.start, [0.0, 0.55, END_Z], ease.linear],
         [b3, [0.0, 0.25, -3.2], ease.inOutCubic],
         [this.tTip, [0.0, 0.3, -3.0], ease.linear],
         [this.tTip + 0.55, [0.0, -4.0, hatchC - 0.3], ease.inOutQuad],
