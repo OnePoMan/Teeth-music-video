@@ -216,8 +216,15 @@ export default class Hook extends Scene {
       l.yaw = Math.atan2(cam.x - (x0 + (w.width * sc) / 2), cam.z - z0);
     };
     if (this.prev) popWords(this.prev, this.prevOn, t, bob(-1.75, C.z - 4.5, 0.3, this.prev, 0.025), { exit: T0 + 0.02, exitDur: 0.24 });
+    // it folds away as the camera starts down, gone before MONSTER? is up (one phrase at a time); a letter nearly flat
+    // is hidden, since the low camera sees its lit top as a white block on the reflection
+    const vOut = tD0;
     popWords(this.voice, this.small.map((w) => w.start), t, bob(VOICE.x0, VOICE.z, VOICE.cap, this.voice, 0.012),
-      { exit: bw.start - 0.06, exitDur: 0.15 });
+      { exit: vOut, exitDur: 0.12 });
+    if (t > vOut) {
+      for (const l of this.voice.letters) if (l.hinge > 1.2) l.on = 0;
+      this.voice.update();
+    }
 
     // ---- the answer in the water: where the mirrored word stands on screen, and how far the orange has developed
     const u = this.st.bg.u, sc = this.st.cam;
