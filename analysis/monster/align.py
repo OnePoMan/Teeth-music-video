@@ -272,10 +272,10 @@ def align_set(E, src, idx, windows=True, margin=1.5):
     return word_table(sp, toks, line_ids=idx), score
 
 
-def main(plots=False, split=False, out=None, plot_lines=None):
+def main(plots=False, split=False, out_path=None, plot_lines=None):
     """split: align the lead lines on the karaoke model's lead voice and the ensemble's interjections on the backing
     (the Demucs vocals minus the lead), with the lead voice's features for the refinement (common.load_vocal_source).
-    out: write the lyrics there instead of data/monster/lyrics.json (to compare runs before merging lines)."""
+    out_path: write the lyrics there instead of data/monster/lyrics.json (to compare runs before merging lines)."""
     src = common.load_lyrics_src()
     lead = [i for i, s in enumerate(src) if s[2] == "lead"]
     ens = [i for i, s in enumerate(src) if s[2] != "lead"]
@@ -326,7 +326,7 @@ def main(plots=False, split=False, out=None, plot_lines=None):
             out.append(d)
         lines.append(dict(i=li, text=text, start=out[0]["start"], end=out[-1]["end"], voice=voice, words=out))
     doc = dict(lines=lines, extras=detect_extras(allw, f), notes=NOTES)
-    path = common.Path(out) if out else common.DATA / "lyrics.json"
+    path = common.Path(out_path) if out_path else common.DATA / "lyrics.json"
     path.write_text(json.dumps(doc, indent=1, ensure_ascii=False))
     print("wrote", path, "score", round(score, 1))
     for l in lines:
@@ -375,4 +375,4 @@ def _lines(spec):
 
 
 if __name__ == "__main__":
-    main(plots="--plots" in sys.argv, split="--split" in sys.argv, out=_arg("--out"), plot_lines=_lines(_arg("--lines")))
+    main(plots="--plots" in sys.argv, split="--split" in sys.argv, out_path=_arg("--out"), plot_lines=_lines(_arg("--lines")))

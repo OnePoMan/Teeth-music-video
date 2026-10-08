@@ -2092,33 +2092,33 @@
   {
    "i": 37,
    "text": "If I became the",
-   "start": 131.79,
-   "end": 134.035,
+   "start": 131.82,
+   "end": 133.492,
    "voice": "lead",
    "words": [
     {
      "w": "If",
-     "start": 131.79,
-     "end": 132.03,
-     "conf": 0.84
+     "start": 131.82,
+     "end": 132.015,
+     "conf": 0.85
     },
     {
      "w": "I",
-     "start": 132.03,
-     "end": 132.46,
+     "start": 132.015,
+     "end": 132.44,
      "conf": 0.85
     },
     {
      "w": "became",
-     "start": 132.46,
+     "start": 132.44,
      "end": 133.16,
      "conf": 0.85
     },
     {
      "w": "the",
      "start": 133.16,
-     "end": 134.035,
-     "conf": 0.8
+     "end": 133.492,
+     "conf": 0.84
     }
    ]
   },
@@ -2140,45 +2140,45 @@
   {
    "i": 39,
    "text": "Oh, ruthlessness is mercy upon ourselves",
-   "start": 134.035,
-   "end": 140.68,
+   "start": 135.233,
+   "end": 139.568,
    "voice": "lead",
    "words": [
     {
      "w": "Oh,",
-     "start": 134.035,
+     "start": 135.233,
      "end": 135.82,
-     "conf": 0.4
+     "conf": 0.77
     },
     {
      "w": "ruthlessness",
      "start": 135.82,
-     "end": 136.904,
+     "end": 136.899,
      "conf": 1.0
     },
     {
      "w": "is",
-     "start": 136.904,
+     "start": 136.899,
      "end": 137.059,
      "conf": 0.85
     },
     {
      "w": "mercy",
-     "start": 137.128,
-     "end": 137.572,
-     "conf": 1.0
+     "start": 137.123,
+     "end": 137.8,
+     "conf": 0.85
     },
     {
      "w": "upon",
-     "start": 137.572,
-     "end": 138.226,
+     "start": 137.8,
+     "end": 138.24,
      "conf": 0.85
     },
     {
      "w": "ourselves",
-     "start": 138.226,
-     "end": 140.68,
-     "conf": 0.77
+     "start": 138.24,
+     "end": 139.568,
+     "conf": 0.69
     }
    ]
   },
@@ -2994,60 +2994,60 @@
   {
    "i": 55,
    "text": "and then we'll make it home",
-   "start": 182.53,
-   "end": 189.62,
+   "start": 182.475,
+   "end": 186.955,
    "voice": "lead",
    "words": [
     {
      "w": "and",
-     "start": 182.53,
-     "end": 182.66,
-     "conf": 0.52
+     "start": 182.475,
+     "end": 182.575,
+     "conf": 0.85
     },
     {
      "w": "then",
      "start": 182.66,
      "end": 182.96,
-     "conf": 0.57
+     "conf": 0.77
     },
     {
      "w": "we'll",
      "start": 182.96,
-     "end": 183.18,
-     "conf": 0.58
+     "end": 183.2,
+     "conf": 1.0
     },
     {
      "w": "make",
-     "start": 183.18,
-     "end": 183.558,
-     "conf": 0.72
+     "start": 183.2,
+     "end": 183.438,
+     "conf": 1.0
     },
     {
      "w": "it",
-     "start": 183.558,
-     "end": 183.702,
-     "conf": 0.59
+     "start": 183.523,
+     "end": 183.678,
+     "conf": 0.7
     },
     {
      "w": "home",
-     "start": 183.702,
-     "end": 189.62,
-     "conf": 0.74
+     "start": 183.678,
+     "end": 186.955,
+     "conf": 0.82
     }
    ]
   },
   {
    "i": 56,
    "text": "Monster",
-   "start": 185.88,
-   "end": 188.62,
+   "start": 186.86,
+   "end": 188.04,
    "voice": "ensemble",
    "words": [
     {
      "w": "Monster",
-     "start": 185.88,
-     "end": 188.62,
-     "conf": 0.39
+     "start": 186.86,
+     "end": 188.04,
+     "conf": 0.47
     }
    ]
   },
@@ -3055,30 +3055,30 @@
    "i": 57,
    "text": "Penelope",
    "start": 189.62,
-   "end": 194.26,
+   "end": 192.063,
    "voice": "lead",
    "words": [
     {
      "w": "Penelope",
      "start": 189.62,
-     "end": 194.26,
-     "conf": 0.63,
+     "end": 192.063,
+     "conf": 0.92,
      "syl": [
       [
        189.62,
-       189.699
+       189.82
       ],
       [
-       189.699,
-       190.28
+       189.82,
+       190.183
       ],
       [
-       190.28,
-       190.36
+       190.183,
+       190.42
       ],
       [
-       190.36,
-       194.26
+       190.42,
+       192.063
       ]
      ]
     }
@@ -3087,15 +3087,15 @@
   {
    "i": 58,
    "text": "Monster",
-   "start": 190.44,
-   "end": 194.52,
+   "start": 190.38,
+   "end": 194.04,
    "voice": "ensemble",
    "words": [
     {
      "w": "Monster",
-     "start": 190.44,
-     "end": 194.52,
-     "conf": 0.46
+     "start": 190.38,
+     "end": 194.04,
+     "conf": 0.5
     }
    ]
   },
@@ -3103,14 +3103,14 @@
    "i": 59,
    "text": "Telemachus",
    "start": 194.26,
-   "end": 198.02,
+   "end": 197.177,
    "voice": "lead",
    "words": [
     {
      "w": "Telemachus",
      "start": 194.26,
-     "end": 198.02,
-     "conf": 0.64,
+     "end": 197.177,
+     "conf": 0.85,
      "syl": [
       [
        194.26,
@@ -3118,15 +3118,15 @@
       ],
       [
        194.62,
-       195.226
+       195.221
       ],
       [
-       195.226,
+       195.221,
        195.62
       ],
       [
        195.62,
-       198.02
+       197.177
       ]
      ]
     }
@@ -3135,60 +3135,60 @@
   {
    "i": 60,
    "text": "Monster",
-   "start": 197.48,
-   "end": 199.78,
+   "start": 197.5,
+   "end": 199.18,
    "voice": "ensemble",
    "words": [
     {
      "w": "Monster",
-     "start": 197.48,
-     "end": 199.78,
-     "conf": 0.44
+     "start": 197.5,
+     "end": 199.18,
+     "conf": 0.48
     }
    ]
   },
   {
    "i": 61,
    "text": "Oh, ruthlessness is mercy upon ourselves",
-   "start": 198.02,
-   "end": 206.7,
+   "start": 199.26,
+   "end": 203.917,
    "voice": "lead",
    "words": [
     {
      "w": "Oh,",
-     "start": 198.02,
+     "start": 199.26,
      "end": 199.56,
-     "conf": 0.63
+     "conf": 0.49
     },
     {
      "w": "ruthlessness",
      "start": 199.56,
-     "end": 200.92,
-     "conf": 0.63
+     "end": 200.873,
+     "conf": 0.74
     },
     {
      "w": "is",
-     "start": 200.92,
-     "end": 201.12,
-     "conf": 0.84
+     "start": 200.873,
+     "end": 201.14,
+     "conf": 0.77
     },
     {
      "w": "mercy",
-     "start": 201.12,
-     "end": 201.567,
-     "conf": 0.67
+     "start": 201.14,
+     "end": 201.547,
+     "conf": 0.85
     },
     {
      "w": "upon",
-     "start": 201.567,
+     "start": 201.547,
      "end": 202.195,
-     "conf": 0.69
+     "conf": 0.85
     },
     {
      "w": "ourselves",
      "start": 202.195,
-     "end": 206.7,
-     "conf": 0.54
+     "end": 203.917,
+     "conf": 0.55
     }
    ]
   },
@@ -3196,35 +3196,35 @@
    "i": 62,
    "text": "Monster",
    "start": 201.74,
-   "end": 203.78,
+   "end": 205.26,
    "voice": "ensemble",
    "words": [
     {
      "w": "Monster",
      "start": 201.74,
-     "end": 203.78,
-     "conf": 0.44
+     "end": 205.26,
+     "conf": 0.51
     }
    ]
   },
   {
    "i": 63,
    "text": "I'll become the monster",
-   "start": 206.7,
+   "start": 206.64,
    "end": 209.524,
    "voice": "lead",
    "words": [
     {
      "w": "I'll",
-     "start": 206.7,
+     "start": 206.64,
      "end": 207.06,
-     "conf": 0.71
+     "conf": 0.69
     },
     {
      "w": "become",
      "start": 207.06,
      "end": 207.8,
-     "conf": 0.85
+     "conf": 0.84
     },
     {
      "w": "the",
@@ -3242,5 +3242,5 @@
   }
  ],
  "extras": [],
- "notes": "Timeline = gapless decode of audio/monster.mp3 (ffmpeg; the same as data/monster/audio.json and the browser). Method: CTC emissions (20 ms frames) of the Demucs htdemucs_ft vocal stem (mono, left, right) from two acoustic models (torchaudio MMS_FA, wav2vec2-large-lv60k-960h), fused; one constrained Viterbi pass over the lead lines with a margin-scored garbage token between lines; the ensemble's interjections aligned separately; starts refined on vocal rests, onsets and fricatives; ends where the voice stops or the next word starts; manual corrections from QA plots (analysis/monster/align.py FIX). Lines with voice 'ensemble' are the chorus' interjections; 'syl' gives per-subword starts for multi-syllable respellings."
+ "notes": "Timeline = gapless decode of audio/monster.mp3 (ffmpeg; the same as data/monster/audio.json and the browser). Method: CTC emissions (20 ms frames) of the Demucs htdemucs_ft vocal stem (mono, left, right) from two acoustic models (torchaudio MMS_FA, wav2vec2-large-lv60k-960h), fused; one constrained Viterbi pass over the lead lines with a margin-scored garbage token between lines; the ensemble's interjections aligned separately; starts refined on vocal rests, onsets and fricatives; ends where the voice stops or the next word starts; manual corrections from QA plots (analysis/monster/align.py FIX). Lines with voice 'ensemble' are the chorus' interjections; 'syl' gives per-subword starts for multi-syllable respellings. Lines 37, 39 and 55-63 (2026-10-08): aligned with analysis/monster/align.py --split (the lead lines on the mel-band-roformer karaoke model's lead voice and its features, the ensemble's interjections on the Demucs vocals minus that lead), checked on the QA plots; every other line is unchanged."
 }
