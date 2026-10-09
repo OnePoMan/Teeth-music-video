@@ -315,8 +315,12 @@ export class Word3D {
 
   /** Scales the light this run receives (0: a black silhouette, whatever the flame does). */
   lightMul = 1;
-  /** This run's contact sheen on the glaze (fraction of its cap height; 0 a true mirror image), overriding the
-   *  stage's (`Stage.sheen`); null: the stage's. */
+  /** Whether this run shows in the glaze's and the water's mirror at all. Words have no reflection (client,
+   *  2026-10-09: "I don't want any of the words to have a reflective side … except where explicitly done so such
+   *  as HIDING"), so it is off unless a scene asks for one; black-figure answers (`bf`) always show there. */
+  reflect = false;
+  /** When it reflects: its contact sheen on the glaze (fraction of its cap height; 0 a true mirror image), overriding
+   *  the stage's (`Stage.sheen`); null: the stage's. */
   sheen: number | null = null;
   /** Sets the light uniforms on every letter. */
   light(Lc: THREE.Vector3, LI: number, reach: number, rim = 1, camPos?: THREE.Vector3) {
@@ -452,7 +456,11 @@ float atlasA(float k, vec2 uv, float lod) {
   return textureLod(atlas3, uv, lod).a;
 }
 
+// 0 while the glaze samples the wall it mirrors: a word's shadow on the wall is never mirrored (client, 2026-10-09:
+// no word has a reflection, and a mirrored word shadow reads as an upside-down word)
+float cardK = 1.0;
 float cardShadow(vec3 P) {
+  if (cardK <= 0.0) return 0.0;
   float lit = 1.0;
   for (int i = 0; i < ${NC}; i++) {
     if (i >= nCards) break;
@@ -601,8 +609,10 @@ void main() {
         R.y = abs(R.y);
         float tR = wallHit(P, R);
         vec3 refl = C_INK;
+        cardK = 0.0;
         if (tR < 1e8) { float o3; vec3 PR = P + R * tR; refl = PR.y > 0.0 ? clayWall(PR, wallNormal(PR), o3) : C_INK; }
         else refl = skyTint(R, C_INK);
+        cardK = 1.0;
         vec2 ruv = FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)}) + vec2(Nf.x, -Nf.z) * reflBend;
         vec4 rt = vec4(0.0), rtAll = vec4(0.0);
         if (reflOn > 0.0) {
@@ -685,11 +695,12 @@ export class Stage {
   /** Shadow cards this stage holds (default MAX_CARDS; each costs ~8 fragment uniform vectors). */
   readonly maxCards: number;
   /**
-   * The letters' contact sheen on the glaze and the water (fraction of each letter's cap height, measured down from
-   * the surface): a letter's mirror image fades out within this depth, so words stand on the gloss without a second,
-   * upside-down copy of themselves (client, v7 note 8; the critics' "doubled type"). 0: true mirror images. Applies to
-   * Word3D letters and change's sherds (not black-figure answers, not figures or other meshes). Override per scene here or per render
-   * (`render(..., { sheen })`), or per run (`Word3D.sheen`).
+   * Words have no reflection: the mirrored render leaves out every run whose `reflect` is false (the default), and
+   * the glaze never mirrors a word's shadow on the wall (client, 2026-10-09; before that, v7 note 8 and the critics'
+   * "doubled type"). Black-figure answers (`bf`, the water's painted answers) are what that render is for: they always
+   * show. For a run that does reflect (`Word3D.reflect`), this is its contact sheen (fraction of each letter's cap
+   * height, measured down from the surface: its mirror image fades out within this depth; 0: a true mirror image).
+   * Override per scene here or per render (`render(..., { sheen })`), or per run (`Word3D.sheen`).
    */
   sheen = SHEEN;
   constructor(o: { hooks?: string; uniforms?: Record<string, THREE.IUniform>; maxCards?: number; sheen?: number } = {}) {
@@ -797,11 +808,21 @@ export class Stage {
       renderer.setClearColor(0x000000, 0);
       renderer.clear(true, true, true);
       o.mirror?.before?.();
+      // words have no mirror image (only black-figure answers and runs that ask for one show here)
+      const hidden: THREE.Mesh[] = [];
+      for (const w of this.words) {
+        if (w.reflect) continue;
+        for (const l of w.letters) {
+          if (!l.mesh?.visible || (l.mat?.uniforms?.bf?.value ?? 0) > 0.5) continue;
+          l.mesh.visible = false; hidden.push(l.mesh);
+        }
+      }
       this.setSheen(o.sheen ?? this.sheen);
       this.scene.scale.y = -1; this.scene.updateMatrixWorld(true);
       renderer.render(this.scene, this.cam.cam);
       this.scene.scale.y = 1; this.scene.updateMatrixWorld(true);
       this.setSheen(0);
+      for (const m of hidden) m.visible = true;
       o.mirror?.after?.();
       u.reflTex!.value = this.refl.texture; u.reflOn!.value = 1;
     } else u.reflOn!.value = 0;
