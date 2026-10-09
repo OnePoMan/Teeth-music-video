@@ -2,7 +2,7 @@
 // shore is the line, a bone hairline, and the horizon. A hero word stands lit on the waterline with no mirror image
 // of its own; when the water answers, the answer is painted under the surface right way round, in black-figure
 // (black slip, incised contour) on the clay's orange developing in the water, rippling with the swell (client,
-// 2026-10-08: "the answer under the surface"). Shared by `scenes/hook.ts` (n=1, 2) and `scenes/mirror.ts`.
+// 2026-10-08: "the answer under the surface"). Shared by `scenes/hook.ts` (n=1, 2) and `scenes/c1-lookback.ts`.
 import * as THREE from 'three';
 import { W, H } from '../engine/gl';
 import { F } from '../engine/type';

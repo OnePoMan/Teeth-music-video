@@ -1,10 +1,10 @@
-// SKETCH (stills only) — `mirror`, chorus 1's last line, ?opt=monster (client-approved design B, 2026-10-09). Back on
-// hook 1's shore at night: "What if I'm the" small near us, MONSTER? standing lit on the waterline at hero scale. Its
-// shadow, thrown by the fire behind us onto the far bank, is Odysseus (odysseus.ts, the drawn bow), large, among a
-// crowd of the dead (generic shades, smaller, their heads turned to him). On the downbeat after "monster" he turns his
-// head and looks straight back at us, and the dead turn theirs with him. (The earlier chorus 1 sketch is in git.)
+// `lookback` — chorus 1, line 14 (MONSTER?, 64.689–68.689): the shadow looks back. Back on hook 1's shore at night:
+// the lead-in phrase small near us, MONSTER? standing lit on the waterline at hero scale. Its shadow, thrown by the fire
+// behind us onto the far bank, is Odysseus (odysseus.ts, the drawn bow), large, among a crowd of the dead (generic
+// shades, smaller, their heads turned to him). On the downbeat after MONSTER? he turns his head and looks straight back
+// at us, and the dead turn theirs with him.
 import * as THREE from 'three';
-import { Scene, type Frame, type PostOverrides, type SceneClass } from '../../engine/scene';
+import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { H as HPX } from '../../engine/gl';
 import { F } from '../../engine/type';
 import type { Line } from '../../engine/lyrics';
@@ -53,25 +53,7 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   return col + C_BONE * 0.8 * lineG;
 }`;
 
-/** Dispatches on ?opt: wrong (sketch-c1-wrong.ts), vase (sketch-c1-vase.ts), scylla (sketch-c1-scylla.ts), shield
- *  (sketch-c1-shield.ts), or (default) monster. Chorus 1 is being
- *  rebuilt one plate per line. */
-export default class SketchMirror extends Scene {
-  private d!: Scene;
-  override async init() {
-    const opt = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('opt') : null;
-    const C: SceneClass = opt === 'wrong' ? (await import('./sketch-c1-wrong')).default
-      : opt === 'vase' ? (await import('./sketch-c1-vase')).default
-      : opt === 'scylla' ? (await import('./sketch-c1-scylla')).default
-      : opt === 'shield' ? (await import('./sketch-c1-shield')).default : MirrorMonster;
-    this.d = new C(this.ctx);
-    await this.d.init();
-  }
-  render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides | void { return this.d.render(f, out); }
-  override dispose() { this.d?.dispose(); }
-}
-
-export class MirrorMonster extends Scene {
+export default class C1Lookback extends Scene {
   private st!: Stage;
   private hero!: Word3D;
   private small!: Word3D;

@@ -1,11 +1,11 @@
-// SKETCH (stills only) — chorus 1, the PROBLEM / HIDING line (~49.0–54.0), ?sketch=mirror&opt=scylla: "Scylla's cliff"
-// (Odyssey 12: her cave halfway up a sea cliff whose peak is always in dark cloud; Odysseus sailed past without telling
-// his men she was there). Wide first: the dark sea, the clay cliff rising into the cloud that hides its peak, the cave a
-// dark hole halfway up. In low over the water to PROBLEM, lit on a rock ledge at the cliff's foot, its shadow thrown up the
-// clay by the fire behind us. On "hiding" the camera climbs the face, through a wreath of cloud on "all along", to the
-// cave mouth, arriving before the orchestra's hits: her six necks wait coiled at its lip in black-figure, serpent heads
-// shut, and strike out in three pairs on the hits (53.01 the outer, 53.34 the middle, 53.82 the inner, closing on the
-// word), jaws snapping wide on two long white fangs; HIDING painted in the cave among them on the 53.36 downbeat.
+// `scylla` — chorus 1, line 10 (PROBLEM / HIDING, 49.02–54.02): Scylla's cliff (Odyssey 12: her cave halfway up a
+// sea cliff whose peak is always in dark cloud; Odysseus sailed past without telling his men she was there). Wide first:
+// the dark sea, the clay cliff rising into the cloud that hides its peak, the cave a dark hole halfway up. In low over
+// the water to PROBLEM, lit on a rock ledge at the cliff's foot, its shadow thrown up the clay by the fire behind us.
+// From 51.45 the camera climbs the face, through a wreath of cloud, to the cave mouth, arriving before the
+// orchestra's hits: her six necks wait coiled at its lip in black-figure, serpent heads shut, and strike out in three
+// pairs on the hits (53.01 the outer, 53.34 the middle, 53.82 the inner, closing on the word), jaws snapping wide on two
+// long white fangs; HIDING painted in the cave among them on the 53.36 downbeat.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { GLSL_COMMON } from '../../engine/glsl/common';
@@ -222,7 +222,7 @@ void main() {
   fragColor = vec4(col, 1.0);
 }`;
 
-export default class SketchC1Scylla extends Scene {
+export default class C1Scylla extends Scene {
   private st!: Stage;
   private hero!: Word3D;
   private hiding!: Word3D;

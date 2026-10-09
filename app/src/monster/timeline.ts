@@ -14,11 +14,12 @@ const scene = (name: string) => () => {
 };
 
 export function makeTimeline(ly: Lyrics, au: AudioData): TimelineEntry[] {
-  /** Cut on the last beat at/before the first word of the matching lead line (never after the word). */
-  const cut = (q: string, nth = 0, tol = 0.02) => {
+  /** Cut on the last beat at/before the first word of the matching lead line (never after the word); `off` shifts the
+   *  cut by a fraction of a beat (0.5: the off-beat after that beat, for a line whose first word falls late in it). */
+  const cut = (q: string, nth = 0, tol = 0.02, off = 0) => {
     const l = ly.lines.filter((x) => x.voice !== 'ensemble' && x.text.toLowerCase().replace(/[’]/g, "'").includes(q.toLowerCase()))[nth];
     if (!l) throw new Error(`lyric not found: ${q}`);
-    return au.timeOfBeat(Math.floor(au.beatAt(l.words[0]!.start + tol)));
+    return au.timeOfBeat(Math.floor(au.beatAt(l.words[0]!.start + tol)) + off);
   };
   const outro = au.sections.find((x) => x.name === 'outro')?.start ?? cut('Penelope', 1);
 
@@ -30,7 +31,13 @@ export function makeTimeline(ly: Lyrics, au: AudioData): TimelineEntry[] {
     souls: cut("I'm surrounded"),
     sea: cut('What if the greatest threat'),
     hook1: cut("What if I'm the monster", 0),
-    mirror: cut("What if I'm in the wrong"),
+    // chorus 1 after hook 1, one plate per line (12 and 13 share the shield); `scylla` cuts on the off-beat before its
+    // line: on the whole beat the line's first word fell too near the cut
+    wrong: cut("What if I'm in the wrong"),
+    scylla: cut("What if I'm the problem", 0, 0.02, 0.5),
+    vase: cut("What if I'm the one who"),
+    shield: cut('far too kind to foes'),
+    lookback: cut("What if I'm the monster", 1),
     cyclops: cut('Is the cyclops'),
     circe: cut('When the witch'),
     poseidon: cut('When a God'),
@@ -62,8 +69,12 @@ export function makeTimeline(ly: Lyrics, au: AudioData): TimelineEntry[] {
     E('change', 'change', b.change, b.souls),
     E('souls', 'souls', b.souls, b.sea),
     E('sea', 'sea', b.sea, b.hook1),
-    E('hook1', 'hook', b.hook1, b.mirror, { params: { n: 1 } }),
-    E('mirror', 'mirror', b.mirror, b.cyclops),
+    E('hook1', 'hook', b.hook1, b.wrong, { params: { n: 1 } }),
+    E('wrong', 'c1-wrong', b.wrong, b.scylla),
+    E('scylla', 'c1-scylla', b.scylla, b.vase),
+    E('vase', 'c1-vase', b.vase, b.shield),
+    E('shield', 'c1-shield', b.shield, b.lookback),
+    E('lookback', 'c1-lookback', b.lookback, b.cyclops),
     E('cyclops', 'cyclops', b.cyclops, b.circe),
     E('circe', 'circe', b.circe, b.poseidon),
     E('poseidon', 'poseidon', b.poseidon, b.horse),

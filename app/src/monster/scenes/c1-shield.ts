@@ -1,8 +1,8 @@
-// SKETCH (stills only) — chorus 1, the FOES / OURSELVES? lines (~59.4–64.7), ?sketch=mirror&opt=shield: "the shield".
-// A round, deep-dished bronze hoplite shield fills the frame, lit by the fire behind us (bronze as the letters' `bronze`
-// look: signal-orange body, bone highlight). FOES stands on its face, the side his enemies see, plain and polished. On
-// "but" (62.34) the shield swings round on its vertical axis to show its inside, the side his own men see: a clay lining
-// where Odysseus's shadow (odysseus.ts, the bow drawn) stands over a row of his men's shades, the arrow aimed down into them,
+// `shield` — chorus 1, lines 12–13 (FOES / OURSELVES?, 59.355–64.689): the shield. A round, deep-dished bronze
+// hoplite shield fills the frame, lit by the fire behind us (bronze as the letters' `bronze` look: signal-orange body,
+// bone highlight). FOES stands on its face, the side his enemies see, plain and polished. On line 13's first word
+// (62.34) the shield swings round on its vertical axis to show its inside, the side his own men see: a clay lining where
+// Odysseus's shadow (odysseus.ts, the bow drawn) stands over a row of his men's shades, the arrow aimed down into them,
 // painted black-figure. OURSELVES? and the arm strap under it slam on together on the 64.02 downbeat.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
@@ -134,7 +134,7 @@ void main() {
   fragColor = vec4(col, 1.0);
 }`;
 
-export default class SketchC1Shield extends Scene {
+export default class C1Shield extends Scene {
   private st!: Stage;
   private shield = new THREE.Group();
   private mat!: THREE.RawShaderMaterial;

@@ -1,13 +1,13 @@
-// SKETCH (stills only) — chorus 1, the GUILT? line (~54.0–59.4), ?sketch=mirror&opt=vase: "the funeral vase". A giant
-// Geometric funeral krater (the Dipylon grave-marker) stands on the black-glaze floor in the fire's low light, a real 3D
-// object; the camera makes one slow, steady pass round it along its figure band. Bands of zigzags and meanders; the
-// prothesis frieze, all of it painted from the start: one unbroken procession of identical mourners in long robes,
-// heads bowed, a hand raised to the head, walking to the right round the band past the other dead on their biers
-// (plain black shrouds with an incised border) to Polites: the largest bier, lying at rest with his arms open low at
-// his sides, palms up, in a pool of warm light at the band's end. The camera comes to rest on him by ~58.35 with the
-// rim above him in shot and holds there to the cut. The krater has a deep body on a tall pedestal foot and two double
-// strap handles (black glaze, thin reserved lines along them) at the shoulder. The small phrases pop on the rim as
-// sung; GUILT? stands on the rim right above Polites on 58.42.
+// `vase` — chorus 1, line 11 (GUILT?, 54.02–59.355): the funeral vase. A giant Geometric funeral krater (the Dipylon
+// grave-marker) stands on the black-glaze floor in the fire's low light, a real 3D object; the camera makes one slow,
+// steady pass round it along its figure band. Bands of zigzags and meanders; the prothesis frieze, all of it painted
+// from the start: one unbroken procession of identical mourners in long robes, heads bowed, a hand raised to the head,
+// walking to the right round the band past the other dead on their biers (plain black shrouds with an incised border)
+// to Polites: the largest bier, lying at rest with his arms open low at his sides, palms up, in a pool of warm light at
+// the band's end. The camera comes to rest on him by ~58.35 with the rim above him in shot and holds there to the cut.
+// The krater has a deep body on a tall pedestal foot and two double strap handles (black glaze, thin reserved lines
+// along them) at the shoulder. The small phrases pop on the rim as sung; GUILT? stands on the rim right above Polites
+// on 58.42.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { GLSL_COMMON } from '../../engine/glsl/common';
@@ -281,7 +281,7 @@ function camU(t: number) {
   return U0 + v * (TB - T0) + v * (s - (s * s) / (2 * D));
 }
 
-export default class SketchC1Vase extends Scene {
+export default class C1Vase extends Scene {
   private st!: Stage;
   private vase!: THREE.Mesh;
   private mat!: THREE.RawShaderMaterial;
