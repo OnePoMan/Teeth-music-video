@@ -5,10 +5,10 @@
 // rim, the cloak's edge and the bow), and only he throws a true cast shadow: long, slanting, joined at his feet.
 // Bigger than the shades; no face, no colour.
 //
-// GLSL: odysseus(q, pose, turn, px, inc) is his signed distance in units of his height (feet at the origin, y up,
-// facing +x); odysseusOcc(p, A, B, px) is the wall's occlusion at wall point p (world: along the wall, height), with
-// A = (x, h, pose, turn) and B = (incise, lean, stretch, on); odysseusWall(p, px) reads them from the uniforms
-// odyA / odyB (see odysseusUniforms / setOdysseus). Needs sdSegment, smin and sat (GLSL_COMMON).
+// GLSL: odysseus(q, pose, turn, cap, px, inc) is his signed distance in units of his height (feet at the origin, y up,
+// facing +x); odysseusOcc(p, A, B, C, px) is the wall's occlusion at wall point p (world: along the wall, height), with
+// A = (x, h, pose, turn), B = (incise, lean, stretch, on), C = (cap, -, -, -); odysseusWall(p, px) reads them from
+// the uniforms odyA / odyB / odyC (see odysseusUniforms / setOdysseus). Needs sdSegment, smin and sat (GLSL_COMMON).
 import * as THREE from 'three';
 
 export const ODY_POSE = { calm: 0, archer: 1, traveller: 2 } as const;
@@ -22,6 +22,8 @@ export interface OdysseusParams {
   pose: OdyPose;
   /** 0 his head in profile (facing +x), 1 turned to look at us. */
   turn?: number;
+  /** The felt cap (default on); without it, a bare head of short hair. */
+  cap?: boolean;
   /** The black-figure incision (default on). */
   incise?: boolean;
   /** The cast shadow: its sideways slant per unit of his height (negative leans left) and its stretch (>= 1). */
@@ -31,16 +33,17 @@ export interface OdysseusParams {
 }
 
 export function odysseusUniforms(): Record<string, THREE.IUniform> {
-  return { odyA: { value: new THREE.Vector4(0, 4, 0, 0) }, odyB: { value: new THREE.Vector4(1, -0.8, 1.35, 0) } };
+  return { odyA: { value: new THREE.Vector4(0, 4, 0, 0) }, odyB: { value: new THREE.Vector4(1, -0.8, 1.35, 0) }, odyC: { value: new THREE.Vector4(1, 0, 0, 0) } };
 }
 
 export function setOdysseus(u: Record<string, THREE.IUniform>, p: OdysseusParams) {
   (u.odyA!.value as THREE.Vector4).set(p.x, p.h, ODY_POSE[p.pose], p.turn ?? 0);
   (u.odyB!.value as THREE.Vector4).set(p.incise === false ? 0 : 1, p.lean ?? -0.8, Math.max(1, p.stretch ?? 1.35), p.on === false ? 0 : 1);
+  (u.odyC!.value as THREE.Vector4).set(p.cap === false ? 0 : 1, 0, 0, 0);
 }
 
 export const GLSL_ODYSSEUS = /* glsl */ `
-uniform vec4 odyA, odyB;
+uniform vec4 odyA, odyB, odyC;
 // an isosceles triangle, apex at the origin, base at y = q.y below it (y down; iq)
 float odyTri(vec2 p, vec2 q) {
   p.x = abs(p.x);
@@ -67,7 +70,7 @@ float odyBow(vec2 q, vec2 c, vec2 ax, float L, float b, out vec2 t0, out vec2 t1
   return d;
 }
 // Odysseus: signed distance in units of his height; inc returns the incision (0..1, the clay showing through)
-float odysseus(vec2 q, float pose, float turn, float px, out float inc) {
+float odysseus(vec2 q, float pose, float turn, float cap, float px, out float inc) {
   int ps = int(floor(pose + 0.5));
   float pr = 1.0 - sat(turn);                                       // how much the head is in profile
   float arch = ps == 1 ? 1.0 : 0.0;
@@ -80,21 +83,35 @@ float odysseus(vec2 q, float pose, float turn, float px, out float inc) {
   // a broad chest over a narrow waist, square shoulders
   d = smin(d, sdSegment(q, vec2(0.0, 0.5), vec2(0.012, 0.75)) - 0.075, 0.05);
   d = smin(d, sdSegment(q, vec2(-0.12, 0.775), vec2(0.12, 0.775)) - 0.044, 0.04);
-  // the head, a little bowed forward; a pointed beard, jutting forward in profile
-  vec2 hc = vec2(0.012 + 0.024 * pr, 0.89 - 0.01 * pr);
-  d = smin(d, sdSegment(q, vec2(0.01, 0.8), hc) - 0.03, 0.02);
-  d = smin(d, length((q - hc) * vec2(1.0, 0.9)) - 0.05, 0.01);
-  d = smin(d, sdSegment(q, hc + vec2(0.015 * pr, -0.025), hc + vec2(0.065 * pr, -0.1)) - 0.022, 0.02);
-  // the cap (pilos): a cone with a blunt tip, tipped back in profile, on a close rim
-  vec2 cb = hc + vec2(-0.006 * pr, 0.03);
-  vec2 cp = odyRot(q - cb, -0.24 * pr);
-  float dCap = min(odyTri(vec2(cp.x, 0.14 - cp.y), vec2(0.058, 0.14)) - 0.014, sdSegment(cp, vec2(-0.058, 0.0), vec2(0.058, 0.0)) - 0.013);
-  d = min(d, dCap);
-  // the cloak (chlamys): pinned at the shoulders, hanging behind him to the thigh, flaring, its hem lower at the back
-  float back = 0.1 + (0.13 + 0.06 * arch) * sat((0.8 - q.y) / 0.4);
-  float hem = 0.46 - 0.1 * sat(-q.x / 0.22);
-  float dCl = max(max(q.y - 0.81, hem - q.y), max(-q.x - back, q.x + 0.02));
-  d = smin(d, dCl, 0.015);
+  // the head: in profile (pr = 1) a long skull, the nose and a short beard pointing where he faces (+x); turned to us
+  // (pr = 0) round and front-on, the beard a rounded chin under it
+  vec2 hc = vec2(0.012 + 0.012 * pr, 0.935);
+  d = smin(d, sdSegment(q, vec2(0.01, 0.8), hc + vec2(0.0, -0.03)) - 0.03, 0.015);
+  d = smin(d, length((q - hc - vec2(-0.006 * pr, 0.0)) / vec2(0.05 + 0.008 * pr, 0.052)) * 0.05 - 0.05, 0.01);
+  if (pr > 0.01) d = smin(d, odyTri(vec2(q.y - hc.y + 0.005, hc.x + 0.072 * pr - q.x), vec2(0.016, 0.03)) - 0.003, 0.008);  // the nose
+  vec2 bc = hc + vec2(0.03 * pr, -0.05 + 0.01 * pr);
+  d = smin(d, length((q - bc) / vec2(0.034 + 0.008 * (1.0 - pr), 0.03)) * 0.03 - 0.03, 0.012);                 // the beard
+  if (pr > 0.01) d = smin(d, sdSegment(q, bc, bc + vec2(0.035 * pr, -0.022)) - 0.012 * pr, 0.01);           // its point, forward
+  // the cap (pilos): an egg of felt on a thin rim, tipped back a little in profile, symmetric turned to us; or bare,
+  // short hair, its edge rough
+  vec2 cb = hc + vec2(-0.008 * pr, 0.022);
+  vec2 cp = odyRot(q - cb, -0.18 * pr);
+  float rx = 0.058 * (1.0 - 0.3 * sat(cp.y / 0.1));
+  float dCap = max(length(cp / vec2(rx, 0.1)) * rx - rx, -cp.y);
+  if (cap > 0.5) d = min(d, dCap);
+  else {
+    float ha = atan(q.y - hc.y, q.x - hc.x);
+    float hair = length((q - hc - vec2(-0.008 * pr, 0.004)) / vec2(0.056, 0.056)) * 0.056 - 0.056 - 0.0025 * (0.5 + 0.5 * sin(ha * 14.0));
+    hair = max(hair, -(q.y - hc.y + 0.01 - 0.03 * pr * sat((hc.x - q.x) / 0.05)));
+    d = min(d, hair);
+    dCap = hair;
+  }
+  // the cloak (chlamys): over his back shoulder, its edge crossing his chest, hanging behind him in folds to a zigzag hem
+  float back = 0.135 + (0.05 + 0.04 * arch) * sat((0.8 - q.y) / 0.35);
+  float hem = 0.47 - 0.07 * sat(-q.x / 0.2) + 0.03 * abs(fract(q.x * 14.0) - 0.5);
+  float front = -0.03 + 0.11 * sat((q.y - 0.5) / 0.3);
+  float dCl = max(max(q.y - 0.835 + 0.06 * sat(q.x / 0.1), hem - q.y), max(-q.x - back, q.x - front));
+  d = smin(d, dCl, 0.012);
   // the arms, the bow, the string (and the arrow, the quiver)
   vec2 t0, t1, gS = vec2(0.0);
   float dBow, dStr, dX = 1e9;
@@ -139,31 +156,33 @@ float odysseus(vec2 q, float pose, float turn, float px, out float inc) {
   float w = 0.0042 + 0.5 * px;
   float inside = 1.0 - smoothstep(-0.012, -0.004, body);
   float L = 0.0;
-  L = max(L, (1.0 - smoothstep(w * 0.5, w, abs(cp.y - 0.03))) * step(dCap, -0.008));                 // the cap's rim
-  float dEdge = max(hem - q.y, -q.x - back), fu = -q.x / back;
-  L = max(L, (1.0 - smoothstep(w * 0.5, w, abs(dEdge + 0.016))) * step(dCl, -0.004) * step(q.y, 0.79));   // the cloak's edge
-  L = max(L, (1.0 - smoothstep(w * 0.5, w, min(abs(fu - 0.5), abs(fu - 0.78)) * back)) * step(dCl, -0.03) * step(q.y, 0.74) * (ps == 2 ? 0.0 : 1.0));   // its folds
+  if (cap > 0.5) L = max(L, (1.0 - smoothstep(w * 0.5, w, abs(cp.y - 0.016))) * step(dCap, -0.006));   // the cap's rim
+  else L = max(L, (1.0 - smoothstep(w * 0.5, w, abs(dCap + 0.012))) * step(hc.y - 0.012, q.y) * step(dCap, -0.004));   // the hairline
+  float dEdge = max(hem - q.y, max(-q.x - back, q.x - front)), fu = (front - q.x) / (front + back);
+  L = max(L, (1.0 - smoothstep(w * 0.5, w, abs(dEdge + 0.014))) * step(dCl, -0.004) * step(q.y, 0.8));    // the cloak's edge
+  float fold = min(min(abs(fu - 0.35), abs(fu - 0.58)), abs(fu - 0.8)) * (front + back);
+  L = max(L, (1.0 - smoothstep(w * 0.5, w, fold)) * step(dCl, -0.03) * step(q.y, 0.72) * (ps == 2 ? 0.0 : 1.0));   // its folds
   L = max(L, (1.0 - smoothstep(w * 0.5, w, abs(dBow - 0.008))) * inside);                          // the bow over him
   L = max(L, (1.0 - smoothstep(w * 0.5, w, dStr)) * inside * (ps == 2 ? 0.0 : 1.0));                                      // the string over him
   inc = L;
   return d;
 }
-float odysseusOcc(vec2 p, vec4 A, vec4 B, float px) {
+float odysseusOcc(vec2 p, vec4 A, vec4 B, vec4 C, float px) {
   if (B.w <= 0.0) return 0.0;
   vec2 q = vec2(p.x - A.x, p.y) / A.y;
   float pq = px / A.y, occ = 0.0, inc;
   if (q.y > -0.05 && q.y < 1.12 && abs(q.x) < 0.7) {
-    float d = odysseus(q, A.z, A.w, pq, inc);
+    float d = odysseus(q, A.z, A.w, C.x, pq, inc);
     occ = (1.0 - smoothstep(-pq, pq, d)) * (1.0 - inc * B.x);
   }
-  // the cast: his shadow thrown by a low fire, long and slanting, joined at his feet, softening as it goes
+  // the cast: his shadow thrown by a low fire, long and slanting, joined at his feet, crisp enough to show the bow
   float yc = q.y / B.z;
   vec2 qc = vec2(q.x - B.y * yc, yc);
   if (yc > -0.02 && yc < 1.12 && abs(qc.x) < 0.7) {
-    float dc = odysseus(qc, A.z, A.w, pq, inc);
-    float soft = pq + 0.006 + 0.03 * yc;
-    occ = max(occ, 0.55 * (1.0 - smoothstep(-soft, soft, dc)) * (1.0 - 0.35 * yc));
+    float dc = odysseus(qc, A.z, A.w, C.x, pq, inc);
+    float soft = pq + 0.002 + 0.005 * yc;
+    occ = max(occ, 0.6 * (1.0 - smoothstep(-soft, soft, dc)) * (1.0 - 0.25 * yc));
   }
   return occ;
 }
-float odysseusWall(vec2 p, float px) { return odysseusOcc(p, odyA, odyB, px); }`;
+float odysseusWall(vec2 p, float px) { return odysseusOcc(p, odyA, odyB, odyC, px); }`;
