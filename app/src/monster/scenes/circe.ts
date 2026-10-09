@@ -239,7 +239,7 @@ export default class Circe extends Scene {
     const menCap = fit(this.pigs, 4.6), heroX = pH.x, heroZ = pH.z;
     cupPop(this.men, [men.start], rowAt(this.men, heroX, heroZ, menCap), { exit: pigs.start - 0.15, exitDur: 0.15, sink: true });
     cupPop(this.to1, [W1[5]!.start], rowAt(this.to1, pS.x, pS.z, SMALL), { exit: W1[7]!.start - POP.lead - 0.06, exitDur: 0.1 });
-    cupPop(this.pigs, [pigs.start], rowAt(this.pigs, heroX, heroZ, menCap), { exit: W2[0]!.start - POP.lead - 0.18, exitDur: 0.16, sink: true });
+    cupPop(this.pigs, [pigs.start], rowAt(this.pigs, heroX, heroZ, menCap), { exit: W1[8]!.start - 0.18, exitDur: 0.16, sink: true });   // gone as "protect" comes
     cupPop(this.sB, W1.slice(7, 11).map((x) => x.start), rowAt(this.sB, pS.x, pS.z, SMALL), { exit: W2[0]!.start - POP.lead - 0.18, exitDur: 0.16, sink: true });
     // line 2: "is she going" | INSANE? round the vortex
     cupPop(this.sC, W2.slice(0, 3).map((x) => x.start), rowAt(this.sC, pS.x, pS.z, SMALL), { exit: ins.start - 0.02, exitDur: 0.12 });

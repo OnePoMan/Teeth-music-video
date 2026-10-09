@@ -120,10 +120,10 @@ export default class Poseidon extends Scene {
     this.phrases = [
       // heroes first: they cast the shadows (a stage holds four casting runs)
       P(hero('DROWN'), [drown], out(at(l2, 0)), true),
-      P(hero('SCARED?'), [wd(l2, 'scared')], out(at(l3, 0)), true),
-      P(hero('CHECK'), [check], out(at(l4, 0)), true),
+      P(hero('SCARED?'), [wd(l2, 'scared')], out(at(l2, 5)), true),   // (gone with "doing")
+      P(hero('CHECK'), [check], out(at(l3, 8)), true),   // (gone with "we", well before "respect")
       // (low and a little smaller: the sunk fleet reads above it)
-      P(hero('DARES?'), [wd(l4, 'dares')], this.ctx.end + 1, true, 0.85, [wd(l4, 'dares').start, -0.47]),
+      P(hero('DARES?'), [wd(l4, 'dares')], out(at(l4, 7)), true, 0.85, [wd(l4, 'dares').start, -0.47]),
       P(small(w1.slice(0, 3)), w1.slice(0, 3), out(at(l1, 3)), false, 1, [this.ctx.start, -0.63]),
       P(small(w1.slice(3, 5)), w1.slice(3, 5), out(at(l1, 5))),
       P(small(w1.slice(5, 9)), w1.slice(5, 9), out(drown.start)),
