@@ -897,6 +897,16 @@ export function popHinge(t: number, onset: number, k = 0) {
   const t0 = onset - POP.lead + k * POP.ripple;
   return t < t0 ? Math.PI / 2 : (Math.PI / 2) * (1 - springStepFast(t - t0));
 }
+/**
+ * Fold-up angle for a quick pop: the letter is fully up by onset + upBy (a short word's pop fits inside the 0.12 s
+ * window, or inside its own sung length if that is shorter); a small overshoot, then exactly standing.
+ */
+export function popHingeBy(t: number, onset: number, k: number, upBy: number) {
+  const rip = Math.min(POP.ripple, upBy * 0.12), t0 = onset - POP.lead + k * rip, t1 = onset + upBy;
+  if (t < t0) return Math.PI / 2;
+  if (t >= t1) return 0;
+  return (Math.PI / 2) * (1 - ease.outBack((t - t0) / (t1 - t0), 1.2));
+}
 function springStepFast(x: number) {
   const w = 2 * Math.PI * POP.freq, z = POP.damp;
   return 1 - Math.exp(-z * w * x) * Math.cos(w * Math.sqrt(1 - z * z) * x);
@@ -906,9 +916,10 @@ function springStepFast(x: number) {
  * Poses a run of lyric words (a Word3D built from the words joined by spaces) and animates it: each word pops
  * up on its onset (letters rippling 14 ms apart), flashes ember, and after `exit` falls back flat (letters
  * `exitRipple` apart, default 10 ms) and vanishes. `place(l, i)` sets each letter's x, z, yaw, s (and y if needed).
+ * `upBy` (per word, s after onset) switches a word to the quick pop (see popHingeBy).
  */
 export function popWords(w: Word3D, onsets: number[], t: number, place: (l: Letter, i: number) => void,
-  o: { exit?: number; exitDur?: number; exitRipple?: number; glow?: number; amb?: number } = {}) {
+  o: { exit?: number; exitDur?: number; exitRipple?: number; glow?: number; amb?: number; upBy?: number[] } = {}) {
   const exit = o.exit ?? 1e9, dur = o.exitDur ?? 0.22, rip = o.exitRipple ?? 0.01;
   const kInWord = new Map<number, number>();
   w.letters.forEach((l, i) => {
@@ -916,7 +927,8 @@ export function popWords(w: Word3D, onsets: number[], t: number, place: (l: Lett
     const k = kInWord.get(l.word) ?? 0;
     kInWord.set(l.word, k + 1);
     const on = onsets[Math.min(l.word, onsets.length - 1)]!;
-    const up = popHinge(t, on, k);
+    const by = o.upBy?.[Math.min(l.word, o.upBy.length - 1)];
+    const up = by !== undefined ? popHingeBy(t, on, k, by) : popHinge(t, on, k);
     const gone = prog(t, exit + k * rip, exit + k * rip + dur, ease.inCubic);
     l.hinge = up + (Math.PI / 2 - up) * gone;
     l.on = t >= on - POP.lead + k * POP.ripple && gone < 0.999 ? 1 : 0;
