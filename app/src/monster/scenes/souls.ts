@@ -206,7 +206,8 @@ export default class Souls extends Scene {
     popWords(this.only, w2.slice(0, li2).map((w) => w.start), t, row(NEAR.x - (this.only.width * os) / 2, NEAR.z, 0, os),
       { exit: lineW.start - 0.02, exitDur: 0.06, exitRipple: 0 });
     popWords(this.crossed, w2.slice(li2 + 1).map((w) => w.start), t, row(NEAR.x - (this.crossed.width * cs) / 2, NEAR.z, 0, cs),
-      { exit: crossed.end - 0.02, exitDur: 0.16 });   // gone as the crane starts: our half is empty
+      { exit: crossed.end - 0.02, exitDur: 0.08, exitRipple: 0 });   // gone as the crane starts: our half is empty
+      // (all letters at once: a ripple left it reading "aven't rossed" mid-fold)
 
     // ---- the cutting point: in from the left wall, slowing as it passes under LINE, then out to the right wall (and
     // on, unseen, beyond it, so the groove's heat runs out of the right end as it cools)
