@@ -14,7 +14,14 @@
 // Not seen: type painted into a texture (endless' inscription, symbolon's REUNITE, souls' LINE), letters hidden
 // behind geometry or shown only in a mirror image, stages created after init or drawn into a texture that is then
 // remapped. A stage drawn twice in one frame is checked as of its last draw. Intended re-letterings are reported
-// like any other case (circe's COLDER losing its C to read OLDER, horse's VILE? turning into GUILE?).
+// like any other case (circe's COLDER losing its C to read OLDER).
+//
+// Timing warnings beyond the checklist (client rules, 2026-10-09):
+//  - LINGER: a hero word (all capitals) still on screen more than LINGER (0.6 s) after its sung end while later
+//    words of its own line are being sung (a hero leaves ~0.3 s after its word unless something still happens to it).
+//  - SLOW-RISE: a word not fully up within min(RISE = 0.12 s, its sung length) of its onset, per run that shows it:
+//    fully up = every letter shown and the word's median facing at least RISE_SQUARE (90%) of its best facing with
+//    all letters shown in the first RISE_LOOK (0.5 s) (and not edge-on). Words shown late are left to LATE.
 import type { Page } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -42,6 +49,11 @@ const PRECUT = 2;
 const TINY = 14, EDGE = 0.26, HOLD = 0.1;
 /** A word fully on screen for less than this: a blink. */
 const SHORT = 0.2;
+/** A hero word still on screen this long after its sung end while later words of its line are sung: lingering. */
+const LINGER = 0.6;
+/** A word must be fully up (every letter shown, facing the camera as squarely as it will) within this long of its
+ *  onset, or within its sung length if shorter; `RISE_SQUARE` of its best facing in the first RISE_LOOK s counts. */
+const RISE = 0.12, RISE_SQUARE = 0.9, RISE_LOOK = 0.5;
 /** Accepted overlaps (client-approved: "us?" over EVERYTHING's T and H), as pairs of normalised words. */
 const ALLOW: [string, string][] = [['us', 'everything']];
 
@@ -479,6 +491,37 @@ export function analyse(frames: Frame[], timeline: Entry[], loaded: string[], ly
       const m = Math.min(...vs.flatMap((x) => x.boxes.map((b) => Math.min(b[0]!, W - b[2]!, b[1]!, H - b[3]!))));
       return `${v.hero ? 'hero ' : ''}letters ${m.toFixed(0)} px from the edge (safe: ${SAFE})`;
     });
+  }
+
+  // lingering heroes: on screen > LINGER after their sung end while a later word of their line is being sung
+  const lineSung = new Map<number, [number, number][]>();
+  for (const w of lyr) { const a = lineSung.get(w.line) ?? []; a.push([w.start, w.end]); lineSung.set(w.line, a); }
+  for (const [k, fs] of onFrames) {
+    const v = sample.get(k)!, lw = v.lw;
+    if (!lw || !isHero(v.text)) continue;
+    const later = lyr.filter((x) => x.line === lw.line && x.k > lw.k);
+    const sung = (t: number) => later.some((x) => t >= x.start && t < x.end);
+    for (const [s0, s1] of spans(fs.filter((f) => frames[f]!.t > lw.end + LINGER && sung(frames[f]!.t))))
+      add('WARN', 'LINGER', s0, s1, `${label(v)} [${v.run}]`, `hero still on screen ${(frames[s1]!.t - lw.end).toFixed(2)} s after its sung end (${lw.end.toFixed(2)}) while the rest of its line is sung`);
+  }
+
+  // slow rises: a word not fully up (all letters on, facing as squarely as it will soon) within min(RISE, its sung
+  // length) of its onset, in each run that shows it by then
+  for (const { v, fs } of byRunWord.values()) {
+    const lw = v.lw;
+    if (!lw || v.run.endsWith('/2D')) continue;
+    const allow = Math.min(RISE, lw.end - lw.start), at = (f: number) => frames[f]!.t;
+    const near = [...fs].filter(([f, x]) => x.on > 0 && at(f) >= lw.start - EARLY_WARN && at(f) <= lw.start + RISE_LOOK).sort((a, b) => a[0] - b[0]);
+    if (!near.length || at(near[0]![0]) > lw.start + allow) continue;   // (shown late, or not by this run: LATE / MISSING)
+    if (at(near[near.length - 1]![0]) < lw.start + allow + dt || near[near.length - 1]![0] >= N - 1) continue;   // (gone or range end before the deadline)
+    const best = Math.max(...near.filter(([, x]) => x.on >= x.n).map(([, x]) => x.cos), -1);
+    const full = near.find(([f, x]) => at(f) >= lw.start - dt / 2 && x.on >= x.n && x.cos >= Math.max(EDGE, RISE_SQUARE * best));
+    const tFull = full ? at(full[0]) - lw.start : Infinity;
+    if (tFull > allow + dt / 2) {
+      const f0 = near.find(([f]) => at(f) >= lw.start - dt / 2)?.[0] ?? near[0]![0];
+      add('WARN', 'SLOW-RISE', f0, full ? full[0] : near[near.length - 1]![0], `${label(v)} [${v.run}]`,
+        full ? `fully up ${tFull.toFixed(2)} s after its onset (${lw.start.toFixed(2)}; allowed ${allow.toFixed(2)})` : `not fully up within ${RISE_LOOK} s of its onset (${lw.start.toFixed(2)})`);
+    }
   }
 
   // unmatched run words
