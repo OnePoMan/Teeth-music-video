@@ -1,30 +1,34 @@
 // SKETCH (stills only) — chorus 1, the GUILT? line (~54.0–59.4), ?sketch=mirror&opt=vase: "the funeral vase". A giant
-// Geometric funeral krater (the Dipylon grave-marker) stands on the black-glaze floor in the fire's light, a real 3D
-// object; the camera tracks round it along its figure band. Bands of zigzags and meanders; the prothesis frieze
-// (mirror-kit's drawing: the dead on biers under chequered shrouds, mourners with both hands at their heads), one bier
-// appearing per sung word from the 55.80 word to the 58.02 word. The band ends on Polites: the largest bier, at the
-// centre of the final frame, his body laid out with his arms flung open (his song's gesture), mourners either side
-// with both hands at their heads. The krater has a deep body on a tall pedestal foot and two double strap handles at
-// the shoulder. The small phrases pop on the rim as sung; GUILT? stands on the rim right above Polites on 58.42 as
-// the camera rises over the lip.
+// Geometric funeral krater (the Dipylon grave-marker) stands on the black-glaze floor in the fire's low light, a real 3D
+// object; the camera makes one slow, steady pass round it along its figure band. Bands of zigzags and meanders; the
+// prothesis frieze, all of it painted from the start: one unbroken procession of identical mourners in long robes,
+// heads bowed, a hand raised to the head, walking to the right round the band past the other dead on their biers
+// (plain black shrouds with an incised border) to Polites: the largest bier, lying at rest with his arms open low at
+// his sides, palms up, in a pool of warm light at the band's end. The camera comes to rest on him by ~58.35 with the
+// rim above him in shot and holds there to the cut. The krater has a deep body on a tall pedestal foot and two double
+// strap handles (black glaze, thin reserved lines along them) at the shoulder. The small phrases pop on the rim as
+// sung; GUILT? stands on the rim right above Polites on 58.42.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { GLSL_COMMON } from '../../engine/glsl/common';
 import { F } from '../../engine/type';
 import type { Line } from '../../engine/lyrics';
-import { clamp, ease, prog } from '../../engine/util';
+import { clamp } from '../../engine/util';
 import { GLSL_SHADE } from '../motifs';
 import { Stage, Word3D, keyLight, popWords, type Letter } from '../stage';
 import { heroFont } from '../shore';
-import { GLSL_FRIEZE } from './mirror-kit';
 
 const FOV = 40, TANF = Math.tan((FOV * Math.PI) / 360);
 /** The krater's scale, the frieze (bottom y, height), the band's reference radius (arc length = angle x R_BAND). */
 const VS = 1.6, FRZ = { y: 4.1 * VS, h: 1.3 }, R_BAND = 6.3;
 /** The rim: its top (y) and radius. */
 const RIM = { y: 6.42 * VS, r: 3.75 * VS };
-/** Bier spacing along the band (the frieze's period, 1.95 frieze heights) and Polites's place (in biers). */
-const SPACING = 1.95 * FRZ.h, POL_K = 6.15;
+/** Polites's place along the band (frieze heights), and as arc length. */
+const POL_X = 6.15 * 1.95, POL_U = POL_X * FRZ.h;
+/** The procession: its step (frieze heights), the mourners' height, the leader's distance from Polites's centre. */
+const MSTEP = 0.42, MH = 0.86, LEAD = 0.84;
+/** The camera's pass: from U0 at T0, steady, easing to rest on Polites from TB to TE, then still. */
+const U0 = -5.0, T0 = 54.0, TB = 57.15, TE = 58.35;
 
 /** The krater's profile (unscaled r, y): a tall trumpet foot, a collar, the deep body, shoulder, neck and lip; then
  * the inside of the bowl. */
@@ -55,11 +59,27 @@ precision highp int;
 in vec3 vW; in vec3 vN; in vec3 vL; in float vIn; in float vU;
 out vec4 fragColor;
 ${GLSL_COMMON}
-uniform vec3 Lc, camP; uniform float LI, reach, phi, nShown, bornT[6], stT, inner0, handle;
+uniform vec3 Lc, camP, poolP, poolC; uniform float LI, reach, phi, inner0, handle, keyK, poolI, poolR;
 float hash1(float n) { return fract(sin(n * 127.1 + 3.7) * 43758.5453); }
-vec4 frz;
 ${GLSL_SHADE}
-${GLSL_FRIEZE}
+// the Greek key: two rules and a running meander between them (b: x along, y down from the band's top; bh its height)
+float meanderSeg(vec2 u) {
+  float d = sdSegment(u, vec2(0.0, 0.0), vec2(0.0, 3.0));
+  d = min(d, sdSegment(u, vec2(0.0, 3.0), vec2(3.0, 3.0)));
+  d = min(d, sdSegment(u, vec2(3.0, 3.0), vec2(3.0, 1.0)));
+  d = min(d, sdSegment(u, vec2(3.0, 1.0), vec2(1.0, 1.0)));
+  d = min(d, sdSegment(u, vec2(1.0, 1.0), vec2(1.0, 0.0)));
+  d = min(d, sdSegment(u, vec2(1.0, 0.0), vec2(4.0, 0.0)));
+  return d;
+}
+float band(vec2 b, float bh) {
+  float g = bh / 5.6;
+  float d = min(abs(b.y - 0.25 * g), abs(b.y - bh + 0.25 * g)) - 0.2 * g;
+  vec2 u = vec2(b.x / g, (bh - 1.3 * g - b.y) / g);
+  float ux = mod(u.x, 4.0);
+  d = min(d, (min(meanderSeg(vec2(ux, u.y)), meanderSeg(vec2(ux - 4.0, u.y))) - 0.24) * g);
+  return 1.0 - smoothstep(-0.8, 0.8, d);
+}
 // a zigzag line between two rules (b: x along, y down from the band's top, px; bh its height)
 float zigzag(vec2 b, float bh, float per) {
   float g = bh / 5.6;
@@ -70,64 +90,121 @@ float zigzag(vec2 b, float bh, float per) {
   d = min(d, abs(b.y - yy) / sqrt(1.0 + sl * sl * 4.0) - 0.22 * g);
   return 1.0 - smoothstep(-0.8, 0.8, d);
 }
-// Polites on his bier (X: frieze units, x from the bier's centre, y up): larger than the other dead, no shroud, laid
-// out head to the left with both arms flung open above him; returns (distance, chequer mask of the bier cloth)
-vec2 polites(vec2 X) {
+// a mourner in profile, walking to the right: tall and thin, a long robe to the ankles, the head bowed, the near hand
+// raised to the head, the far arm hanging at the side (units of its height, feet at the origin)
+float mourner(vec2 p) {
+  vec2 hc = vec2(0.05, 0.9);
+  float d = length((p - hc) * vec2(0.92, 1.0)) - 0.05;                                 // the head, bowed forward
+  d = min(d, sdSegment(p, vec2(0.0, 0.79), vec2(0.03, 0.87)) - 0.02);                 // the neck
+  float y = p.y;
+  float hw = y > 0.6 ? mix(0.04, 0.055, sat((y - 0.6) / 0.19)) : mix(0.072, 0.04, sat((y - 0.035) / 0.565));
+  float robe = max(abs(p.x - 0.015 * (y - 0.4)) - hw, max(y - 0.8, 0.035 - y));       // the robe, a touch forward
+  d = min(d, robe * 0.95);
+  d = min(d, sdSegment(p, vec2(-0.02, 0.785), vec2(0.03, 0.785)) - 0.024);            // the shoulders
+  d = min(d, sdSegment(p, vec2(0.03, 0.014), vec2(0.105, 0.014)) - 0.013);            // the feet, one a step ahead
+  d = min(d, sdSegment(p, vec2(-0.075, 0.014), vec2(-0.02, 0.014)) - 0.012);
+  d = min(d, sdSegment(p, vec2(0.03, 0.775), vec2(0.135, 0.835)) - 0.015);             // the near arm raised,
+  d = min(d, sdSegment(p, vec2(0.135, 0.835), vec2(0.075, 0.95)) - 0.013);             // the hand laid on the head
+  d = min(d, length(p - vec2(0.06, 0.955)) - 0.019);
+  d = min(d, sdSegment(p, vec2(-0.04, 0.77), vec2(-0.1, 0.47)) - 0.014);               // the far arm hanging
+  d = min(d, length(p - vec2(-0.103, 0.455)) - 0.017);
+  return d;
+}
+// a plain black shroud with a thin line incised round its border, back to the clay (sp from its centre, hs its half
+// size, s px per unit)
+float shroud(vec2 sp, vec2 hs, float s) {
+  float bx = sdBox(sp, hs);
+  float inS = 1.0 - smoothstep(-0.8, 0.8, bx * s);
+  float line = 1.0 - smoothstep(-0.7, 0.7, (abs(sdBox(sp, hs - vec2(0.028))) - 0.0055) * s);
+  return inS * (1.0 - line);
+}
+// one of the other dead on his bier (x from the bier's centre, frieze units), head to the left
+float bierDead(vec2 X, float v) {
+  float d = sdBox(vec2(X.x, X.y - 0.31), vec2(0.37, 0.02));
+  d = min(d, sdBox(vec2(abs(X.x) - 0.31, X.y - 0.155), vec2(0.016, 0.155)));
+  d = min(d, sdBox(vec2(abs(X.x) - 0.31, X.y - 0.02), vec2(0.035, 0.02)));
+  float len = 0.6;
+  vec2 fq = vec2((X.y - 0.33 - 0.075) / len, (0.5 * len - X.x) / len);
+  return min(d, figure(fq, v) * len);
+}
+// Polites on his bier (x from the bier's centre): larger than the other dead, lying at rest, head to the left, the
+// arms open low at his sides with the palms turned up
+float polites(vec2 X) {
   float d = sdBox(X - vec2(0.0, 0.37), vec2(0.58, 0.026));                            // the bier
   d = min(d, sdBox(vec2(abs(X.x) - 0.5, X.y - 0.18), vec2(0.022, 0.18)));
   d = min(d, sdBox(vec2(abs(X.x) - 0.5, X.y - 0.025), vec2(0.045, 0.025)));
   vec2 p = X - vec2(0.0, 0.47);                                                        // the body's axis
   d = min(d, length(p - vec2(-0.48, 0.0)) - 0.062);                                   // head
   d = min(d, sdSegment(p, vec2(-0.43, 0.0), vec2(-0.37, 0.0)) - 0.022);
-  float tw = mix(0.085, 0.024, sat((p.x + 0.37) / 0.3));                              // torso, broad at the chest
+  float tw = mix(0.075, 0.03, sat((p.x + 0.37) / 0.3));                               // torso
   d = min(d, max(abs(p.y) - tw, max(-0.37 - p.x, p.x + 0.07)));
-  d = min(d, sdSegment(p, vec2(-0.07, 0.0), vec2(0.2, -0.01)) - 0.036);               // thighs, shins, feet
-  d = min(d, sdSegment(p, vec2(0.2, -0.01), vec2(0.44, -0.03)) - 0.021);
-  d = min(d, sdSegment(p, vec2(0.44, -0.03), vec2(0.455, 0.04)) - 0.015);
-  // the open arms: flung wide from the shoulders, long and straight in a broad V, the open hands spread
+  d = min(d, sdSegment(p, vec2(-0.07, 0.0), vec2(0.2, -0.005)) - 0.034);              // thighs, shins, feet
+  d = min(d, sdSegment(p, vec2(0.2, -0.005), vec2(0.44, -0.015)) - 0.021);
+  d = min(d, sdSegment(p, vec2(0.44, -0.015), vec2(0.455, 0.05)) - 0.015);
   for (int k = 0; k < 2; k++) {
-    float sx = k == 0 ? -1.0 : 1.0;
-    vec2 sh = vec2(-0.33 + 0.03 * sx, 0.06), dir = normalize(vec2(0.82 * sx, 0.58)), ha = sh + dir * 0.4;
-    d = min(d, sdSegment(p, sh, ha) - mix(0.03, 0.022, 0.5));
-    d = min(d, length(p - ha - dir * 0.02) - 0.03);
-    for (int j = 0; j < 4; j++) {
-      float a = atan(dir.x, dir.y) + (float(j) - 1.5) * 0.42;
-      d = min(d, sdSegment(p, ha, ha + 0.075 * vec2(sin(a), cos(a))) - 0.011);
-    }
-  }
-  // the cloth hung under the bier between its legs, chequered
-  float cl = sdBox(X - vec2(0.0, 0.29), vec2(0.43, 0.055));
-  float chk = mod(floor((X.x + 0.43) / 0.072) + floor((X.y - 0.235) / 0.055), 2.0);
-  return vec2(d, cl < 0.0 ? chk : 0.0);
-}
-// the mourners round him, three each side, both hands at their heads (X as above)
-float politesMourners(vec2 X) {
-  float d = 1e9;
-  for (int j = 0; j < 6; j++) {
-    float fj = float(j), side = j < 3 ? -1.0 : 1.0, o = 0.8 + 0.22 * mod(fj, 3.0);
-    float mh = 0.7 + 0.05 * hash1(fj * 1.7 + 0.3);
-    d = min(d, mourner(vec2(X.x - side * o, X.y) / mh, fj * 0.37) * mh);
+    // the far arm a little open above the body, the near one lower: both laid out towards the feet, palms up
+    float a = k == 0 ? 0.42 : 0.2;
+    vec2 sh = vec2(-0.34, 0.04), dir = vec2(cos(a), sin(a)), ha = sh + dir * 0.3;
+    d = min(d, sdSegment(p, sh, ha) - 0.019);
+    d = min(d, sdSegment(p, ha, ha + vec2(0.05, 0.0)) - 0.014);                        // the open palm, flat
+    d = min(d, sdSegment(p, ha + vec2(0.05, 0.0), ha + vec2(0.068, 0.03)) - 0.009);   // the fingers turned up
+    d = min(d, sdSegment(p, ha, ha + vec2(0.0, 0.026)) - 0.009);                       // the thumb
   }
   return d;
+}
+// the prothesis: one procession of identical mourners at an even step, walking to the right round the band to
+// Polites; the other dead on their biers at regular intervals along it (each bier takes two of the procession's
+// steps); beyond Polites the mourners face back to him. Returns (distance in frieze units, shroud ink).
+vec2 prothesis(vec2 X, float s) {
+  float P0 = ${POL_X.toFixed(4)}, S = ${MSTEP.toFixed(3)}, MH = ${MH.toFixed(3)}, LEAD = ${LEAD.toFixed(3)};
+  float d = 1e9, sh = 0.0;
+  float x = X.x - P0;
+  if (abs(x) < 0.7) {
+    d = polites(X - vec2(P0, 0.0));
+    sh = shroud(vec2(x, X.y - 0.79), vec2(0.5, 0.075), s);
+  }
+  if (x < 0.0) {
+    float nc = (-x - LEAD) / S;                         // the step, counted back from the leader
+    float n = floor(nc + 0.5);
+    bool gap = n >= 11.0 && mod(n + 1.0, 12.0) < 1.5;
+    if (n >= 0.0 && !gap) d = min(d, mourner(vec2(-(nc - n) * S, X.y - 0.012) / MH) * MH);
+    float m = max(floor((nc + 0.5) / 12.0 + 0.5), 1.0);
+    float bx = -(nc - (12.0 * m - 0.5)) * S;
+    if (abs(bx) < 0.45) {
+      d = min(d, bierDead(vec2(bx, X.y), m * 0.37 + 0.11));
+      sh = max(sh, shroud(vec2(bx, X.y - 0.6), vec2(0.33, 0.07), s));
+    }
+  } else {
+    float nc = (x - LEAD) / S, n = floor(nc + 0.5);
+    if (n >= 0.0) d = min(d, mourner(vec2(-(nc - n) * S, X.y - 0.012) / MH) * MH);
+  }
+  return vec2(d, sh);
 }
 void main() {
   vec3 N = normalize(vN);
   vec3 V = normalize(camP - vW);
   bool inside = vIn > inner0;
+  float aw = fwidth(vIn) * 1.2 + 1e-4;
   if (dot(N, V) < 0.0) N = -N;
-  vec3 Lv = Lc - vW; float dl = length(Lv); Lv /= dl;
-  float fall = LI / (1.0 + (dl / reach) * (dl / reach) * 4.0);
+  vec3 Lv = Lc - vW; float dl = max(length(Lv), 1e-4); Lv /= dl;
+  float fall = keyK * LI / (1.0 + (dl / reach) * (dl / reach) * 4.0);
   float b = fall * (0.25 + 0.75 * max(dot(N, Lv), 0.0));
+  // the pool of warm light on Polites
+  vec3 Pv = poolP - vW; float pdl = max(length(Pv), 1e-4); Pv /= pdl;
+  vec3 dc = vW - poolC;
+  float pool = poolI * exp(-dot(dc, dc) / (poolR * poolR)) * (0.35 + 0.65 * max(dot(N, Pv), 0.0));
+  b += pool;
   vec3 clay = mix(mix(C_BLOOD, C_SIGNAL, 0.75), C_EMBER, 0.2) * 0.8;
-  vec3 clayLit = clay * (0.02 + 0.85 * sat(b)) + C_BONE * 0.06 * smoothstep(0.9, 1.8, b);
+  vec3 clayLit = clay * (0.015 + 0.85 * sat(b)) + C_BONE * 0.06 * smoothstep(0.9, 1.8, b) + C_EMBER * 0.12 * sat(pool);
   vec3 glaze = C_INK * 0.9 + clay * 0.03 * sat(b);
+  vec3 Hh = normalize(Lv + V);
+  float spec = pow(max(dot(N, Hh), 0.0), 60.0) * (fall + 0.5 * pool) * 0.18;
   if (handle > 0.5) {
-    // the Geometric strap handles: flat straps in black glaze, a few bars painted across in reserved clay
-    float bw = fwidth(vU) * 1.5 + 1e-4;
-    float bars = (1.0 - smoothstep(0.018, 0.018 + bw, abs(fract((vU - 0.35) / 0.15 + 0.5) - 0.5) * 0.15)) * step(0.3, vU) * step(vU, 0.7);
-    vec3 Hh = normalize(Lv + V);
-    float spec = pow(max(dot(N, Hh), 0.0), 60.0) * fall * 0.18;
-    fragColor = vec4(mix(glaze + vec3(spec) * mix(C_EMBER, C_BONE, 0.5), clayLit, bars), 1.0);
+    // the strap handles: solid black glaze, two thin lines reserved along each strap's face (vIn runs across it; the
+    // strap's edges carry vIn < 0)
+    float ln = (1.0 - smoothstep(0.035, 0.035 + aw, abs(vIn - 0.2))) + (1.0 - smoothstep(0.035, 0.035 + aw, abs(vIn - 0.8)));
+    ln *= step(0.0, vIn) * smoothstep(0.02, 0.06, vU) * (1.0 - smoothstep(0.94, 0.98, vU));
+    fragColor = vec4(mix(glaze + vec3(spec) * mix(C_EMBER, C_BONE, 0.5), clayLit, sat(ln)), 1.0);
     return;
   }
   if (inside) { fragColor = vec4(glaze * 0.6, 1.0); return; }
@@ -141,26 +218,17 @@ void main() {
   // decoration by height, from the lip down (black glaze on the clay)
   float sc = ${VS.toFixed(2)};
   if (y > 6.2 * sc) ink = 1.0;                                                   // the lip
-  else if (y > 5.74 * sc) ink = band(vec2(u, 6.2 * sc - y) / pw, 0.46 * sc / pw, 1.0);   // the meander on the neck
+  else if (y > 5.74 * sc) ink = band(vec2(u, 6.2 * sc - y) / pw, 0.46 * sc / pw);   // the meander on the neck
   else if (y > 5.67 * sc) ink = 0.0;
   else if (y > 5.6 * sc) ink = 1.0;
   else if (y > top + 0.42) ink = zigzag(vec2(u, 5.6 * sc - y) / pw, (5.6 * sc - top - 0.42) / pw, 0.38 / pw);
-  else if (y > top + 0.06) ink = band(vec2(u, top + 0.42 - y) / pw, 0.36 / pw, 1.0);
+  else if (y > top + 0.06) ink = band(vec2(u, top + 0.42 - y) / pw, 0.36 / pw);
   else if (y > top) ink = 1.0;
   else if (y > fy0) {
-    // the prothesis: biers by sequence along the band, each appearing on its word; Polites at the band's end
-    vec2 X = vec2(u / fh, (y - fy0) / fh);
-    float k = floor((X.x - 0.45) / 1.95) + 1.0;   // a bier and the mourners before it come in together
-    float vis = 0.0;
-    for (int i = 0; i < 6; i++) if (float(i) == k) vis = sat((stT - bornT[i]) / 0.1) * step(float(i), nShown - 0.5);
-    frz = vec4(0.0, fh / pw, 99.0, 1.0);
-    if (k >= 0.0 && k <= 5.0) ink = frieze(vec2(u, top - y) / pw) * vis;
-    vec2 PX = vec2(X.x - ${POL_K.toFixed(2)} * 1.95, X.y);
-    if (abs(PX.x) < 1.5) {
-      vec2 pb = polites(PX);
-      float pd = min(pb.x, politesMourners(PX));
-      ink = max(ink, max(1.0 - smoothstep(-0.8, 0.8, pd * fh / pw), pb.y));
-    }
+    // the prothesis, all of it painted: the camera's pass reveals it
+    float s = fh / pw;
+    vec2 pr = prothesis(vec2(u / fh, (y - fy0) / fh), s);
+    ink = max(1.0 - smoothstep(-0.8, 0.8, pr.x * s), pr.y);
   }
   else if (y > fy0 - 0.08) ink = 1.0;
   else if (y > fy0 - 0.5) ink = zigzag(vec2(u, fy0 - 0.08 - y) / pw, 0.42 / pw, 0.3 / pw);
@@ -173,13 +241,12 @@ void main() {
     if (y < 1.25 * sc && y > 1.15 * sc) ink = 0.0;                               // and down the pedestal
     if (y < 0.45 && y > 0.35) ink = 0.0;
   }
-  vec3 Hh = normalize(Lv + V);
-  float spec = pow(max(dot(N, Hh), 0.0), 60.0) * fall * 0.18;
   vec3 col = mix(clayLit, glaze + vec3(spec) * mix(C_EMBER, C_BONE, 0.5), sat(ink));
   fragColor = vec4(col, 1.0);
 }`;
 
-/** A flat strap (width w across `side`, thickness k) along a curve through pts; uv.x runs along it. */
+/** A flat strap (width w across `side`, thickness k) along a curve through pts; uv.x runs along it, uv.y across its
+ * two broad faces (0..1; -1 on its thin edges). */
 function strapGeo(pts: THREE.Vector3[], side: THREE.Vector3, w: number, k: number): THREE.BufferGeometry {
   const c = new THREE.CatmullRomCurve3(pts), n = 40, pos: number[] = [], nor: number[] = [], uv: number[] = [], idx: number[] = [];
   for (const [fs, fn] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
@@ -191,7 +258,7 @@ function strapGeo(pts: THREE.Vector3[], side: THREE.Vector3, w: number, k: numbe
       for (const e of [-1, 1]) {
         const a = fs !== 0 ? fs : e, b = fs !== 0 ? e : fn;
         const v = p.clone().addScaledVector(side, (a * w) / 2).addScaledVector(N, (b * k) / 2);
-        pos.push(v.x, v.y, v.z); nor.push(fN.x, fN.y, fN.z); uv.push(i / n, 0);
+        pos.push(v.x, v.y, v.z); nor.push(fN.x, fN.y, fN.z); uv.push(i / n, fs !== 0 ? -1 : (e + 1) / 2);
       }
       if (i < n) { const q = base + i * 2; idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
     }
@@ -204,15 +271,13 @@ function strapGeo(pts: THREE.Vector3[], side: THREE.Vector3, w: number, k: numbe
   return g;
 }
 
-/** Camera arc position (along the band) through the shot: biers come in from the right as their words are sung. */
+/** Camera arc position (along the band): one steady pass, easing to rest on Polites by TE, then still. */
 function camU(t: number) {
-  const k: [number, number][] = [[54.0, -11.4], [55.8, -1.3], [58.02, 11.4]];
-  if (t >= 58.02) return 11.4 + (POL_K * SPACING - 11.4) * ease.outCubic(clamp((t - 58.02) / 0.9));
-  for (let i = 1; i < k.length; i++) if (t <= k[i]![0]) {
-    const [t0, u0] = k[i - 1]!, [t1, u1] = k[i]!;
-    return u0 + ((u1 - u0) * (t - t0)) / (t1 - t0);
-  }
-  return k[0]![1];
+  const tc = clamp(t, T0, TE), D = TE - TB;
+  const v = (POL_U - U0) / (TB - T0 + D / 2);
+  if (tc <= TB) return U0 + v * (tc - T0);
+  const s = tc - TB;
+  return U0 + v * (TB - T0) + v * (s - (s * s) / (2 * D));
 }
 
 export default class SketchC1Vase extends Scene {
@@ -228,12 +293,16 @@ export default class SketchC1Vase extends Scene {
     this.line = this.ctx.lyrics.lines.find((l) => l.start > 53.5 && l.start < 55 && /guilt/i.test(l.text))!;
     const ws = this.line.words;
     const geo = new THREE.LatheGeometry(PROFILE.map(([r, y]) => new THREE.Vector2(r * VS, y * VS)), 160);
+    // the pool of warm light: a lamp out in front of Polites, its light centred on him on the vase's skin
+    const thP = POL_U / R_BAND, fc = FRZ.y + FRZ.h * 0.5, rS = 3.95 * VS;
+    const poolC = new THREE.Vector3(rS * Math.sin(thP), fc, rS * Math.cos(thP));
+    const poolP = new THREE.Vector3((rS + 3) * Math.sin(thP), fc + 2.2, (rS + 3) * Math.cos(thP));
     this.mat = new THREE.RawShaderMaterial({
       glslVersion: THREE.GLSL3, vertexShader: VASE_VERT, fragmentShader: VASE_FRAG, side: THREE.DoubleSide,
       uniforms: {
         Lc: { value: new THREE.Vector3() }, camP: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 30 },
-        phi: { value: 0 }, nShown: { value: 0 }, bornT: { value: [0, 0, 0, 0, 0, 0] }, stT: { value: 0 },
-        inner0: { value: (LIP_I + 0.5) / (PROFILE.length - 1) }, handle: { value: 0 },
+        phi: { value: 0 }, inner0: { value: (LIP_I + 0.5) / (PROFILE.length - 1) }, handle: { value: 0 },
+        keyK: { value: 0.5 }, poolP: { value: poolP }, poolC: { value: poolC }, poolI: { value: 0.75 }, poolR: { value: 2.3 },
       },
     });
     this.vase = new THREE.Mesh(geo, this.mat);
@@ -243,9 +312,8 @@ export default class SketchC1Vase extends Scene {
       glslVersion: THREE.GLSL3, vertexShader: VASE_VERT, fragmentShader: VASE_FRAG, side: THREE.DoubleSide,
       uniforms: { ...this.mat.uniforms, handle: { value: 1 } },
     });
-    const thEnd = (POL_K * SPACING) / R_BAND;
     for (const side of [-1, 1]) for (const off of [-0.075, 0.075]) {
-      const th = thEnd + (side * Math.PI) / 2 + off;
+      const th = thP + (side * Math.PI) / 2 + off;
       const pts = HANDLE.map(([r, y]) => new THREE.Vector3(r * VS * Math.sin(th), y * VS, r * VS * Math.cos(th)));
       this.st.scene.add(new THREE.Mesh(strapGeo(pts, new THREE.Vector3(Math.cos(th), 0, -Math.sin(th)), 0.24 * VS, 0.06 * VS), hMat));
     }
@@ -260,7 +328,7 @@ export default class SketchC1Vase extends Scene {
         upBy: ws.slice(a, b).map((x) => Math.min(0.12, x.end - x.start)) });
     }
     this.hero = new Word3D(ws[gi]!.w.toUpperCase().replace(/[^A-Z?]/g, ''), heroFont(), { size: 220 });
-    this.hero.lightMul = 2.2;
+    this.hero.lightMul = 3.0;
     this.st.add(this.hero, { shadows: false });
   }
 
@@ -275,45 +343,39 @@ export default class SketchC1Vase extends Scene {
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const t = f.t, { renderer, audio } = this.ctx;
     const ws = this.line.words, gi = ws.findIndex((w) => /guilt/i.test(w.w)), tG = ws[gi]!.start;
-    const ki = ws.findIndex((w) => /killed/i.test(w.w));
 
-    // the camera: round the vase at the frieze's height, rising over the lip for GUILT?
+    // the camera: a steady height and distance, pulled back and raised to hold the band and the rim above it; only
+    // its angle round the vase moves, then it rests on Polites
     const phi = camU(t) / R_BAND;
-    const up = prog(t, 58.4, 58.9, ease.inOutCubic);
-    // the shot opens on the whole krater, foot to rim, and closes in to hold the band in mid-frame with the rim's
-    // phrases in shot; for GUILT? a short push-in that rises to hold Polites, larger, and the word on the rim above him
-    const fc = FRZ.y + FRZ.h / 2, wide = 1 - prog(t, 54.0, 55.6, ease.inOutCubic);
-    const upL = prog(t, 58.3, 58.75, ease.outCubic);
-    const rc = 16.0 + 8.5 * wide - 2.6 * up, cy = fc + 1.0 - 1.4 * wide + 2.0 * up, ly = fc + 0.15 - 1.6 * wide + 1.5 * upL;
+    const rc = 17.2, cy = 9.9, ly = 8.75;
     const pos = new THREE.Vector3(rc * Math.sin(phi), cy, rc * Math.cos(phi));
     const at = new THREE.Vector3(R_BAND * Math.sin(phi), ly, R_BAND * Math.cos(phi));
     this.st.cam.set(pos, at, FOV);
 
-    // the biers: one per word from the 55.80 word to the 58.02 word
-    const born = ws.slice(ki, ki + 6).map((w) => w.start);
     const u = this.mat.uniforms;
-    u.phi!.value = phi; u.stT!.value = t; u.bornT!.value = born;
-    u.nShown!.value = born.filter((b) => t >= b - 0.02).length;
+    u.phi!.value = phi;
 
-    // the small phrases on the rim, each where the camera faces at its first word; GUILT? where the shot comes to rest
+    // the small phrases on the rim, each where the camera faces mid-phrase; GUILT? where the shot comes to rest
     for (const p of this.phrases) {
       const s = 0.32 / p.w.cap, th = camU((p.on[0]! + p.exit) / 2) / R_BAND;
       popWords(p.w, p.on, t, this.onRim(p.w, th, s), { exit: p.exit, exitDur: 0.14, upBy: p.upBy });
     }
     const hd = rc - RIM.r, fw = 2 * hd * TANF * (16 / 9);
-    const hs = (0.42 * fw) / this.hero.width;
-    popWords(this.hero, [tG], t, this.onRim(this.hero, camU(59.4) / R_BAND, hs), { glow: 0.7 });
+    const hs = (0.4 * fw) / this.hero.width;
+    popWords(this.hero, [tG], t, this.onRim(this.hero, POL_U / R_BAND, hs), { glow: 0.7 });
 
-    const L = keyLight(this.st.cam, audio, t, { seed: 9, right: 3.2, up: 2.6, back: 3.0, I: 1.7, reach: 42 });
+    const L = keyLight(this.st.cam, audio, t, { seed: 9, right: 3.2, up: 2.6, back: 3.0, I: 1.25, reach: 42 });
     const Lc = this.st.lightCentre(L);
     (u.Lc!.value as THREE.Vector3).copy(Lc); (u.camP!.value as THREE.Vector3).copy(pos);
     u.LI!.value = L.I; u.reach!.value = L.reach;
+    const flip = () => {
+      for (const k of ['Lc', 'camP', 'poolP', 'poolC']) (u[k]!.value as THREE.Vector3).y *= -1;
+    };
     this.st.render(renderer, out, t, L, { wall: 0, gloss: 0.55 }, {
-      noFlame: true, cards: false, rim: 0.8, spec: 0.05,
+      noFlame: true, cards: false, rim: 0.6, spec: 0.05,
       // the glaze mirrors the vase lit from above (the mirrored scene is flipped about the floor)
-      mirror: { before: () => { (u.Lc!.value as THREE.Vector3).y *= -1; (u.camP!.value as THREE.Vector3).y *= -1; },
-        after: () => { (u.Lc!.value as THREE.Vector3).y *= -1; (u.camP!.value as THREE.Vector3).y *= -1; } },
+      mirror: { before: flip, after: flip },
     });
-    return { bloom: 0.5, bloomThreshold: 0.9, vignette: 0.6, grain: 0.06, ca: 0.4, halation: 0.3 };
+    return { bloom: 0.5, bloomThreshold: 0.9, vignette: 0.75, grain: 0.06, ca: 0.4, halation: 0.3 };
   }
 }
