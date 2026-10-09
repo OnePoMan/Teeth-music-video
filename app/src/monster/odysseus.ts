@@ -111,41 +111,39 @@ float odysseus(vec2 q, float pose, float turn, float cap, float hair, float px, 
     d = min(d, sh);
     dCap = sh;
   }
+  // long, thick, wavy hair (no cap): a full mass over the skull, back from the brow in profile; loose, it flows down
+  // behind his neck and past his back shoulder, its curly ends out against the wall (turned to us, two masses frame
+  // the face); tied, gathered into a low ponytail. Added after the cloak, so one incised contour can part them.
+  float dHair = 1e9;
   if (cap < 0.5 && hair > 0.5) {
-    // long, thick, wavy hair: a full mass over the skull (back from the brow in profile), then locks falling past the
-    // shoulders, behind his neck in profile, framing the face on both sides turned to us; tied, gathered at the nape
     float tied = hair > 1.5 ? 1.0 : 0.0;
     vec2 sc = hc + vec2(-0.014 * pr, 0.01);
-    float ha = atan(q.y - sc.y, q.x - sc.x);
-    float sk = length(q - sc) - 0.06 - (1.0 - tied) * 0.004 * sin(ha * 11.0);
-    sk = max(sk, -(q.y - hc.y + 0.006 - 0.05 * pr * sat((hc.x - 0.005 - q.x) / 0.03)) - 0.08 * (1.0 - pr) * sat(abs(q.x - hc.x) / 0.04 - 0.7));
-    d = smin(d, sk, 0.008);
-    // strands over the skull: two open arcs over the back (both sides turned to us)
-    float rr = length(q - sc), sa = abs(ha - 1.5708);
-    float arcs = min(abs(rr - 0.044), abs(rr - 0.028));
-    float onArc = mix(step(0.35, sa) * step(sa, 1.15), step(0.25, ha - 1.5708) * step(ha - 1.5708, 1.2), pr);
-    strand = min(strand, arcs + (1.0 - onArc) * 1.0);
+    float sk = length(q - sc) - 0.06;
+    dHair = max(sk, -(q.y - hc.y + 0.006 - 0.05 * pr * sat((hc.x - 0.005 - q.x) / 0.03)) - 0.08 * (1.0 - pr) * sat(abs(q.x - hc.x) / 0.04 - 0.7));
     for (int k = 0; k < 2; k++) {
       float sd = k == 0 ? -1.0 : 1.0;
-      vec2 a = mix(hc + vec2(0.05 * sd, 0.0), hc + vec2(-0.045, 0.005), pr);
-      vec2 b = mix(hc + vec2(0.075 * sd, -0.16), hc + vec2(-0.085, -0.19), pr);
+      vec2 a = mix(hc + vec2(0.048 * sd, 0.0), hc + vec2(-0.035, 0.005), pr);
+      vec2 b = mix(hc + vec2(0.105 * sd, -0.15), hc + vec2(-0.21, -0.165), pr);
       if (tied > 0.5) { a = mix(hc + vec2(0.045 * sd, 0.0), hc + vec2(-0.05, -0.035), pr); b = mix(hc + vec2(0.05 * sd, -0.04), hc + vec2(-0.075, -0.19), pr); }
-      vec2 ab = b - a;
-      float t = sat(dot(q - a, ab) / dot(ab, ab));
-      vec2 nrm = normalize(vec2(-ab.y, ab.x));
+      vec2 ab = b - a; float lab = length(ab);
+      float t = sat(dot(q - a, ab) / (lab * lab));
+      vec2 dir = ab / lab, nrm = vec2(-dir.y, dir.x);
       float side = dot(q - a - ab * t, nrm);
-      float wav = 0.008 * sin(t * 18.0 + 1.0) * (1.0 - tied);
-      float r = tied > 0.5 ? mix(0.018, 0.014, t) * (1.0 - 0.35 * smoothstep(0.0, 0.12, t) * (1.0 - smoothstep(0.12, 0.3, t))) + 0.008 * smoothstep(0.85, 1.0, t)
-                           : mix(0.036, 0.03, t) + 0.006 * sin(t * 25.0);
-      float lk = abs(side - wav) - r;
-      lk = max(lk, max(-dot(q - a, ab) / length(ab) - 0.02, dot(q - b, ab) / length(ab)));
-      // loose: the locks end in curls
-      if (tied < 0.5) { lk = min(lk, length(q - b - nrm * 0.018) - 0.02); lk = min(lk, length(q - b + nrm * 0.016 + ab * 0.06) - 0.018); }
-      d = smin(d, lk, 0.01);
-      // strands along the lock (open lines, short of its ends); tied: a band at the gather
-      float sl = min(abs(side - wav - 0.4 * r), abs(side - wav + 0.4 * r));
-      strand = min(strand, sl + step(0.92, t) + step(t, 0.08));
-      if (tied > 0.5) strand = min(strand, abs(t - 0.14) * length(ab) + step(r, abs(side)) );
+      float wav = (1.0 - tied) * 0.012 * sin(t * 5.5 + 0.4);                 // one long, smooth wave
+      float r = tied > 0.5 ? mix(0.018, 0.014, t) + 0.008 * smoothstep(0.85, 1.0, t) : mix(0.048, 0.034, t) * (1.0 - 0.15 * pr * (1.0 - t)) ;
+      float lk = max(abs(side - wav) - r, max(-dot(q - a, dir) - 0.02, dot(q - b, dir)));
+      if (tied < 0.5) {
+        // the curly ends, out against the wall
+        vec2 e = b + nrm * wav;
+        lk = min(lk, length(q - e - nrm * 0.022 + dir * 0.004) - 0.022);
+        lk = min(lk, length(q - e + nrm * 0.02 - dir * 0.01) - 0.02);
+        lk = min(lk, length(q - e - dir * 0.022) - 0.017);
+      }
+      dHair = smin(dHair, lk, 0.012);
+      // two long smooth strand lines along the mass, short of its ends
+      float sl = min(abs(side - wav - 0.38 * r), abs(side - wav + 0.32 * r));
+      if (tied > 0.5) sl = min(abs(side), abs(t - 0.14) * lab + step(r, abs(side)));
+      strand = min(strand, sl + step(0.86, t) + step(t, 0.1));
     }
   }
   // the cloak (chlamys): over his back shoulder, its edge crossing his chest, hanging behind him in folds to a zigzag hem
@@ -154,6 +152,9 @@ float odysseus(vec2 q, float pose, float turn, float cap, float hair, float px, 
   float front = -0.03 + 0.11 * sat((q.y - 0.5) / 0.3);
   float dCl = max(max(q.y - 0.835 + 0.06 * sat(q.x / 0.1), hem - q.y), max(-q.x - back, q.x - front));
   d = smin(d, dCl, 0.012);
+  // the hair over him, parted from the cloak and his back by one incised contour
+  float hairEdge = abs(dHair) + step(-0.004, d) + step(hc.y - 0.07, q.y);
+  d = min(d, dHair);
   // the arms, the bow, the string (and the arrow, the quiver)
   vec2 t0, t1, gS = vec2(0.0);
   float dBow, dStr, dX = 1e9;
@@ -201,6 +202,7 @@ float odysseus(vec2 q, float pose, float turn, float cap, float hair, float px, 
   if (cap > 0.5) L = max(L, (1.0 - smoothstep(w * 0.5, w, abs(cp.y - 0.016))) * step(dCap, -0.006));   // the cap's rim
   else if (hair < 0.5) L = max(L, (1.0 - smoothstep(w * 0.5, w, abs(dCap + 0.012))) * step(hc.y - 0.012, q.y) * step(dCap, -0.004));   // the hairline
   L = max(L, (1.0 - smoothstep(w * 0.5, w, strand)) * step(d, -0.006));                                 // the hair's strands
+  L = max(L, (1.0 - smoothstep(w * 0.5, w, hairEdge)) * step(d, -0.006));                               // its contour
   float dEdge = max(hem - q.y, max(-q.x - back, q.x - front)), fu = (front - q.x) / (front + back);
   L = max(L, (1.0 - smoothstep(w * 0.5, w, abs(dEdge + 0.014))) * step(dCl, -0.004) * step(q.y, 0.8));    // the cloak's edge
   float fold = min(min(abs(fu - 0.35), abs(fu - 0.58)), abs(fu - 0.8)) * (front + back);
