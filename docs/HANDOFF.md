@@ -64,6 +64,17 @@ Read this first, then `docs/MONSTER.md` (the treatment), `docs/TREATMENT.md` (P(
   - **"I'm" timing:** only line 11 changed: "if" 54.54–54.86, "I'm" 54.86–55.13, "the" from 55.13 (were 55.02/55.18). Evidence: envelope dips at 54.86 and 55.12, the nasal 55.07–55.15, "the" at 55.16. The same FIX entries are in `analysis/monster/align.py`. Lines 10 and 14 were checked and left unchanged: their "f", nasal and "the" onsets match the data.
   - **Lint 43.4–68.69: 0 errors.** Expected warnings: PROBLEM cropped 51.8–54.0; HIDING late/partial/lingering (it lands on the downbeat); OURSELVES? late (it slams on 64.02); BLINK "the" 45.13 (hook 1) and 47.80 (line 9's phrase folds flat before the roll). Also flagged: line 13's first word (62.34) popped on the shield's inside while it was still swinging (BACKWARDS, SLOW-RISE). Lead's call: the swing starts earlier, so the shield is edge-on at the word.
   - **Cost:** ~12% (54% → 66%).
+- **Chorus 2 brainstorm, sent to the client 2026-10-09 (no picks yet).** Lines 32–38, 115.4–134.7. Hook 2 (A) on the shore before it; the last line back on the shore.
+  - **Music:** the drums drop out 114.7–122.7 (bar averages 0.08–0.12 against 0.45–0.58) and return exactly on line 34's MONSTER (122.68). Orchestra hits: 117.35, 119.34, 120.02, 122.36, 126.99.
+  - **Proposed frame: "the voyage still ahead of him".** Each plate is an episode he has not reached yet, or meets in this Underworld. Each plate is a step darker toward black-figure (chorus 3's flip).
+  - **The options** (A recommended in each):
+    1. **STRONGER? (117.20).** A: Heracles' shade (Od. 11): the strongest man, still a shade, bow drawn as Homer describes him, lion skin for legibility; Odysseus's own pose, a mirror. B: the Sirens (Od. 12): bound to the mast, STRONGER? lashed to it, the ropes biting on 117.35.
+    2. **FOES/BAY? (119.05/119.80).** A: the Laestrygonians' harbour (Od. 10), a literal bay seen from above on a clay plate: eleven ships inside, his outside; giants' shadows on FOES; boulders on BAY? as he cuts his cable. B: the Sirens, red-figure (after the British Museum's Siren vase).
+    3. **EVERYONE/US (124.03/125.23).** A: the bronze balance (A1 colouring): MONSTER on the drums' return as the beam swings in; EVERYONE a heap of tiny men in one pan; US slams the other down on the 125.2 hit. B: the suitors' hall (Od. 22): the barred doors, the bow on the threshold.
+    4. **HOME (127.94).** A: Ithaca at dawn (Od. 13): the island's ridge, the first dawn of chorus 2 breaking behind it, HOME in the dawn accent, its reflection black-figure (his ship's empty benches). B: Argos (Od. 17). C: the olive-tree bed (Od. 23).
+    5. **UNJUST? (130.34).** A: the Sun's cattle (Od. 12): a black-figure frieze; on "care" the hides crawl (Homer's omen); Zeus's bolt splits UNJUST?. B: the balance's beam snaps (if not on line 3).
+    6. **The ensemble's MONSTER (132.88), on the shore.** A: the far bank fills with the shadows of every monster so far; the answer under the water bigger than ever. B: the dead alone, closer, on our side.
+  - **Sources:** the book numbers are from memory. Fetch and cite (Butler on Wikisource) once picked.
 - Git on this laptop has no user identity configured: commit with `git -c user.name=Claude -c user.email=noreply@anthropic.com commit …` (as the earlier commits were).
 
 **Client notes on the v11 preview (2026-10-09, binding; same session, now on branch `laptop-1009c` from `main` 86bcb00 after PR #6 was merged at the client's OK):**
