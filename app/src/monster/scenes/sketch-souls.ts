@@ -2,7 +2,7 @@
 // (odysseus.ts) beside two generic shades for comparison, chosen with ?opt=:
 //   a  calm: the bow held low at his side      b  the archer: bow drawn, an arrow nocked
 //   c  the traveller: bow slung, a quiver      aturn  pose a, his head turned to look at us
-//   bturn  pose b turned to us; add "-loose" / "-tied" / "-short" for the hair, "-cap" for the cap, "-plain" for no incision (e.g. opt=bturn-tied)
+//   bturn  pose b turned to us; add "-loose" / "-tied" / "-short" for the hair, "-cap" for the cap, "-cloak" for the cloak, "-plain" for no incision (e.g. opt=bturn-tied)
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { GLSL_SHADE } from '../motifs';
@@ -41,6 +41,7 @@ export default class SketchSouls extends Scene {
   private turn = 0;
   private incise = true;
   private cap = false;
+  private cloak = false;
   private hair: OdyHair = 'loose';
 
   override async init() {
@@ -48,6 +49,7 @@ export default class SketchSouls extends Scene {
     this.pose = opt.startsWith('b') ? 'archer' : opt.startsWith('c') ? 'traveller' : 'calm';
     this.turn = opt.includes('turn') ? 1 : 0;
     this.cap = opt.includes('-cap');
+    this.cloak = opt.includes('-cloak');
     this.hair = opt.includes('tied') ? 'tied' : opt.includes('short') ? 'short' : 'loose';
     this.incise = !opt.endsWith('-plain');
     this.st = new Stage({
@@ -63,7 +65,7 @@ export default class SketchSouls extends Scene {
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const t = f.t, { renderer, audio } = this.ctx;
-    setOdysseus(this.st.bg.u, { x: -1.4, h: 4.1, pose: this.pose, turn: this.turn, cap: this.cap, hair: this.hair, incise: this.incise, lean: -0.75, stretch: 1.3 });
+    setOdysseus(this.st.bg.u, { x: -1.4, h: 4.1, pose: this.pose, turn: this.turn, cap: this.cap, cloak: this.cloak, hair: this.hair, incise: this.incise, lean: -0.75, stretch: 1.3 });
     // facing the wall square on, a little above floor level; the fire low behind us
     const pos = new THREE.Vector3(0.4, 1.6, 2.6), at = new THREE.Vector3(0.4, 2.1, -R);
     this.st.cam.set(pos, at, 42);
