@@ -12,7 +12,7 @@ import type { Line } from '../../engine/lyrics';
 import { ease, prog } from '../../engine/util';
 import { GLSL_SHADE } from '../motifs';
 import { GLSL_ODYSSEUS, odysseusUniforms, setOdysseus } from '../odysseus';
-import { Stage, Word3D, keyLight, popWords, type Letter } from '../stage';
+import { POP, Stage, Word3D, keyLight, popWords, type Letter } from '../stage';
 import { heroFont } from '../shore';
 
 const FOV = 40;
@@ -142,7 +142,7 @@ export default class C1Shield extends Scene {
   private strap!: THREE.Mesh;
   private foes!: Word3D;
   private ours!: Word3D;
-  private phrases: { w: Word3D; on: number[]; exit: number; inside: boolean }[] = [];
+  private phrases: { w: Word3D; on: number[]; exit: number; dur: number; inside: boolean }[] = [];
   private l1!: Line;
   private l2!: Line;
 
@@ -175,15 +175,17 @@ export default class C1Shield extends Scene {
     this.foes.lightMul = 2.0; this.ours.lightMul = 2.0;
     this.st.add(this.foes, { shadows: false });
     this.st.add(this.ours, { shadows: false });
-    // small phrases: "What if I've" / "been far too" / "kind to" on the face's rim; "but a monster to" inside
+    // small phrases: three on the face's rim, one after another in the same place, then line 13's lead-in inside;
+    // a rim phrase followed by another is flat and gone before the next one starts to rise (they share a place)
     for (const [a, b, inside] of [[0, 3, false], [3, 6, false], [6, fi, false]] as const) {
       const w = new Word3D(w1.slice(a, b).map((x) => x.w).join(' '), F.archivo(112.5, 600), { size: 200 });
       this.st.add(w, { shadows: false });
-      this.phrases.push({ w, on: w1.slice(a, b).map((x) => x.start), exit: w1[b]!.start - 0.08, inside });
+      const next = b < fi;                                   // (the last one leaves as FOES, elsewhere, comes up)
+      this.phrases.push({ w, on: w1.slice(a, b).map((x) => x.start), exit: w1[b]!.start - (next ? POP.lead + 0.11 : 0.08), dur: next ? 0.08 : 0.14, inside });
     }
     const w = new Word3D(w2.slice(0, oi).map((x) => x.w).join(' '), F.archivo(112.5, 600), { size: 200 });
     this.st.add(w, { shadows: false });
-    this.phrases.push({ w, on: w2.slice(0, oi).map((x) => x.start), exit: T_SLAM - 0.05, inside: true });
+    this.phrases.push({ w, on: w2.slice(0, oi).map((x) => x.start), exit: T_SLAM - 0.05, dur: 0.14, inside: true });
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
@@ -225,7 +227,7 @@ export default class C1Shield extends Scene {
         if (!p.inside) { l.x = x0 + l.penX * s; l.y = -1.95; l.z = 0.6; l.yaw = 0; }
         else { l.x = -(x0 + l.penX * s); l.y = GROUND - 0.85; l.z = 0.05; l.yaw = Math.PI; }
         l.s = s;
-      }, { exit: p.exit, exitDur: 0.14 });
+      }, { exit: p.exit, exitDur: p.dur });
       place(p.w);
     }
 
