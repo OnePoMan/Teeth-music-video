@@ -23,6 +23,16 @@ Read this first, then `docs/MONSTER.md` (the treatment), `docs/TREATMENT.md` (P(
   - **Checks:** lint 0 errors (expected warnings only: PROBLEM cropped as the camera climbs past it; HIDING late/partial/lingering, on the downbeat by design). Client stills `out/stills/c1-scylla-final/` (49.6, 50.8, 52.2, 52.95, 53.05, 53.4, 53.98).
   - **Left rough:** edges slightly soft at the snouts.
   - **Cost:** ~19% of the window (10% → 29%), double the estimate: four rounds.
+- **The vase made tragic** (`sketch-c1-vase.ts`, bacb29c, 06d2aaf, dfbcd0f). The vase owns its frieze now: the meander and zigzag are copied in, it no longer imports `GLSL_FRIEZE`, and `mirror-kit.ts` is untouched.
+  - **The frieze:** one even procession of identical tall mourners in long robes, heads bowed, one hand to the head, walking toward Polites. Those right of him face left, toward him. Smaller biers of the other dead stand at regular intervals, each taking two of the procession's spaces. Every shroud is plain black with an incised border.
+  - **Polites:** 1.2x, at rest, arms open low, palms up, floating slightly above his bier (a Geometric convention).
+  - **No pops:** `bornT`/`nShown`/`stT` are gone.
+  - **Camera:** one steady pass at constant radius and height, easing from 57.15 to rest on Polites at 58.35 and holding to the cut. The resting frame shows GUILT? on the rim.
+  - **Light and handles:** the key light is cut to 0.17x with a warm pool on Polites, and GUILT? lights at 3.0. The handles are black glaze with two reserved lines.
+  - **Checks:** lint 54.02–59.355 0 errors, 0 warnings. Stills `out/stills/c1-vase2/`.
+  - **Left rough:** the last small phrase on the rim is turned and squeezed (left of GUILT?); the neck bands stay fairly bright; Polites is modest in size in the final frame (the pool carries him; "fewer, larger mourners near him" not used).
+  - **Cost:** ~11% (31% → 42%).
+- **Sent to the client for a last look:** `out/stills/scylla-final-sheet.jpg` and `out/stills/vase-final-sheet.jpg` (with a full-size crop of Polites).
 - Git on this laptop has no user identity configured: commit with `git -c user.name=Claude -c user.email=noreply@anthropic.com commit …` (as the earlier commits were).
 
 **Client notes on the v11 preview (2026-10-09, binding; same session, now on branch `laptop-1009c` from `main` 86bcb00 after PR #6 was merged at the client's OK):**
