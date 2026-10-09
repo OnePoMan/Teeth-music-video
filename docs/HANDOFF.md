@@ -64,6 +64,27 @@ Read this first, then `docs/MONSTER.md` (the treatment), `docs/TREATMENT.md` (P(
   - **"I'm" timing:** only line 11 changed: "if" 54.54–54.86, "I'm" 54.86–55.13, "the" from 55.13 (were 55.02/55.18). Evidence: envelope dips at 54.86 and 55.12, the nasal 55.07–55.15, "the" at 55.16. The same FIX entries are in `analysis/monster/align.py`. Lines 10 and 14 were checked and left unchanged: their "f", nasal and "the" onsets match the data.
   - **Lint 43.4–68.69: 0 errors.** Expected warnings: PROBLEM cropped 51.8–54.0; HIDING late/partial/lingering (it lands on the downbeat); OURSELVES? late (it slams on 64.02); BLINK "the" 45.13 (hook 1) and 47.80 (line 9's phrase folds flat before the roll). Also flagged: line 13's first word (62.34) popped on the shield's inside while it was still swinging (BACKWARDS, SLOW-RISE). Lead's call: the swing starts earlier, so the shield is edge-on at the word.
   - **Cost:** ~12% (54% → 66%).
+- **Chorus 1 build, phase 3 done** (d24286d):
+  - **The shield:** it now swings 0.2 s earlier (62.10–62.58, the same length and easing), edge-on on line 13's first word. Lint 59.3–64.7: 0 errors; only OURSELVES? LATE remains (the slam, by design).
+  - **Review clip** `out/review/v15-chorus1-review.mp4` (36.03–68.69 s, with the song; full quality `v15-chorus1.mp4`; the agent's contact sheets in `out/review/v15-look/`), sent to the client. Command: `bash app/scripts/clip.sh v15-chorus1 36.0333 68.6889 sea,hook1,wrong,scylla,vase,shield,lookback 16` (~10 min).
+  - **Cuts:** 43.367 seamless; 46.033, 49.033, 54.033, 59.367 and 64.700 clean hard cuts, with nothing new just before any of them. The roll lands WRONG? on 48.02; the snaps read; GUILT? lands on 58.42; "but" pops on an inside already facing us.
+  - **Open, for the client or the next session:**
+    1. **lookback, the head turn (66.69–66.8):** facing us, Odysseus's head is a mass of locks with no face, so the moment he looks back at us does not read. Needs a design call: reserve an eye or a face out of the hair. At this size the dead's turn is not visible either.
+    2. **The shield:** FOES' letters stick past the rim for a frame or two as it turns (~62.27–62.30), as in the sketch. Fix: FOES leaves ~0.08 s earlier (cheap).
+    3. **The hard cut hook 1 → `wrong`:** a big step from the dark shore to the bright clay wall.
+    4. **Known:** BLINK "the" 47.80 (0.07 s); the vase's last rim phrase squeezed and turned.
+  - **The hair:** in profile the long locks read and give him a clear silhouette; small on the wall in `wrong` they read as a ponytail; facing us they hide the face.
+  - **Cost** of phase 3 with the lead's review: ~8% (66% → ~74%). The session from 2% to 76% of the window (weekly 47% → 57%).
+- **Next, in order (session 2026-10-09 fourth, superseding the list in the third session's entry below):**
+  1. **The client's notes:**
+     - the Scylla and vase last-look stills (`out/stills/scylla-final-sheet.jpg`, `vase-final-sheet.jpg`);
+     - the circe clip (`v14-circe-review.mp4`);
+     - the chorus 1 clip (`v15-chorus1-review.mp4`);
+     - the chorus 2 picks (brainstorm below).
+  2. **Chorus 1's open items** (above): propose the lookback face to the client (ideas first); fix FOES' exit (cheap); then the client's notes on the clip, plate by plate (`--only <id>`, lint, a clip).
+  3. **A full preview** (0 → 110.03, as v11: `bash app/scripts/clip.sh v15-full 0 110.0333 everything,endless,symbolon,change,souls,sea,hook1,wrong,scylla,vase,shield,lookback,cyclops,circe,poseidon,horse 16`, ~16 min).
+  4. **Chorus 2 once picked:** fetch and cite the sources, then stills per plate (one agent at a time; ~10% per plate round).
+  5. **On hold until the client says:** the bridge stills; the six verse 2 taste calls.
 - **Chorus 2 brainstorm, sent to the client 2026-10-09 (no picks yet).** Lines 32–38, 115.4–134.7. Hook 2 (A) on the shore before it; the last line back on the shore.
   - **Music:** the drums drop out 114.7–122.7 (bar averages 0.08–0.12 against 0.45–0.58) and return exactly on line 34's MONSTER (122.68). Orchestra hits: 117.35, 119.34, 120.02, 122.36, 126.99.
   - **Proposed frame: "the voyage still ahead of him".** Each plate is an episode he has not reached yet, or meets in this Underworld. Each plate is a step darker toward black-figure (chorus 3's flip).
