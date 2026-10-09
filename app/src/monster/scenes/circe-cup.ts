@@ -41,6 +41,44 @@ void main() {
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 
+// ---------------------------------------------------------------- frost (COLDER, line 3): white-line crystal hairlines
+/** In each cell a feather of frost: a stem from a random point, leaning along `ang0` (give or take `spread`), with
+ *  barbs at 60 degrees that shorten toward its tip, both sides. Distance in cell units. */
+const FROST_GLSL = /* glsl */ `
+float frostFeather(vec2 p, float ang0, float spread, float seed, float keep) {
+  vec2 c0 = floor(p);
+  float d = 1e9;
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec2 c = c0 + vec2(float(i), float(j));
+    if (hash12(c + seed * 0.37 + 91.0) > keep) continue;
+    vec2 h = hash22(c + seed);
+    vec2 q = p - (c + 0.15 + 0.7 * h);
+    float a = ang0 + (hash12(c * 1.73 + seed + 5.1) - 0.5) * spread;
+    vec2 u = vec2(cos(a), sin(a)), n = vec2(-u.y, u.x);
+    float Ls = 0.85 + 0.4 * h.y;
+    vec2 lq = vec2(dot(q, u), abs(dot(q, n)));
+    if (lq.x < -0.1 || lq.x > Ls + 0.1 || lq.y > 0.6) continue;
+    d = min(d, sdSegment(lq, vec2(0.0), vec2(Ls, 0.0)));
+    for (int k = 1; k <= 4; k++) {
+      float s = Ls * (float(k) - 0.4 * h.x) / 4.6;
+      float lb = (Ls - s) * 0.5;
+      d = min(d, sdSegment(lq, vec2(s, 0.0), vec2(s + 0.5 * lb, 0.866 * lb)));
+    }
+  }
+  return d;
+}
+/** Frost hairlines (coverage) at p (cell units of the coarse feathers), wc cells per screen px: coarse feathers and,
+ *  where fine > 0, finer ones between them. */
+float frostLines(vec2 p, float wc, float ang0, float spread, float fine, float keep) {
+  float dc = frostFeather(p, ang0, spread, 0.0, keep);
+  float cov = pxLine(dc / wc, 0.2, 0.9);
+  if (fine > 0.0) {
+    float df = frostFeather(p * 2.4 + 7.0, ang0, spread * 1.4, 13.0, keep * 0.75);
+    cov = max(cov, fine * 0.7 * pxLine(df / (wc * 2.4), 0.15, 0.8));
+  }
+  return cov;
+}`;
+
 /** The kit's letter shader (stage.ts, vase path) plus a clip at the potion's surface: clipS (vW.y - clipY) < 0 is
  *  discarded (1 in the shot, -1 in the mirrored render), and a wine-dark wet line where the letter meets it. */
 const LETTER_FRAG = /* glsl */ `
@@ -52,8 +90,24 @@ ${GLSL_COMMON}
 uniform vec3 Lc, camPosL; uniform float LI, reach, glow, lineFreq, rim, amb, vaseL, glaze, bf;
 uniform sampler2D incTex; uniform vec4 amap;
 uniform float clipY, clipS;
+// COLDER (all 0 by default: no change): cold drains the fire's warmth (the face to a dim ash, the orange on the sides
+// gone); frost (0..1) grows white-line crystal up the letter from its foot; fBrk (0..1) breaks it into flakes that
+// slide down and fade; crack draws the break across the C's foot; capH the run's cap height (font px)
+uniform float cold, frost, fBrk, crack, capH;
+${FROST_GLSL}
+/** The letter's frost at pf (font px: x along the letter, y up from the baseline), fwp font px per screen px. */
+float frostAt(vec2 pf, float fwp) {
+  float edge = frost * capH * 1.3 * (0.8 + 0.25 * snoise(pf / capH * vec2(4.0, 1.5) + 3.0));
+  float m = 1.0 - smoothstep(edge - 0.08 * capH, edge, pf.y);
+  if (m <= 0.0) return 0.0;
+  float cell = 0.36 * capH;
+  return m * frostLines(pf / cell, fwp / cell, 1.5708, 1.5, sat(frost * 1.6 - 0.2), 0.8);
+}
 void main() {
   if (clipS * (vW.y - clipY) < 0.0) discard;
+  // (frost coordinates and their screen footprint before any branch)
+  vec2 pf = vec2(vP.x + vP.z, vP.y);
+  float fwp = max(length(fwidth(pf)), 1e-4);
   float nl = length(vNW);
   vec3 N = nl > 1e-6 ? vNW / nl : vec3(0.0, 0.0, 1.0);
   vec3 L = Lc - vW; float d = length(L); L /= d;
@@ -62,14 +116,39 @@ void main() {
   float face = step(0.9, abs(vN.z) / max(length(vN), 1e-6));
   float lit = pow(max(ndl, 0.0), 1.3) * fall;
   float tone = sat(lit * 1.35);
+  float warm = 1.0 - cold;
   vec3 Vv = normalize(camPosL - vW), Hh = normalize(L + Vv);
   float spec = pow(max(dot(N, Hh), 0.0), 90.0) * fall;
-  vec3 sideC = C_INK * (0.5 + 0.5 * tone) + mix(C_EMBER, C_BONE, 0.5) * spec * 1.6;
+  vec3 sideC = C_INK * (0.5 + 0.5 * tone) + mix(mix(C_EMBER, C_BONE, 0.5), C_ASH * 0.5, cold) * spec * 1.6;
   vec3 faceC = C_BONE * min(tone, 0.82);
+  // cold: the same light on a grey, unwarmed stone, about half as bright
+  faceC = mix(faceC, C_ASH * (luma(faceC) / luma(C_ASH)) * 0.25, cold);
   vec3 col = mix(sideC, faceC, face);
-  col += mix(C_SIGNAL, C_EMBER, 0.5) * rim * fall * pow(1.0 - abs(ndl), 6.0) * (1.0 - face) * 1.2;
-  col += mix(C_BONE, C_EMBER, 0.3) * amb * (0.35 + 0.65 * face);
+  col += mix(C_SIGNAL, C_EMBER, 0.5) * rim * fall * pow(1.0 - abs(ndl), 6.0) * (1.0 - face) * 1.2 * warm;
+  col += mix(C_BONE, C_EMBER, 0.3) * amb * (0.35 + 0.65 * face) * warm;
   col = mix(col, C_EMBER * 2.2, glow * (0.6 + 0.4 * face));
+  // the frost: hairlines growing up from the foot; broken, flakes sliding down (into the potion) and fading
+  float fr = 0.0;
+  if (fBrk > 0.0) {
+    float cs = 0.12 * capH, drop = fBrk * fBrk * capH * 1.2;
+    float cx = floor(pf.x / cs), r0 = floor((pf.y + drop * 0.85) / cs);
+    for (int j = 0; j < 5; j++) {
+      float r = r0 + float(j);
+      float h = hash12(vec2(cx, r) + 41.0);
+      vec2 s = pf + vec2(0.0, drop * (0.85 + 0.35 * h));
+      if (floor(s.y / cs) != r) continue;
+      vec2 lc = fract(s / cs);
+      float inFlake = step(0.07, lc.x) * step(lc.x, 0.93) * step(0.08, lc.y) * step(lc.y, 0.92);
+      float fade = 1.0 - smoothstep(0.3, 0.85, fBrk + 0.3 * (hash12(vec2(cx, r) + 7.0) - 0.5));
+      if (inFlake * fade > 0.0) fr = max(fr, frostAt(s, fwp) * inFlake * fade);
+    }
+  } else if (frost > 0.0) fr = frostAt(pf, fwp);
+  col = mix(col, C_BONE * 0.8, sat(fr));
+  // the crack across the C's foot where it breaks away
+  if (crack > 0.0) {
+    float yc = capH * (0.14 + 0.05 * snoise(vec2(pf.x / capH * 7.0, 1.7)) + 0.015 * snoise(vec2(pf.x / capH * 30.0, 4.1)));
+    col = mix(col, C_INK, crack * pxLine(abs(pf.y - yc) / fwp, 0.5, 1.3));
+  }
   // wet where it comes out of the potion
   float wet = 1.0 - smoothstep(0.0, 0.05, clipS * (vW.y - clipY));
   col = mix(col, col * vec3(0.45, 0.2, 0.22), wet * 0.8);
@@ -77,12 +156,13 @@ void main() {
   fragColor = vec4(col, 1.0);
 }`;
 
-/** Gives a run's letters the clipping shader (their uniforms are kept, with clipY/clipS added). */
+/** Gives a run's letters the clipping shader (their uniforms are kept, with clipY/clipS and the frost's added). */
 export function clipWord(w: Word3D) {
   for (const l of w.letters) {
     const u = l.mat.uniforms;
     u.clipY = { value: -100 };
     u.clipS = { value: 1 };
+    u.cold = { value: 0 }; u.frost = { value: 0 }; u.fBrk = { value: 0 }; u.crack = { value: 0 }; u.capH = { value: w.cap };
     const m = new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: LETTER_VERT, fragmentShader: LETTER_FRAG, uniforms: u });
     l.mat.dispose();
     l.mesh.material = m;
@@ -101,6 +181,30 @@ uniform float swirl, swirlT; uniform vec2 vortPx;
 uniform vec4 staff; uniform float staffOn;
 uniform vec4 rip[${MAX_RIP}]; uniform int nRip;
 uniform float tondoRot, dancePh;
+// the frost on the potion round COLDER's foot: (x, z) of its middle and the row's direction; half its length, how far
+// the frost has grown (0..1), how far it has broken up (0..1)
+uniform vec4 frostA, frostB;
+${FROST_GLSL}
+/** The frost on the potion at xz (coverage), gp world units per px: feathers growing out from the word's foot. */
+float potionFrost(vec2 xz, float gp) {
+  if (frostB.y <= 0.0) return 0.0;
+  vec2 rel = xz - frostA.xy, u = frostA.zw, n = vec2(-u.y, u.x);
+  float a = dot(rel, u), b = dot(rel, n);
+  vec2 off = vec2(sign(a) * max(abs(a) - frostB.x, 0.0), b);
+  float ds = length(off);
+  float edge = frostB.y * 1.3 * (0.72 + 0.32 * snoise(xz * 1.8 + 11.0));
+  float m = 1.0 - smoothstep(edge * 0.8, edge, ds);
+  if (m <= 0.0) return 0.0;
+  // (the fronds lean away from the foot: radially from a point well inside each end, so they never curl into rings)
+  vec2 dv = vec2(sign(a) * max(abs(a) - max(frostB.x - 1.2, 0.0), 0.0), b);
+  vec2 od = length(dv) > 1e-4 ? normalize(dv) : vec2(0.0, 1.0);
+  vec2 wd = od.x * u + od.y * n;
+  const float cell = 0.42;
+  float cov = m * frostLines(xz / cell, gp / cell, atan(wd.y, wd.x), 1.1, 1.0 - smoothstep(0.25, 0.6, ds / max(edge, 1e-3)), 0.62);
+  // broken: it goes in flakes, each fading at its own moment
+  if (frostB.z > 0.0) cov *= 1.0 - smoothstep(0.0, 0.2, frostB.z * 1.4 - hash12(floor(xz / 0.09) + 23.0) * 0.9);
+  return cov;
+}
 const float RI = ${CUP.RI.toFixed(4)}, RO = ${CUP.RO.toFixed(4)}, DEP = ${CUP.D.toFixed(4)}, RS = ${RS.toFixed(5)}, CY = ${CY.toFixed(5)};
 const float LIPB = ${CUP.LIPB.toFixed(4)}, RTIN = ${CUP.RTIN.toFixed(4)}, RT = ${CUP.RT.toFixed(4)}, FLOORY = ${CUP.FLOOR.toFixed(4)};
 const vec3 C_WINE = vec3(0.028, 0.0006, 0.0062);
@@ -400,6 +504,8 @@ void main() {
       col = mix(under + refl * 0.2 * gloss * (1.0 - a), liq, a);
       // the meniscus: a hair of light where the potion meets the wall
       col += clayCol(lb) * 0.3 * (1.0 - smoothstep(gPix, 3.0 * gPix, rp - r)) * a;
+      // the frost round COLDER's foot (its hairlines are crisp at any distance: their width is in screen px)
+      col = mix(col, C_BONE * 0.55, potionFrost(P.xz, gPixL) * a);
     } else {
       col = bowlCol(Pb, D);
     }
@@ -457,6 +563,9 @@ export interface CupState {
   /** Mirror the (non-hero) letters in the potion (default true). */
   mirror?: boolean;
   dancePh?: number;
+  /** Frost on the potion round a word's foot: its middle (x, z), the row's direction (ux, uz), half its length, how far
+   *  the frost has grown (0..1: off at 0) and broken up (0..1). */
+  frost?: [number, number, number, number, number, number, number];
 }
 
 /** The cup and the letters on (and in) its potion. */
@@ -475,6 +584,7 @@ export class CupStage {
       swirl: { value: 0 }, swirlT: { value: 0 }, vortPx: { value: new THREE.Vector2(W / 2, H / 2) },
       staff: { value: new THREE.Vector4() }, staffOn: { value: 0 },
       rip: { value: Array.from({ length: MAX_RIP }, () => new THREE.Vector4()) }, nRip: { value: 0 }, tondoRot: { value: 0 }, dancePh: { value: 0 },
+      frostA: { value: new THREE.Vector4() }, frostB: { value: new THREE.Vector4() },
     });
   }
   private noMirror = new Set<Word3D>();
@@ -507,6 +617,9 @@ export class CupStage {
     rips.forEach((r, i) => (u.rip!.value as THREE.Vector4[])[i]!.set(...r));
     u.nRip!.value = rips.length;
     u.tondoRot!.value = S.tondoRot ?? 0; u.dancePh!.value = S.dancePh ?? 0;
+    const fz = S.frost ?? [0, 0, 1, 0, 0, 0, 0];
+    (u.frostA!.value as THREE.Vector4).set(fz[0], fz[1], fz[2], fz[3]);
+    (u.frostB!.value as THREE.Vector4).set(fz[4], fz[5], fz[6], 0);
     for (const w of this.words) w.light(Lc, L.I, L.reach, 0.2, this.cam.cam.position);   // (a low rim: the glazed sides stay black)
     // the potion mirrors the letters: the scene rendered upside down about its surface, clipped at it
     if (S.level > -CUP.D + 0.01) {

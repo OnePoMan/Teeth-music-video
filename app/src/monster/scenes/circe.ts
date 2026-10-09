@@ -254,6 +254,7 @@ export default class Circe extends Scene {
         l.x = RA * p.x; l.z = RA * p.z; l.yaw = -al; l.s = s;
       }, { exit: Math.min(tipT, or.start - 0.15), exitDur: 0.14 });
     }
+    let frostOn: [number, number, number, number, number, number, number] | undefined;
     // line 3: "Or did she learn" | "to be" COLDER | "when she got" | OLDER (the C drops away)
     // ("learn" is short: its pop is up within min(0.12 s, its sung length), the frame checker's SLOW-RISE)
     cupPop(this.sD, W3.slice(0, 4).map((x) => x.start), rowAt(this.sD, pS.x, pS.z, SMALL), { exit: W3[4]!.start - POP.lead - 0.06, exitDur: 0.12,
@@ -276,6 +277,21 @@ export default class Circe extends Scene {
         c.on = t < older.start + 0.32 ? 1 : 0;
         c.mat.uniforms.glow!.value = 0;
       }
+      // cold: on "colder" the fire's warmth drains out of the word (a dim ash stone, no orange on its sides) as frost
+      // grows up it from its foot and out across the potion; on "older" the frost breaks off in flakes and OLDER warms
+      // back to lit bone; the C keeps its frost and its cold and goes under with them, a crack across its foot
+      const tO = older.start, coldK = prog(t, colder.start, colder.start + 0.6, ease.outQuad);
+      const warmBack = prog(t, tO - 0.02, tO + 0.22, ease.outCubic), brk = prog(t, tO - 0.02, tO + 0.45);
+      const grow = prog(t, colder.start + 0.02, colder.start + 0.7, ease.outQuad);
+      for (const l of L) {
+        const u = l.mat.uniforms, isC = l === c;
+        u.cold!.value = coldK * (isC ? 1 : 1 - warmBack);
+        u.frost!.value = grow;
+        u.fBrk!.value = isC ? 0 : brk;
+        u.crack!.value = isC ? prog(t, tO - 0.02, tO + 0.02) : 0;
+      }
+      const s = capW / w.cap;
+      frostOn = [heroX, heroZ, Math.cos(psi), -Math.sin(psi), ((L[L.length - 1]!.penX - L[0]!.penX) / 2) * s + 0.1, grow, brk];
       w.update();
     }
     // line 4: "and now she" | "saves them the" (they go down with the potion) | PAIN? on the rim
@@ -324,7 +340,7 @@ export default class Circe extends Scene {
     const L = keyLight(this.cup.cam, audio, t, { seed: 11, I: 1.55 * (1 + 0.25 * stopJolt), reach: 30, right: 2.2, up: 1.5, back: 2.5 });
     this.cup.render(renderer, out, t, L, {
       level, wine: 0.35, gloss: 0.7, mirror: false, swell: stopped ? 0 : 0.35, reflBend: 0.05, spec: 0.05, swirl, swirlT: Om,
-      staff: [butt.x, butt.z, tip.x, tip.z], staffOn: 1 - prog(t, pain.start - 0.1, pain.start + 0.25), rips, tondoRot: -this.omega(T1), dancePh: 2.5 * t,
+      staff: [butt.x, butt.z, tip.x, tip.z], staffOn: 1 - prog(t, pain.start - 0.1, pain.start + 0.25), rips, tondoRot: -this.omega(T1), dancePh: 2.5 * t, frost: frostOn,
     });
     return { bloom: 0.55, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0, 0.004 * jolt] };
   }
