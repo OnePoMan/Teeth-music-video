@@ -33,6 +33,20 @@ Read this first, then `docs/MONSTER.md` (the treatment), `docs/TREATMENT.md` (P(
   - **Left rough:** the last small phrase on the rim is turned and squeezed (left of GUILT?); the neck bands stay fairly bright; Polites is modest in size in the final frame (the pool carries him; "fewer, larger mourners near him" not used).
   - **Cost:** ~11% (31% → 42%).
 - **Sent to the client for a last look:** `out/stills/scylla-final-sheet.jpg` and `out/stills/vase-final-sheet.jpg` (with a full-size crop of Polites).
+- **Circe's frost done** (7488e2d, d588a23, f05208a), all in `circe-cup.ts`, where the cup's letters use their own copy of the letter shader (`clipWord`); `stage.ts` is untouched.
+  - **New uniforms**, all defaulting to 0: letter `cold`, `frost`, `fBrk`, `crack`, `capH`; potion `frostA`/`frostB` and `CupState.frost`.
+  - **The frost moment:**
+    - 86.0: COLDER pops warm.
+    - From 86.1: white-line frost fronds grow over the potion from its foot. The faces drain to a dim ash (the cold eases out, fastest at the start) and the sides go black.
+    - ~86.7: fully frosted.
+    - 87.4: the C, still frosted, tips and sinks with a thin crack across its foot; the rest warms back to bone.
+    - 87.5–87.6: the potion frost breaks into flakes and fades.
+    - 87.7: clean, lit OLDER.
+  - **SLOW-RISE fixed:** "throw", REMORSE, "lives" (horse) and "learn" (circe). `popWords`' `upBy` now takes per-word gaps, and `cupPop` passes it. "learn"'s phrase also leans back further under the overhead camera (a `square` option), since the checker's flag there was its facing.
+  - **Checks:** lint circe 0 errors (TITLE-SAFE ×2 in the open, the known COLDER→OLDER findings, BLINK "the" 89.17); horse 0 errors (BLINK ×3, TWO LINES 108.3, TITLE-SAFE 108.5).
+  - **Clip** `out/review/v14-circe-review.mp4`, sent.
+  - **Left rough:** the flakes sliding off OLDER barely show (bone on bone); a few curled arcs where the frost's growth direction flips near the word's foot.
+  - **Cost:** ~11% (42% → 53%).
 - Git on this laptop has no user identity configured: commit with `git -c user.name=Claude -c user.email=noreply@anthropic.com commit …` (as the earlier commits were).
 
 **Client notes on the v11 preview (2026-10-09, binding; same session, now on branch `laptop-1009c` from `main` 86bcb00 after PR #6 was merged at the client's OK):**
