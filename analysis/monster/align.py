@@ -41,6 +41,12 @@ FIX = {
     # figure starts). Pilot v5 review.
     (0, 5): dict(start=6.97, end=7.56),
     (0, 6): dict(start=7.60, end=8.14),
+    # L11 (GUILT?): "if" was timed 0.48 s with "I'm" late after it (55.02-55.18). The vocal envelope dips at 54.86 and
+    # 55.13 (between the syllables), and the mix's high band shows the nasal of "I'm" at 55.07-55.15 and the dental
+    # onset of "the" at 55.16. Client-approved, 2026-10-09.
+    (11, 1): dict(end=54.86),
+    (11, 2): dict(start=54.86, end=55.13),
+    (11, 3): dict(start=55.13),
 }
 
 NOTES = (
