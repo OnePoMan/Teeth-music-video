@@ -123,12 +123,13 @@ export default class Mirror extends Scene {
     const wA = this.heroPose(0);
     small(sl(l9, 'what', 'in'), w(l9, 'in').start - 0.13, 46, cAB, (sc) => ({ x: X.A - 0.5 * sc(0.28), z: -3.0, cap: 0.28, yaw: 0 }));
     small(sl(l9, 'in', 'wrong'), 1e9, 46, cAB, (sc) => ({ x: wA.x - wA.width / 2 - 0.22 - sc(0.2), z: wA.z + 0.2, cap: 0.2, yaw: 0 }));
-    // B: "What if I'm the", then "that's been" left of PROBLEM on its line; "all along?" right of it
+    // B: "What if I'm the" left of PROBLEM on its line; "that's been", then "all along?" right of it (read in order)
     const wB = this.heroPose(1);
     const leftOfB = (cap: number, sc: (c: number) => number) => ({ x: wB.x - wB.width / 2 - 0.3 - sc(cap), z: wB.z, cap, yaw: 0 });
     small(sl(l10, 'what', 'problem'), w(l10, 'thats').start - 0.16, cAB, cBC, (sc) => leftOfB(0.27, sc));
-    small(sl(l10, 'thats', 'hiding'), w(l10, 'all').start - 0.16, cAB, cBC, (sc) => leftOfB(0.27, sc));
-    small(sl(l10, 'all'), 1e9, cAB, cBC, () => ({ x: wB.x + wB.width / 2 + 0.3, z: wB.z, cap: 0.27, yaw: 0 }));
+    const rightOfB = () => ({ x: wB.x + wB.width / 2 + 0.3, z: wB.z, cap: 0.27, yaw: 0 });
+    small(sl(l10, 'thats', 'hiding'), w(l10, 'all').start - 0.16, cAB, cBC, rightOfB);
+    small(sl(l10, 'all'), 1e9, cAB, cBC, rightOfB);
     // (lines 3–5: the sketch's phrases, to be completed)
     small(sl(l11, 'caved', 'guilt'), 1e9, cBC, cCD, () => ({ x: X.C - 5.2, z: -6, cap: 0.3, yaw: 0 }));
     small(sl(l13, 'but', 'ourselves'), T.slam! - 0.05, cCD, cDE, () => ({ x: X.D - 3.9, z: -12.5, cap: 0.2, yaw: 0 }));
@@ -243,12 +244,14 @@ export default class Mirror extends Scene {
     // ---- the crowd of the dead on the far shore (world space, fixed per stretch of shore): one at WRONG?, more on
     // every beat, a dense crowd from FOES on
     const beatT = audio.timeOfBeat(Math.floor(audio.beatAt(t) + 1e-4));
-    const nDead = keys(beatT, [[T.wrong!, 1], [T.problem!, 5], [T.along! + 0.6, 10], [T.killed!, 12], [T.guilt!, 26], [T.foes!, 28], [T.foes! + 0.6, 300]]);
+    const lin = (v: number) => v;
+    const nDead = Math.floor(keys(beatT, [[T.wrong!, 1], [T.problem!, 5, lin], [T.along! + 0.6, 10, lin], [T.killed!, 12, lin],
+      [T.guilt!, 26, lin], [T.foes!, 28, lin], [T.foes! + 0.6, 300, lin]]) + 1e-6);
     const crowdH = 0.5, cells = 130;
     u.crowdH!.value = crowdH; u.crowdPx!.value = 1 / pxAt(c.x, SHORE.z);
     u.crowdOne!.value = t >= T.wrong! - 0.02 ? 1 : 0;
     u.crowdD!.value = nDead >= 299 ? 0.95 : Math.max(0, nDead - 1) / cells;
-    u.crowdX!.value = [X.A + 9.5, X.B + 0.37, X.C + 0.37, X.D + 0.37, X.E + 0.37][setup]!;
+    u.crowdX!.value = [X.A + 10.4, X.B + 0.37, X.C + 0.37, X.D + 0.37, X.E + 0.37][setup]!;
     u.glowI!.value = 0.07 + 0.07 * clamp(nDead / 60, 0, 1);
 
     // ---- the clay fields under the surface: each anchored to a world point on the water every frame, sized in world

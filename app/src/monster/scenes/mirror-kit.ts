@@ -44,7 +44,7 @@ float crowd(vec2 p) {
     float ci = floor(pr.x / cw);
     for (int k = -1; k <= 1; k++) {
       float i = ci + float(k);
-      bool on = hash1(i * 1.37 + fr * 91.7) < dens || (r == 0 && i == 0.0 && crowdOne > 0.0);
+      bool on = (dens > 0.0 && hash1(i * 1.37 + fr * 91.7) < dens) || (r == 0 && i == 0.0 && crowdOne > 0.0);
       if (!on) continue;
       float sc = h * (1.0 - 0.08 * fr) * (0.88 + 0.22 * hash1(i * 5.3 + fr));
       float jx = (hash1(i * 3.1 + fr * 7.7) - 0.5) * 0.45 * cw;
