@@ -14,82 +14,10 @@ import { SHORE, Stage, Word3D } from '../stage';
 
 const GW = W.toFixed(1), GH = H.toFixed(1);
 
-export const MIRROR_HOOKS = /* glsl */ `
-#define WATER_HOOK
-#define REFL_KEEP
-uniform float shoreZ, skyI, glowI, crowdD, crowdH, crowdX, crowdPx, crowdOne, fR;
-uniform vec4 fA[3];   // clay fields: anchor x, y (GL px, just under the surface), half width, depth (px)
-uniform vec4 fB[3];   // their bands: top (px below the anchor), height, type (1 meander, 2 running wave), second top (<0 off)
-uniform vec4 frz;     // the frieze (field 0): top (px below the anchor), height, biers shown, on
-uniform vec4 pan;     // the pan (field 1): centre x, y (local px), half width, on
-uniform vec3 beamX;   // the bronze beam: its ends (world x) and how far it is up; past its ends the shore line dims
-float carve(vec2 xz) { return 0.0; }
-float floorLines(vec3 P, float u) { return u; }
-float extraShadow(vec3 P, bool wall) { return 0.0; }
-${GLSL_SHADE}
-float hash1(float n) { return fract(sin(n * 127.1 + 3.7) * 43758.5453); }
-vec3 viewDir() {
-  vec2 ndc = FRAG_PX / vec2(${GW}, ${GH}) * 2.0 - 1.0;
-  vec4 q = invVP * vec4(ndc, 1.0, 1.0);
-  return normalize(q.xyz / q.w - camPos);
-}
-// the dead on the far shore: rows of standing shades on the shore's plane (world x, y), the front row filling first
-float crowd(vec2 p) {
-  float h = crowdH, cw = 0.36 * h, m = 0.0, aa = crowdPx;
-  p.x -= crowdX;
-  for (int r = 0; r < 3; r++) {
-    float fr = float(r);
-    float dens = sat((crowdD - fr * 0.28) * 1.6);
-    if (dens <= 0.0 && !(r == 0 && crowdOne > 0.0)) continue;
-    vec2 pr = vec2(p.x + fr * cw * 0.41, p.y - fr * 0.05 * h);
-    float ci = floor(pr.x / cw);
-    for (int k = -1; k <= 1; k++) {
-      float i = ci + float(k);
-      bool on = (dens > 0.0 && hash1(i * 1.37 + fr * 91.7) < dens) || (r == 0 && i == 0.0 && crowdOne > 0.0);
-      if (!on) continue;
-      float sc = h * (1.0 - 0.08 * fr) * (0.88 + 0.22 * hash1(i * 5.3 + fr));
-      float jx = (hash1(i * 3.1 + fr * 7.7) - 0.5) * 0.45 * cw;
-      vec2 fq = vec2(pr.x - (i + 0.5) * cw - jx, pr.y) / sc;
-      float d = figure(fq, hash1(i * 9.1 + fr * 3.3)) * sc;
-      m = max(m, 1.0 - smoothstep(-aa, aa, d));
-    }
-  }
-  return m;
-}
-vec3 skyTint(vec3 D, vec3 col) {
-  float e = max(D.y, 0.0);
-  col += mix(C_BLOOD, C_SIGNAL, 0.45) * skyI * (0.6 * exp(-e * 30.0) + 0.06 * exp(-e * 9.0));
-  vec3 V = viewDir();
-  if (V.y < 0.0 && D.y > 0.0) return col;            // the water's mirror of the sky: no crowd, no glow band
-  if (D.z > -1e-4) return col;
-  float s = (shoreZ - camPos.z) / D.z;
-  vec2 p = camPos.xy + D.xy * s;                     // on the shore's plane
-  col += mix(C_BLOOD, C_SIGNAL, 0.55) * glowI * exp(-max(p.y, 0.0) / (crowdH * 1.5));
-  return mix(col, C_INK, crowd(p));
-}
-vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
-  if (wall) return col;
-  float beyond = smoothstep(shoreZ + 0.02, shoreZ - 0.02, P.z);
-  float dzS = camPos.z - shoreZ, gS = dzS * dzS / (max(camPos.y, 1e-3) * 1484.0);
-  float lineG = exp(-abs(P.z - shoreZ) / max(0.06, gPix * 1.5)) * exp(-abs(P.z - shoreZ) / (6.0 * gS + 1.0));
-  col = mix(col, skyTint(normalize(P - camPos), C_INK), beyond);
-  float past = smoothstep(0.0, 0.8, max(beamX.x - P.x, P.x - beamX.y));
-  lineG *= 1.0 - 0.9 * beamX.z * past;
-  return col + C_BONE * 0.8 * lineG;
-}
-vec3 clayField(vec2 q, float depth) {
-  return mix(C_SIGNAL * 0.6, C_EMBER * 0.62, 0.2 + 0.2 * snoise(vec2(q.x / 500.0, depth / 200.0)));
-}
-// a field's soft edge (L: local px, x right, y down from the anchor)
-// (rag: how ragged its edge is; 1 the sketch's, lower a smooth soft band)
-float patchMask(vec2 L, vec4 a, float rag) {
-  float e = 34.0 * rag * snoise(vec2(L.y / 110.0, stageT * 0.3 + a.x * 0.013));
-  float e2 = 30.0 * rag * snoise(vec2(L.x / 140.0, 3.7 + stageT * 0.3));
-  float fx = (min(a.z, a.w) * 0.28 + 30.0) * (2.0 - rag);
-  float across = 1.0 - smoothstep(a.z - fx, a.z + fx, abs(L.x) + e);
-  float down = smoothstep(-3.0, 8.0, L.y) * (1.0 - smoothstep(a.w - fx, a.w + fx, L.y + e2));
-  return across * down;
-}
+/** The Geometric band drawing (the Greek key, the running wave, band(), the mourner and the prothesis frieze()). Needs
+ *  sat, sdSegment, sdBox (GLSL_COMMON), figure (GLSL_SHADE), hash1, and a `vec4 frz` (top, height, biers shown, on) in
+ *  the drawing's own units: anti-aliased over ~0.8 of them (px in this kit). */
+export const GLSL_FRIEZE = /* glsl */ `
 // the Greek key: two rules and a running meander between them (b: x along, y down from the band's top; bh its height)
 float meanderSeg(vec2 u) {
   float d = sdSegment(u, vec2(0.0, 0.0), vec2(0.0, 3.0));
@@ -194,6 +122,85 @@ float frieze(vec2 L) {
   }
   return ink;
 }
+`;
+
+export const MIRROR_HOOKS = /* glsl */ `
+#define WATER_HOOK
+#define REFL_KEEP
+uniform float shoreZ, skyI, glowI, crowdD, crowdH, crowdX, crowdPx, crowdOne, fR;
+uniform vec4 fA[3];   // clay fields: anchor x, y (GL px, just under the surface), half width, depth (px)
+uniform vec4 fB[3];   // their bands: top (px below the anchor), height, type (1 meander, 2 running wave), second top (<0 off)
+uniform vec4 frz;     // the frieze (field 0): top (px below the anchor), height, biers shown, on
+uniform vec4 pan;     // the pan (field 1): centre x, y (local px), half width, on
+uniform vec3 beamX;   // the bronze beam: its ends (world x) and how far it is up; past its ends the shore line dims
+float carve(vec2 xz) { return 0.0; }
+float floorLines(vec3 P, float u) { return u; }
+float extraShadow(vec3 P, bool wall) { return 0.0; }
+${GLSL_SHADE}
+float hash1(float n) { return fract(sin(n * 127.1 + 3.7) * 43758.5453); }
+vec3 viewDir() {
+  vec2 ndc = FRAG_PX / vec2(${GW}, ${GH}) * 2.0 - 1.0;
+  vec4 q = invVP * vec4(ndc, 1.0, 1.0);
+  return normalize(q.xyz / q.w - camPos);
+}
+// the dead on the far shore: rows of standing shades on the shore's plane (world x, y), the front row filling first
+float crowd(vec2 p) {
+  float h = crowdH, cw = 0.36 * h, m = 0.0, aa = crowdPx;
+  p.x -= crowdX;
+  for (int r = 0; r < 3; r++) {
+    float fr = float(r);
+    float dens = sat((crowdD - fr * 0.28) * 1.6);
+    if (dens <= 0.0 && !(r == 0 && crowdOne > 0.0)) continue;
+    vec2 pr = vec2(p.x + fr * cw * 0.41, p.y - fr * 0.05 * h);
+    float ci = floor(pr.x / cw);
+    for (int k = -1; k <= 1; k++) {
+      float i = ci + float(k);
+      bool on = (dens > 0.0 && hash1(i * 1.37 + fr * 91.7) < dens) || (r == 0 && i == 0.0 && crowdOne > 0.0);
+      if (!on) continue;
+      float sc = h * (1.0 - 0.08 * fr) * (0.88 + 0.22 * hash1(i * 5.3 + fr));
+      float jx = (hash1(i * 3.1 + fr * 7.7) - 0.5) * 0.45 * cw;
+      vec2 fq = vec2(pr.x - (i + 0.5) * cw - jx, pr.y) / sc;
+      float d = figure(fq, hash1(i * 9.1 + fr * 3.3)) * sc;
+      m = max(m, 1.0 - smoothstep(-aa, aa, d));
+    }
+  }
+  return m;
+}
+vec3 skyTint(vec3 D, vec3 col) {
+  float e = max(D.y, 0.0);
+  col += mix(C_BLOOD, C_SIGNAL, 0.45) * skyI * (0.6 * exp(-e * 30.0) + 0.06 * exp(-e * 9.0));
+  vec3 V = viewDir();
+  if (V.y < 0.0 && D.y > 0.0) return col;            // the water's mirror of the sky: no crowd, no glow band
+  if (D.z > -1e-4) return col;
+  float s = (shoreZ - camPos.z) / D.z;
+  vec2 p = camPos.xy + D.xy * s;                     // on the shore's plane
+  col += mix(C_BLOOD, C_SIGNAL, 0.55) * glowI * exp(-max(p.y, 0.0) / (crowdH * 1.5));
+  return mix(col, C_INK, crowd(p));
+}
+vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
+  if (wall) return col;
+  float beyond = smoothstep(shoreZ + 0.02, shoreZ - 0.02, P.z);
+  float dzS = camPos.z - shoreZ, gS = dzS * dzS / (max(camPos.y, 1e-3) * 1484.0);
+  float lineG = exp(-abs(P.z - shoreZ) / max(0.06, gPix * 1.5)) * exp(-abs(P.z - shoreZ) / (6.0 * gS + 1.0));
+  col = mix(col, skyTint(normalize(P - camPos), C_INK), beyond);
+  float past = smoothstep(0.0, 0.8, max(beamX.x - P.x, P.x - beamX.y));
+  lineG *= 1.0 - 0.9 * beamX.z * past;
+  return col + C_BONE * 0.8 * lineG;
+}
+vec3 clayField(vec2 q, float depth) {
+  return mix(C_SIGNAL * 0.6, C_EMBER * 0.62, 0.2 + 0.2 * snoise(vec2(q.x / 500.0, depth / 200.0)));
+}
+// a field's soft edge (L: local px, x right, y down from the anchor)
+// (rag: how ragged its edge is; 1 the sketch's, lower a smooth soft band)
+float patchMask(vec2 L, vec4 a, float rag) {
+  float e = 34.0 * rag * snoise(vec2(L.y / 110.0, stageT * 0.3 + a.x * 0.013));
+  float e2 = 30.0 * rag * snoise(vec2(L.x / 140.0, 3.7 + stageT * 0.3));
+  float fx = (min(a.z, a.w) * 0.28 + 30.0) * (2.0 - rag);
+  float across = 1.0 - smoothstep(a.z - fx, a.z + fx, abs(L.x) + e);
+  float down = smoothstep(-3.0, 8.0, L.y) * (1.0 - smoothstep(a.w - fx, a.w + fx, L.y + e2));
+  return across * down;
+}
+${GLSL_FRIEZE}
 // the kerostasia's pan: a black bowl on three cords, the small shades of the living standing in it
 float panInk(vec2 L) {
   vec2 p = (L - pan.xy) / pan.z;                 // y down, unit: the pan's half width
