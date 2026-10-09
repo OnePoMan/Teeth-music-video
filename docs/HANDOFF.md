@@ -47,6 +47,23 @@ Read this first, then `docs/MONSTER.md` (the treatment), `docs/TREATMENT.md` (P(
   - **Clip** `out/review/v14-circe-review.mp4`, sent.
   - **Left rough:** the flakes sliding off OLDER barely show (bone on bone); a few curled arcs where the frost's growth direction flips near the word's foot.
   - **Cost:** ~11% (42% → 53%).
+- **Chorus 1 build, phases 1–2 done** (one agent, continued per phase; 55618ed, 85b1a93, 4fce668, ed655e8):
+  - **Five plates on the timeline**, promoted with `git mv` from the approved sketches (the design is unchanged):
+
+    | id | file | from |
+    |---|---|---|
+    | `wrong` | `scenes/c1-wrong.ts` | 46.022 |
+    | `scylla` | `scenes/c1-scylla.ts` | 49.022 (the off-beat: `cut()` takes an `off` argument, 0.5 here) |
+    | `vase` | `scenes/c1-vase.ts` | 54.022 |
+    | `shield` | `scenes/c1-shield.ts` | 59.355 |
+    | `lookback` | `scenes/c1-lookback.ts` (MONSTER?, the shadow looks back; from `sketch-mirror.ts`) | 64.689 |
+
+    The cyclops cut follows at 68.689. All cuts are beat expressions in `timeline.ts`. `mirror.ts`, `mirror-kit.ts`, `sketch-mirror.ts` and `sketch-mirror-kit.ts` are gone, so the old `?sketch=mirror&opt=…` stills URLs no longer apply: render a plate with `--only <id>`.
+  - **"Is me?"** is in `sea.ts` (the sketch moved over it). ME?'s placement is one shared function, `placeMe` in `shore.ts`, used by `sea` and `hook` (n=1). Hook 1 starts with the fire dipped as `sea` leaves it, flaring back over 0.4 s, so ME? keeps its brightness across the cut (94.6 → 95.5). Stills `out/stills/c1-isme/`.
+  - **The shield:** its first two rim phrases now leave flat before the next one rises in the same place (the checker's two COLLISION errors).
+  - **"I'm" timing:** only line 11 changed: "if" 54.54–54.86, "I'm" 54.86–55.13, "the" from 55.13 (were 55.02/55.18). Evidence: envelope dips at 54.86 and 55.12, the nasal 55.07–55.15, "the" at 55.16. The same FIX entries are in `analysis/monster/align.py`. Lines 10 and 14 were checked and left unchanged: their "f", nasal and "the" onsets match the data.
+  - **Lint 43.4–68.69: 0 errors.** Expected warnings: PROBLEM cropped 51.8–54.0; HIDING late/partial/lingering (it lands on the downbeat); OURSELVES? late (it slams on 64.02); BLINK "the" 45.13 (hook 1) and 47.80 (line 9's phrase folds flat before the roll). Also flagged: line 13's first word (62.34) popped on the shield's inside while it was still swinging (BACKWARDS, SLOW-RISE). Lead's call: the swing starts earlier, so the shield is edge-on at the word.
+  - **Cost:** ~12% (54% → 66%).
 - Git on this laptop has no user identity configured: commit with `git -c user.name=Claude -c user.email=noreply@anthropic.com commit …` (as the earlier commits were).
 
 **Client notes on the v11 preview (2026-10-09, binding; same session, now on branch `laptop-1009c` from `main` 86bcb00 after PR #6 was merged at the client's OK):**
@@ -208,7 +225,11 @@ The work is collaborative: propose, show stills/clips, ask the client (the user)
 | hook1 43.36–46.02 | `scenes/hook.ts` n=1 | v7 (d437124): 3D on the stage, "the reflection disobeys": wine-dark mirror water, fire behind us; "Is me?" carried over from `sea` lies down; "What if I'm the" afloat near us, truly reflected; MONSTER? stands up on the waterline, lit; its reflection is black-figure (`bf` + `incise`) with no "?", the orange developing behind it (`WATER_HOOK`); the camera dips to the waterline on MONSTER. No 2D type left (the WATERLINE ledger label and the flat question are gone). `ae66938`: the question folds away from the dip's start (45.20), and nearly flat letters are hidden. Verified on a clip, then on the laptop render, which needed two fixes: the question folds in 0.06 s with all letters at once (gone before MONSTER?'s first letter starts up at 45.275), and nearly flat letters are hidden in both floating phrases, rising or folding (see the v7 checklist) |
 | hook2 | `scenes/hook.ts` n=2 | placeholder on hook 1's 3D shore: the reflection leads the word by 0.15 s, `creep` (orange above the line). Needs its own design with the scale. |
 | hook3 | `scenes/hook.ts` n=3 | draft (2D, unchanged): clay field, black MONSTER with inset incised contour, ground line, meander band. To be rebuilt on the motif (the reflection stands up and takes the word's place). |
-| mirror 46.02–68.69 | `scenes/mirror.ts`, `mirror-kit.ts` | v11 (2026-10-09): "Into the water" with the crowd of the dead, built from the sketch stills, the bronze beam (A1) on line 4 (see "Start here"; `docs/MONSTER.md`). Its sketch files (`sketch-mirror.ts`, `sketch-mirror-kit.ts`, loaded only under `?sketch=mirror`) are superseded and can be deleted. Hook 1's second horizon glow fixed in `shore.ts` along the way |
+| wrong 46.02–49.02 | `scenes/c1-wrong.ts` | v14: WRONG?, the world turns over: Odysseus's shadow on the clay wall, the room rolls a half turn on 48.02 |
+| scylla 49.02–54.02 | `scenes/c1-scylla.ts` | v14: PROBLEM/HIDING, Scylla's cliff: PROBLEM on the ledge, the climb through the cloud, six viper heads striking in pairs on 53.01/53.34/53.82 round a painted HIDING |
+| vase 54.02–59.36 | `scenes/c1-vase.ts` | v14: GUILT?, the Geometric funeral krater: one procession of mourners, Polites at rest in a pool of light, the camera still as GUILT? lands on the rim |
+| shield 59.36–64.69 | `scenes/c1-shield.ts` | v14: FOES/OURSELVES?, the bronze shield: FOES on the turned bronze; it swings round to the clay inside, Odysseus aiming at his own men; the strap slams on 64.02 with OURSELVES? |
+| lookback 64.69–68.69 | `scenes/c1-lookback.ts` | v14: MONSTER?, back on the shore: its shadow is Odysseus among the dead on the far bank; on 66.69 he turns his head to us and the dead turn with him |
 | cyclops 68.69–79.36 | `scenes/cyclops.ts`, `cyclops-giant.ts`, `cyclops-kit.ts` | prototype, option A (`docs/verse2-plan.md`): his eye is the cave mouth, the boulder its lid; GUILT?, NIGHT?, AVENGE, RIGHT?; the club tallies the men on the snares. Three critic rounds (3826842). Not yet seen by the client |
 | circe 79.36–90.02 | `scenes/circe.ts`, `circe-cup.ts` | prototype, option A: down into her kylix; MEN sinks and PIGS rises, INSANE? rides the vortex, COLDER drops its C, the drain uncovers the nymphs in the tondo; no words mirrored in the potion. Three critic rounds (b0fb11b). Not yet seen by the client |
 | poseidon 90.02–100.69 | `scenes/poseidon.ts`, `poseidon-board.ts` | prototype, option A: the sea as the god's board game, galley pieces sunk and pinned by the trident's shadow, the sunk fleet painted on the seabed for DARES?; no words mirrored in the water. Two critic rounds plus fixes (11c37f8). Not yet seen by the client |
