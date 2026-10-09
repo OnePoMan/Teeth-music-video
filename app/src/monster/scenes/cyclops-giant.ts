@@ -14,6 +14,9 @@ export const CLUB = { piv: [3.85, 3.45] as const, phi0: Math.atan2(8.9 - 2.3, 4.
 /** The cave mouth in figure units: the almond's half-width, its half-height when open; the boulder's radius;
  *  where the boulder rests when rolled clear (offset from the mouth's centre). */
 export const MOUTH = { aw: 1.0, ah: 0.5, rb: 1.18, clear: [-2.25, -0.12] as const, eyeY: 6.75 };
+/** The boulder as the moon (offsets from the mouth's centre, figure units): where it stands risen over his shoulder,
+ *  where its crossing of the sky ends before it sets, the crossing's arc, and its size in the sky (x the boulder's). */
+export const MOON = { at: [-3.1, 1.1] as const, to: [-2.15, 1.45] as const, arc: 0.25, size: 0.7 };
 /** His men (figure units): how many, the rail they run on (y), the first man's x and the spacing, a man's height. */
 export const N_MEN = 6;
 export const MEN = { rail: 2.5, x0: 5.4, dx: 0.72, h: 1.08 };
@@ -24,6 +27,7 @@ uniform vec4 gT;                     // the giant: x, base y (world), scale (wor
 uniform float clubR;                 // the club's turn about his fist from its resting pose (radians, ccw)
 uniform vec4 mouth;                  // the cave mouth: centre x, y (world), scale (world per figure unit), opening 0..1
 uniform vec4 bould;                  // the boulder: centre offset from the mouth (figure units), its roll (radians), on
+uniform float moonK;                 // the boulder become the moon (0 stone .. 1 full moon in the sky)
 uniform vec4 men[${N_MEN}];          // each man: x on the rail (figure units), height left (1 up .. ~0.1 flat), run phase, facing (+-1; 0 none)
 uniform float chipT[${N_MEN}];       // time since his fall landed (s; < 0 none): the puff of chips
 uniform float railK;                 // the rail drawn out from his fist (0 none .. 1)
@@ -144,7 +148,7 @@ vec3 wallHook(vec3 P, vec3 col) {
   float aw = max(gPix * 0.8, 1e-4);
   float ms = mouth.z, a = aw / ms;
   vec2 e = (P.xy - mouth.xy) / ms;
-  if (abs(e.x) > 4.0 || abs(e.y) > 2.5) return col;
+  if (abs(e.x) > 5.5 || abs(e.y) > 4.0) return col;
   // the almond: two arcs meeting at the corners; its half-height follows the opening
   float ah = max(${MOUTH.ah.toFixed(3)} * mouth.w, 0.012), hw = ${MOUTH.aw.toFixed(3)};
   float sq = hw * hw / ah, R = 0.5 * (sq + ah), cc = 0.5 * (sq - ah);
@@ -158,16 +162,23 @@ vec3 wallHook(vec3 P, vec3 col) {
   col = mix(col, night, 1.0 - smoothstep(-a, a, al));
   // its rim, reserved in the clay: the eye's contour scratched through his shadow
   col = mix(col, clay, (1.0 - smoothstep(0.035 - a, 0.035 + a, abs(al - 0.1))) * smoothstep(0.02, 0.1, mouth.w));
-  // the boulder: a round stone of clay, outlined in black slip, its markings turning as it rolls
+  // the boulder: a round stone of clay, outlined in black slip, its markings turning as it rolls. Risen into the sky it
+  // is the full moon (moonK): smaller, round, bone, its cracks worn to soft markings, its edge a bone-to-clay glow
   if (bould.w > 0.0) {
-    vec2 bq = rot2(bould.z) * (e - bould.xy);
+    float rs = mix(1.0, ${MOON.size.toFixed(3)}, moonK), aS = a / rs;
+    vec2 bq = rot2(bould.z) * (e - bould.xy) / rs;
     float ang = atan(bq.y, bq.x);
-    float rb = ${MOUTH.rb.toFixed(3)} * (1.0 + 0.035 * sin(3.0 * ang + 0.7) + 0.02 * sin(5.0 * ang + 2.1));
+    float rb = ${MOUTH.rb.toFixed(3)} * (1.0 + (1.0 - moonK) * (0.035 * sin(3.0 * ang + 0.7) + 0.02 * sin(5.0 * ang + 2.1)));
     float bd = length(bq) - rb;
-    float inS = 1.0 - smoothstep(-a, a, bd);
+    float inS = 1.0 - smoothstep(-aS, aS, bd);
+    if (moonK > 0.0 && bd > 0.0) {
+      // the moon's glow on the night wall: bone at its edge, going to clay, then gone
+      float od = bd * rs, gl = exp(-od * 4.2) * (0.55 + 0.1 * sin(3.0 * ang + 1.3) * exp(-od * 2.0));
+      col = mix(col, mix(clay * 1.35, mix(C_BONE, clay * 1.6, 0.3), exp(-od * 9.0)), sat(gl * 0.7 * moonK * bould.w));
+    }
     if (inS > 0.0) {
       // a body: darker clay, lit from the fire's side (the shading stays put while the markings turn)
-      vec2 bn = (e - bould.xy) / ${MOUTH.rb.toFixed(3)};
+      vec2 bn = (e - bould.xy) / (${MOUTH.rb.toFixed(3)} * rs);
       vec3 stone = clay * (0.36 + 0.26 * sat(0.5 + 0.6 * dot(bn, vec2(0.55, 0.5)))) * (0.94 + 0.06 * snoise(bq * 2.3));
       // its markings, incised: one jagged crack across it and a branch (they turn as it rolls)
       float m = sdSegment(bq, vec2(-1.0, 0.48), vec2(-0.42, 0.24));
@@ -175,9 +186,14 @@ vec3 wallHook(vec3 P, vec3 col) {
       m = min(m, sdSegment(bq, vec2(-0.2, -0.18), vec2(0.28, -0.3)));
       m = min(m, sdSegment(bq, vec2(0.28, -0.3), vec2(0.6, -0.86)));
       m = min(m, sdSegment(bq, vec2(-0.2, -0.18), vec2(-0.5, -0.55)));
-      stone = mix(stone, C_INK * 0.8, 1.0 - smoothstep(0.028 - a, 0.028 + a, m));
-      stone = mix(stone, C_INK * 0.8, 1.0 - smoothstep(0.06 - a, 0.06 + a, -bd));                    // its contour
-      col = mix(col, stone, inS * bould.w);
+      stone = mix(stone, C_INK * 0.8, 1.0 - smoothstep(0.028 - aS, 0.028 + aS, m));
+      stone = mix(stone, C_INK * 0.8, 1.0 - smoothstep(0.06 - aS, 0.06 + aS, -bd));                  // its contour
+      // the moon: a bone disc, a little darker to its limb, its cracks soft clay-grey seas, its rim lit
+      float rr = sat(length(bq) / rb);
+      vec3 moon = mix(C_BONE, clay * 1.6, 0.14) * (0.84 + 0.06 * snoise(bq * 2.6)) * (0.86 + 0.14 * sqrt(1.0 - rr * rr));
+      moon = mix(moon, mix(C_BONE, clay * 1.4, 0.6) * 0.62, 0.7 * (1.0 - smoothstep(0.03, 0.2, m)));
+      moon = mix(moon, mix(C_BONE, clay * 1.6, 0.3), 0.6 * smoothstep(0.82, 1.0, rr));
+      col = mix(col, mix(stone, moon, smoothstep(0.0, 1.0, moonK)), inS * bould.w);
     }
   }
   return col;

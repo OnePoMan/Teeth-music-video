@@ -21,7 +21,7 @@ import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, keys, lerp, noise1, prog, pulse, type Key } from '../../engine/util';
 import { POP, Stage, Word3D, keyLight, popHinge, popWords, vkeys } from '../stage';
-import { CLUB, CYCLOPS_HOOKS, MEN, MOUTH, N_MEN } from './cyclops-giant';
+import { CLUB, CYCLOPS_HOOKS, MEN, MOON, MOUTH, N_MEN } from './cyclops-giant';
 import { centredRow, faceYaw, hideFlat, phrases, type Phrase } from './cyclops-kit';
 
 /** The clay wall; the camera's vertical fov. */
@@ -47,7 +47,7 @@ export default class Cyclops extends Scene {
     maxCards: 24,
     uniforms: {
       gT: { value: new THREE.Vector4(0, 0, 1, 1) }, clubR: { value: 0 },
-      mouth: { value: new THREE.Vector4() }, bould: { value: new THREE.Vector4() },
+      mouth: { value: new THREE.Vector4() }, bould: { value: new THREE.Vector4() }, moonK: { value: 0 },
       men: { value: Array.from({ length: N_MEN }, () => new THREE.Vector4()) },
       chipT: { value: new Array(N_MEN).fill(-1) }, railK: { value: 0 }, nightK: { value: 0 }, pool: { value: new THREE.Vector4(0, 4, 9, 1) },
     },
@@ -182,12 +182,19 @@ export default class Cyclops extends Scene {
     (u.gT!.value as THREE.Vector4).set(gx, gb, gs, 1);
     u.clubR!.value = keys(t, this.clubKeys) - CLUB.phi0;
 
-    // ---- the cave mouth: the boulder rolls clear on "up" and back across on "sleep"; the eye opens and shuts with it
+    // ---- the cave mouth: the boulder rolls clear on "up", rises over his shoulder into the night as the full moon (its
+    // cracks its markings), crosses the sky slowly through the verse, and on "sleep" sets back down over the eye, a stone
+    // again as it lands; the eye opens and shuts with it. The moon keeps to the sky left of and above his head, clear of
+    // the club and the men (right) and the hero words (below).
     const open = prog(t, e.up - 0.04, e.up + 0.5, ease.inOutQuad), shut = prog(t, e.sleep - 0.02, e.sleep + 0.42, ease.inOutQuad);
-    const r = open * (1 - shut);
-    const bx = MOUTH.clear[0] * r, by = MOUTH.clear[1] * r + 0.18 * Math.sin(Math.PI * r);
-    (u.bould!.value as THREE.Vector4).set(bx, by, -bx / MOUTH.rb, 1);
-    const eyeOpen = Math.min(prog(open, 0.25, 1, ease.outCubic), 1 - prog(shut, 0, 0.6, ease.inOutQuad));
+    const rise = prog(t, e.up + 0.42, e.night - 0.05, ease.inOutCubic), cross = prog(t, e.night - 0.05, e.sleep - 0.02);
+    const mx = lerp(MOON.at[0], MOON.to[0], cross), my = lerp(MOON.at[1], MOON.to[1], cross) + MOON.arc * Math.sin(Math.PI * cross);
+    let bx = MOUTH.clear[0] * open, by = MOUTH.clear[1] * open + 0.18 * Math.sin(Math.PI * open);
+    bx = lerp(bx, mx, rise); by = lerp(by, my, rise) + 0.3 * Math.sin(Math.PI * rise);
+    bx = lerp(bx, 0, shut); by = lerp(by, 0, shut);
+    (u.bould!.value as THREE.Vector4).set(bx, by, -(MOUTH.clear[0] * open) / MOUTH.rb + 0.5 * rise + 0.3 * cross - 0.8 * shut, 1);
+    u.moonK!.value = rise * (1 - prog(shut, 0.45, 1, ease.inOutQuad));
+    const eyeOpen = Math.min(prog(open, 0.25, 1, ease.outCubic), 1 - prog(shut, 0.3, 0.85, ease.inOutQuad));
     // (the mouth and its boulder ride on the shadow's eye: across it from the first frame, rising with it)
     (u.mouth!.value as THREE.Vector4).set(gx, gb + MOUTH.eyeY * gs, gs, eyeOpen);
     u.nightK!.value = prog(t, e.night - 0.02, e.night + 0.3, ease.outCubic) * (1 - shut) + 0.6 * pulse(t, e.night, 0.25);
