@@ -22,6 +22,7 @@ uniform vec4 fA[3];   // clay fields: anchor x, y (GL px, just under the surface
 uniform vec4 fB[3];   // their bands: top (px below the anchor), height, type (1 meander, 2 running wave), second top (<0 off)
 uniform vec4 frz;     // the frieze (field 0): top (px below the anchor), height, biers shown, on
 uniform vec4 pan;     // the pan (field 1): centre x, y (local px), half width, on
+uniform vec3 beamX;   // the bronze beam: its ends (world x) and how far it is up; past its ends the shore line dims
 float carve(vec2 xz) { return 0.0; }
 float floorLines(vec3 P, float u) { return u; }
 float extraShadow(vec3 P, bool wall) { return 0.0; }
@@ -72,16 +73,19 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   float dzS = camPos.z - shoreZ, gS = dzS * dzS / (max(camPos.y, 1e-3) * 1484.0);
   float lineG = exp(-abs(P.z - shoreZ) / max(0.06, gPix * 1.5)) * exp(-abs(P.z - shoreZ) / (6.0 * gS + 1.0));
   col = mix(col, skyTint(normalize(P - camPos), C_INK), beyond);
+  float past = smoothstep(0.0, 0.8, max(beamX.x - P.x, P.x - beamX.y));
+  lineG *= 1.0 - 0.9 * beamX.z * past;
   return col + C_BONE * 0.8 * lineG;
 }
 vec3 clayField(vec2 q, float depth) {
   return mix(C_SIGNAL * 0.6, C_EMBER * 0.62, 0.2 + 0.2 * snoise(vec2(q.x / 500.0, depth / 200.0)));
 }
 // a field's soft edge (L: local px, x right, y down from the anchor)
-float patchMask(vec2 L, vec4 a) {
-  float e = 34.0 * snoise(vec2(L.y / 110.0, stageT * 0.3 + a.x * 0.013));
-  float e2 = 30.0 * snoise(vec2(L.x / 140.0, 3.7 + stageT * 0.3));
-  float fx = min(a.z, a.w) * 0.28 + 30.0;
+// (rag: how ragged its edge is; 1 the sketch's, lower a smooth soft band)
+float patchMask(vec2 L, vec4 a, float rag) {
+  float e = 34.0 * rag * snoise(vec2(L.y / 110.0, stageT * 0.3 + a.x * 0.013));
+  float e2 = 30.0 * rag * snoise(vec2(L.x / 140.0, 3.7 + stageT * 0.3));
+  float fx = (min(a.z, a.w) * 0.28 + 30.0) * (2.0 - rag);
   float across = 1.0 - smoothstep(a.z - fx, a.z + fx, abs(L.x) + e);
   float down = smoothstep(-3.0, 8.0, L.y) * (1.0 - smoothstep(a.w - fx, a.w + fx, L.y + e2));
   return across * down;
@@ -219,7 +223,7 @@ vec3 waterHook(vec2 px, vec2 ruv, vec4 rt, vec3 col) {
     if (a.z <= 0.0) continue;
     vec2 r = q - a.xy;
     vec2 L = vec2(cs * r.x + sn * r.y, sn * r.x - cs * r.y);
-    float m = patchMask(L, a);
+    float m = patchMask(L, a, i == 1 ? 0.15 : 1.0);
     if (m <= 0.001) continue;
     col = mix(col, clayField(q, L.y), m);
     float ink = 0.0;
@@ -229,7 +233,11 @@ vec3 waterHook(vec2 px, vec2 ruv, vec4 rt, vec3 col) {
       if (b.w >= 0.0) ink = max(ink, band(vec2(L.x, L.y - b.w), b.y, b.z) * step(-2.0, L.y - b.w) * step(L.y - b.w, b.y + 2.0));
     }
     if (i == 0 && frz.w > 0.0) ink = max(ink, frieze(L) * frz.w);
-    if (i == 1 && pan.w > 0.0) ink = max(ink, panInk(L) * pan.w);
+    if (i == 1 && pan.w > 0.0) {
+      ink = max(ink, panInk(L) * pan.w);
+      // the water's surface: a thin black line between the bronze beam above and the clay below
+      col = mix(col, C_INK, (1.0 - smoothstep(2.5, 4.5, L.y)) * sat(m * 3.0) * pan.w);
+    }
     col = mix(col, C_INK, ink * smoothstep(0.15, 0.55, m));
     mAll = max(mAll, m);
   }
@@ -244,7 +252,7 @@ export function mirrorStage() {
       shoreZ: { value: SHORE.z }, skyI: { value: 0.06 }, glowI: { value: 0 }, crowdD: { value: 0 }, crowdH: { value: 0.5 },
       crowdX: { value: 0 }, crowdPx: { value: 0.02 }, crowdOne: { value: 0 }, fR: { value: 0 },
       fA: { value: [0, 1, 2].map(() => new THREE.Vector4()) }, fB: { value: [0, 1, 2].map(() => new THREE.Vector4(0, 0, 0, -1)) },
-      frz: { value: new THREE.Vector4() }, pan: { value: new THREE.Vector4() },
+      frz: { value: new THREE.Vector4() }, pan: { value: new THREE.Vector4() }, beamX: { value: new THREE.Vector3() },
     },
   });
 }

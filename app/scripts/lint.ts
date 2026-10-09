@@ -84,7 +84,7 @@ function installProbe(draw: boolean) {
     st.words.forEach((w: any, ri: number) => {
       let vis = true, root = w.group;
       for (let o = w.group; o; o = o.parent) { if (!o.visible) vis = false; root = o; }
-      if (!vis || (st.scene && root !== st.scene)) return;
+      if (!vis || (st.scene && root !== st.scene) || w.prop) return;
       const L: number[][] = [];
       for (const l of w.letters) {
         const m = l.mesh;

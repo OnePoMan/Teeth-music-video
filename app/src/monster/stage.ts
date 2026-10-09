@@ -72,6 +72,8 @@ uniform sampler2D incTex; uniform vec4 amap;
 // a clip plane at the height clipY: discarded where clipS * (y - clipY) < 0 (clipS 0, the default: off; +1 keeps what
 // is above it, -1 what is below; the frame checker reads the same two uniforms)
 uniform float clipY, clipS;
+// bronze (1: a prop built from glyphs, chorus 1's beam and pan): a signal-orange body, a bone highlight on its top
+uniform float bronze;
 void main() {
   if (clipS * (vW.y - clipY) < 0.0) discard;
   // (degenerate bevel triangles carry zero normals: guard them, or their NaN blooms into a white star)
@@ -114,6 +116,11 @@ void main() {
     vec3 faceC = mix(C_BONE * min(tone, 0.82), C_INK * (0.55 + 0.35 * tone) + mix(C_EMBER, C_BONE, 0.5) * sheen * 0.2, glaze);
     col = mix(sideC, faceC, face);
     col += mix(C_SIGNAL, C_EMBER, 0.5) * rim * fall * pow(1.0 - abs(ndl), 6.0) * (1.0 - face) * 1.2;
+  }
+  if (bronze > 0.5) {
+    float top = smoothstep(0.55, 0.9, N.y) * (1.0 - face);
+    vec3 body = mix(C_SIGNAL, C_EMBER, 0.3) * (0.3 + 0.6 * tone) * mix(0.55, 1.0, face);
+    col = mix(body, C_BONE * (0.55 + 0.35 * tone), top);
   }
   // afterglow: a sung letter keeps a little warm light of its own
   col += mix(C_BONE, C_EMBER, 0.3) * amb * (0.35 + 0.65 * face) * (1.0 - 0.5 * lines);
@@ -250,7 +257,7 @@ export class Word3D {
         Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, glow: { value: 0 },
         lineFreq: { value: o.lineFreq ?? 0.12 }, rim: { value: 1 }, amb: { value: 0 }, vaseL: { value: 1 }, camPosL: { value: new THREE.Vector3() }, glaze: { value: 0 },
         bf: { value: 0 }, incTex: { value: null }, amap: { value: new THREE.Vector4() }, sheenD: { value: 0 },
-        clipY: { value: 0 }, clipS: { value: 0 },
+        clipY: { value: 0 }, clipS: { value: 0 }, bronze: { value: 0 },
       },
     });
     let ax = 0;
@@ -320,6 +327,8 @@ export class Word3D {
 
   /** Scales the light this run receives (0: a black silhouette, whatever the flame does). */
   lightMul = 1;
+  /** Not a word (a prop built from glyphs, e.g. a beam): the frame checker skips it. */
+  prop = false;
   /** Whether this run shows in the glaze's and the water's mirror at all. Words have no reflection (client,
    *  2026-10-09: "I don't want any of the words to have a reflective side … except where explicitly done so such
    *  as HIDING"), so it is off unless a scene asks for one; black-figure answers (`bf`) always show there. */
