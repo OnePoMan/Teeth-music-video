@@ -187,10 +187,10 @@ vec3 wallHook(vec3 P, vec3 col) {
       m = min(m, sdSegment(bq, vec2(0.28, -0.3), vec2(0.6, -0.86)));
       m = min(m, sdSegment(bq, vec2(-0.2, -0.18), vec2(-0.5, -0.55)));
       stone = mix(stone, C_INK * 0.8, 1.0 - smoothstep(0.028 - aS, 0.028 + aS, m));
-      stone = mix(stone, C_INK * 0.8, 1.0 - smoothstep(0.06 - aS, 0.06 + aS, -bd));                  // its contour
+      stone = mix(stone, mix(C_INK * 0.8, clay * 1.3, moonK), 1.0 - smoothstep(0.06 - aS, 0.06 + aS, -bd));                // its contour
       // the moon: a bone disc, a little darker to its limb, its cracks soft clay-grey seas, its rim lit
       float rr = sat(length(bq) / rb);
-      vec3 moon = mix(C_BONE, clay * 1.6, 0.14) * (0.84 + 0.06 * snoise(bq * 2.6)) * (0.86 + 0.14 * sqrt(1.0 - rr * rr));
+      vec3 moon = mix(C_BONE, clay * 1.6, 0.1) * (1.0 + 0.05 * snoise(bq * 2.6)) * (0.86 + 0.14 * sqrt(1.0 - rr * rr));
       moon = mix(moon, mix(C_BONE, clay * 1.4, 0.6) * 0.62, 0.7 * (1.0 - smoothstep(0.03, 0.2, m)));
       moon = mix(moon, mix(C_BONE, clay * 1.6, 0.3), 0.6 * smoothstep(0.82, 1.0, rr));
       col = mix(col, mix(stone, moon, smoothstep(0.0, 1.0, moonK)), inS * bould.w);
