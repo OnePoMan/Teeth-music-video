@@ -357,13 +357,16 @@ export default class SketchC1Vase extends Scene {
     u.phi!.value = phi;
 
     // the small phrases on the rim, each where the camera faces mid-phrase; GUILT? where the shot comes to rest
-    for (const p of this.phrases) {
-      const s = 0.32 / p.w.cap, th = camU((p.on[0]! + p.exit) / 2) / R_BAND;
-      popWords(p.w, p.on, t, this.onRim(p.w, th, s), { exit: p.exit, exitDur: 0.14, upBy: p.upBy });
-    }
     const hd = rc - RIM.r, fw = 2 * hd * TANF * (16 / 9);
-    const hs = (0.4 * fw) / this.hero.width;
-    popWords(this.hero, [tG], t, this.onRim(this.hero, POL_U / R_BAND, hs), { glow: 0.7 });
+    const hs = (0.4 * fw) / this.hero.width, thP = POL_U / R_BAND;
+    this.phrases.forEach((p, i) => {
+      const s = 0.32 / p.w.cap;
+      // the last phrase is sung as the camera comes to rest: it stands on the rim to the left of where GUILT? lands
+      const th = i < this.phrases.length - 1 ? camU((p.on[0]! + p.exit) / 2) / R_BAND
+        : thP - ((this.hero.width * hs) / 2 + 0.3 + (p.w.width * s) / 2) / RIM.r;
+      popWords(p.w, p.on, t, this.onRim(p.w, th, s), { exit: p.exit, exitDur: 0.14, upBy: p.upBy });
+    });
+    popWords(this.hero, [tG], t, this.onRim(this.hero, thP, hs), { glow: 0.7 });
 
     const L = keyLight(this.st.cam, audio, t, { seed: 9, right: 3.2, up: 2.6, back: 3.0, I: 1.25, reach: 42 });
     const Lc = this.st.lightCentre(L);
