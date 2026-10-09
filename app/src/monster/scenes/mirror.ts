@@ -1,354 +1,390 @@
-// `mirror` — the rest of chorus 1, lines 9–14 (docs/MONSTER.md; client 2026-10-08, "the answer under the surface";
-// shot plan in docs/mirror-plan.md). We stay on hook 1's shore (`../shore.ts`) and glide along it, low and
-// continuous; each line's hero word stands up on the waterline as we pass, lit, with no mirror image of its own. The
-// water answers rarely, and right way round, painted in black-figure on the clay under the surface:
-//   WRONG? stands alone, clean. PROBLEM stands, and on "hiding" HIDING appears under it, and lingers, sinking slowly
-//   into line 11. From "killed you" to "caved" the shades of the dead (souls' figures) appear lying under the surface
-//   one by one, and GUILT? stands above them. FOES and OURSELVES? stand either side of a balance painted across the
-//   waterline: FOES' pan rises out of the water (bone, lit, above the line), OURSELVES' pan sinks into it. MONSTER?
-//   ends it, with hook 1's dip to the waterline, its answer MONSTER under the surface bigger than the word.
-// The small words float near the camera and travel with it, one phrase at a time, below the clay. Cuts only on
-// strong downbeats with no word popping near them, the waterline at the same height across each cut.
+// Chorus 1 after hook 1 (46.022–68.689), "Into the water" (client concept 2026-10-09; the approved stills are the
+// sketch's, `out/stills/mirror/`). Each line goes one step further into the water, on hook 1's shore at night, while
+// the far shore fills with the dead; each line has its own stretch of shore (x offsets) and its own set-up, cut on the
+// beat:
+//   A 46.022 line 1: WRONG? sinks to its waist (lit above, its black-figure twin below, on a running-wave field)
+//   B 49.022 line 2: PROBLEM the tip, HIDING the bulk beneath; the camera tracks along on "all along"
+//   C 54.022 line 3: GUILT? over a Geometric prothesis frieze, one bier per word from "killed" to "caved"
+//   D 59.355 line 4: the bronze beam (client colouring A1): FOES in the lit pan at its high end, OURSELVES? sinking
+//            at the low end over the black-figure pan with his men; the world tips (camera roll)
+//   E 64.689 line 5: level, then hook 1's dip: MONSTER? over its answer risen from the deep (cut to cyclops 68.688)
+// No word has a mirror image; only the black-figure twins and answers show under the water (the mirrored render).
+// The waterline keeps its screen height across the cuts (`LINE_Y`): A opens on hook 1's (582 px) and tilts to the
+// plate's during its push; E's dip ends on hook 1's again.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
-import { H as HPX } from '../../engine/gl';
+import { H as HPX, W as WPX } from '../../engine/gl';
 import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { clamp, ease, keys, lerp, noise1, prog, pulse } from '../../engine/util';
-import { GLSL_SHADE } from '../motifs';
-import { Stage, Word3D, keyLight, popHinge, popWords } from '../stage';
-import {
-  Answer, FOV, LOW, SHORE_KEY, SHORE_OPTS, SHORE_POST, SHORE_SURF, WORD_Z, bob, heroFont, heroScale, hideFlat, lowPushZ,
-  setRegion, shoreStage,
-} from '../shore';
+import { SHORE, Stage, Word3D, keyLight, popHinge, popWords, type Letter } from '../stage';
+import { BIG_W, FOV, LOW, SHORE_KEY, SHORE_OPTS, SHORE_POST, SHORE_SURF, VOICE, WORD_Z, heroFont, hideFlat } from '../shore';
+import { clipAtWater, mirrorStage } from './mirror-kit';
 
-const HALF = Math.PI / 2;
-/** The glide: its speed (world units/s), height and pitch (the waterline at ~0.52 H). */
-const GLIDE = { v: 3.0, y: 0.3, pitch: 0.002 };
-/** The small words: baseline on screen (fraction of H from the top) and cap height (fraction of H); the clay
- *  field ends above them (BOT). */
-const PH = { y: 0.84, cap: 0.055 }, BOT = 0.77;
-/** An answer's top under the surface (fraction of the hero's cap height). */
-const GAP = 0.06;
-/** The shades: their length lying down, spacing and depths under the surface (world units). */
-const SHADE = { len: 4.2, step: 5.4, depth: [1.2, 1.85], tilt: [0.06, -0.05, 0.03, -0.07, 0.05] };
-/** The balance (world units): FOES-OURSELVES gap, arm, pan scale. */
-const BAL = { gap: 10, arm: 3.6, s: 2.6, k: 0.62 };
+const PI = Math.PI;
+const TANF = Math.tan((FOV * PI) / 360);
+/** Each line's stretch of shore. */
+const X = { A: 0, B: 40, C: 80, D: 120, E: 160 };
+/** Hook 1's waterline (px from the top) as it cuts to A, and the plate's. */
+const LINE_HOOK = 582, LINE_Y = 490;
+/** The bronze beam (D): its ends, bar and knob heights, depth, and the lit pan at its high end (world). */
+// (the pivot, the post, stands at X.D: FOES' arm short, OURSELVES?' long, so the heavy side carries the bigger word)
+const BEAM = { x0: X.D - 3.8, x1: X.D + 8.1, h: 0.26, knob: 0.46, knobW: 0.32, z: WORD_Z + 0.05, depth: 0.32 };
+const PAN = { x0: X.D - 3.5, x1: X.D - 0.85, h: 0.08, lip: 0.3, lipW: 0.1 };
 
-const EXTRA = /* glsl */ `
-#define SHORE_FIELD
-#define SHORE_SKY
-uniform vec4 shBox, bBox;             // the clay patches under the shades and the balance: L, R, top, bottom (GL px)
-uniform float shD, bD;                // and how far each has developed
-uniform vec4 shA[5];                  // each shade: centre x, y (GL px), length (px), shown
-uniform float shT[5];                 // and its tilt
-uniform vec2 bP; uniform float bL, bR, bS, bA, bSink, bOn, waterY;
-${GLSL_SHADE}
-/** A clay patch under the surface (its edges ragged with the swell). */
-float patchM(vec2 q, vec4 b) {
-  float e = 22.0 * snoise(vec2(q.y / 30.0, stageT * 0.4));
-  float across = smoothstep(b.x - 50.0, b.x + 10.0, q.x + e) * (1.0 - smoothstep(b.y - 10.0, b.y + 50.0, q.x + e));
-  float down = (1.0 - smoothstep(b.z - 3.0, b.z + 3.0, q.y)) * smoothstep(b.w - 40.0, b.w + 40.0, q.y + e * 0.5);
-  float m = across * down;
-  if (fieldBot >= 0.0) m *= smoothstep(fieldBot - 24.0, fieldBot + 24.0, FRAG_PX.y);
-  return m;
-}
-// the shades, lying on their backs under the surface, head to the left
-float shadesMask(vec2 q) {
-  float m = 0.0;
-  for (int i = 0; i < 5; i++) {
-    vec4 a = shA[i];
-    if (a.w <= 0.0) continue;
-    float cs = cos(shT[i]), sn = sin(shT[i]);
-    vec2 r = vec2(cs * (q.x - a.x) + sn * (q.y - a.y), -sn * (q.x - a.x) + cs * (q.y - a.y));   // a little askew
-    vec2 f = vec2(r.y / a.z, 0.5 - r.x / a.z);                       // the figure's frame: up the body, feet right
-    float d = figure(f, 0.03 + 0.09 * float(i)) * a.z;              // (variants without the cloak)
-    m = max(m, (1.0 - smoothstep(-0.8, 0.8, d)) * a.w);
-  }
-  return m;
-}
-// the balance (GL px): a beam about a pivot on the waterline, tipping by bA (+: FOES' end, the left, up), a post down
-// into the water, and a pan hung from each end (OURSELVES', the right, sinking on its cords by bSink)
-float balDist(vec2 q) {
-  vec2 dir = vec2(cos(bA), -sin(bA));
-  vec2 eL = bP - dir * bL, eR = bP + dir * bR;
-  float th = bS * 0.06;
-  float d = sdSegment(q, eL, eR) - th;
-  d = min(d, sdSegment(q, bP, bP - vec2(0.0, bS * 1.5)) - th * 1.1);
-  d = min(d, sdSegment(q, bP - vec2(bS * 0.3, bS * 1.5), bP - vec2(-bS * 0.3, bS * 1.5)) - th);
-  d = min(d, length(q - bP) - th * 2.2);
-  for (int s = 0; s < 2; s++) {
-    vec2 e = s == 0 ? eL : eR;
-    vec2 rim = e - vec2(0.0, bS * (0.42 + (s == 0 ? 0.0 : bSink)));
-    float w = bS * 0.5;
-    d = min(d, sdSegment(q, e, rim - vec2(w, 0.0)) - th * 0.45);
-    d = min(d, sdSegment(q, e, rim + vec2(w, 0.0)) - th * 0.45);
-    vec2 b = (q - rim) / vec2(w, bS * 0.28);
-    d = min(d, max((length(b) - 1.0) * bS * 0.28, q.y - rim.y));
-  }
-  return d;
-}
-vec3 fieldPaint(vec2 q, vec3 col) {
-  if (shD > 0.0) {
-    float m = shD * patchM(q, shBox);
-    col = mix(col, clayField(q, shBox.z - q.y), m);
-    col = mix(col, C_INK, shadesMask(q) * smoothstep(0.1, 0.5, m));
-  }
-  if (bD > 0.0) {
-    float m = bD * patchM(q, bBox);
-    col = mix(col, clayField(q, bBox.z - q.y), m);
-    col = mix(col, C_INK, (1.0 - smoothstep(-0.8, 0.8, balDist(q))) * smoothstep(0.1, 0.5, m));
-  }
-  return col;
-}
-// above the line the balance is lit: bone on the black (FOES' pan coming up out of the water)
-vec3 skyPaint(vec2 px, vec3 col) {
-  if (bOn <= 0.0 || px.y < waterY) return col;
-  float m = 1.0 - smoothstep(-0.8, 0.8, balDist(px));
-  return mix(col, C_BONE * 0.8, m * bOn * smoothstep(waterY, waterY + 2.0, px.y));
-}`;
+interface Cam { x: number; y: number; z: number; pitch: number; roll: number }
+/** A hero (lit, clipped at the water) and its black-figure twin (the part under the surface). */
+interface Hero { w: Word3D; bf: Word3D; on: number; from: number; to: number }
+/** Where a small phrase stands: its left end (x, z), cap height and yaw (world); `amp` bobs it on the swell. */
+interface Place { x: number; z: number; cap: number; yaw: number; amp?: number }
+/** A small phrase standing on the water: its words pop on their onsets, it folds away at `exit`; it is shown only in
+ *  its set-up [t0, t1). `place` gets the phrase's width (world) at a cap height. */
+interface Small { w: Word3D; on: number[]; exit: number; t0: number; t1: number; place: (wd: (cap: number) => number, c: Cam) => Place }
 
-interface CamState { pos: THREE.Vector3; yaw: number; pitch: number; bot: number }
-/** A hero word on the waterline: centre x, scale (of the hook's hero scale), up on `on`, folding from `out`. */
-interface Hero { w: Word3D; x: number; k: number; on: number; out: number }
-/** A floating phrase: its words' onsets, its exit, where it floats on screen (x fraction). */
-interface Phrase { w: Word3D; on: number[]; exit: number; fx: number }
-
-/** ∫ of a linear ramp from 0 (at a) to 1 (at b): a velocity ramp's distance. */
-const rampInt = (t: number, a: number, b: number) =>
-  t <= a ? 0 : t < b ? ((t - a) * (t - a)) / (2 * (b - a)) : (b - a) / 2 + (t - b);
+/** The camera's pitch (as `Cam.pitch`, + up) that puts the far shore's line `lineY` px from the top of the frame. */
+function pitchFor(y: number, z: number, lineY: number) {
+  const below = Math.atan(y / (z - SHORE.z));
+  return -Math.tan(below - Math.atan(((lineY - HPX / 2) / (HPX / 2)) * TANF));
+}
 
 export default class Mirror extends Scene {
   private st!: Stage;
-  /** World units per font px of a hero word at k = 1 (MONSTER?'s scale in hook 1). */
-  private s = 0.01;
-  private heroes: Hero[] = [];
-  private hero: Record<'monster' | 'wrong' | 'problem' | 'guilt' | 'foes' | 'ours' | 'monster2', Hero> = {} as never;
-  private ans: Record<'monster' | 'hiding' | 'monster2', Answer> = {} as never;
-  private ph: Phrase[] = [];
-  /** Key times (s), all from the lyric onsets and the beat grid: see camAt and docs/mirror-plan.md. */
-  private k: Record<string, number> = {};
-  private shadeOn: number[] = [];
-  private shadeX: number[] = [];
-  private pivotX = 0;
+  private T: Record<string, number> = {};
+  /** The cuts: A→B, B→C, C→D, D→E. */
+  private cuts: number[] = [];
+  private hero: Record<'wrong' | 'problem' | 'guilt' | 'foes' | 'ours' | 'monster', Hero> = {} as never;
+  private ans: Record<'hiding' | 'monster', Word3D> = {} as never;
+  private post!: Word3D;
+  /** Bronze props built from glyphs (".-.": two knobs and a bar): the beam, and the lit pan (a tray and its lips). */
+  private beam!: Word3D;
+  private pan!: Word3D;
+  private small: Small[] = [];
+  private bierOn: number[] = [];
 
   override async init() {
     const { lyrics, audio } = this.ctx;
-    const hook = lyrics.get("What if I'm the monster", 0);
-    const l9 = lyrics.get("What if I'm in the wrong"), l10 = lyrics.get("the problem that's been hiding");
+    const l9 = lyrics.get("What if I'm in the wrong"), l10 = lyrics.get('the problem that\'s been hiding');
     const l11 = lyrics.get('who killed you every time'), l12 = lyrics.get('far too kind to foes');
-    const l13 = lyrics.get('but a monster to ourselves'), l14 = lyrics.lines.find((l) => l.start > l13.start && /monster/i.test(l.text))!;
+    const l13 = lyrics.get('but a monster to ourselves');
+    const l14 = lyrics.lines.find((l) => l.start > l13.start && /monster/i.test(l.text))!;
     const w = (l: Line, s: string) => l.words.find((x) => x.w.toLowerCase().replace(/[^a-z]/g, '') === s)!;
-    const bar = (t: number) => audio.timeOfBeat(Math.round(audio.beatAt(t)));
-    const first = (l: Line) => l.words[0]!.start;
-    const mW = hook.words.find((x) => /monster/i.test(x.w))!;
-    const wrong = w(l9, 'wrong'), problem = w(l10, 'problem'), hiding = w(l10, 'hiding');
-    const guilt = w(l11, 'guilt'), foes = w(l12, 'foes'), ours = w(l13, 'ourselves'), m2 = w(l14, 'monster');
+    const T = this.T;
+    T.wrong = w(l9, 'wrong').start; T.problem = w(l10, 'problem').start; T.hiding = w(l10, 'hiding').start;
+    T.all = w(l10, 'all').start; T.along = w(l10, 'along').start;
+    T.l10 = l10.words[0]!.start; T.l11 = l11.words[0]!.start; T.l12 = l12.words[0]!.start; T.l14 = l14.words[0]!.start;
+    T.guilt = w(l11, 'guilt').start; T.foes = w(l12, 'foes').start; T.small = w(l13, 'monster').start;
+    T.ours = w(l13, 'ourselves').start; T.m2 = l14.words.find((x) => /monster/i.test(x.w))!.start;
+    T.killed = w(l11, 'killed').start;
+    const beat = (t: number) => audio.timeOfBeat(Math.round(audio.beatAt(t)));
+    T.slam = beat(64.02);
+    this.bierOn = ['killed', 'you', 'every', 'time', 'caved'].map((s) => w(l11, s).start);
+    // the cuts, on the beat grid: A→B on the off-beat after WRONG?'s second sink (no whole beat falls between its
+    // sink and line 2's first word, 0.21 s after the cut), then on the beat before each line's first word
+    this.cuts = [
+      audio.timeOfBeat(Math.floor(audio.beatAt(T.l10!)) + 0.5),
+      audio.timeOfBeat(Math.floor(audio.beatAt(T.l11!))),
+      audio.timeOfBeat(Math.floor(audio.beatAt(T.l12!))),
+      audio.timeOfBeat(Math.floor(audio.beatAt(T.l14!))),
+    ];
+    const [cAB, cBC, cCD, cDE] = this.cuts as [number, number, number, number];
 
-    // ---- key times
-    const k = this.k;
-    k.tD1 = mW.start + 0.45;                         // hook 1's dip ends (its slow push runs on into the glide)
-    k.mon = mW.start; k.wrong = wrong.start; k.problem = problem.start; k.hiding = hiding.start; k.l11 = first(l11);
-    k.guilt = guilt.start; k.foes = foes.start; k.small = w(l13, 'monster').start; k.ours = ours.start; k.m2 = m2.start;
-    // the cuts: strong downbeats with no word popping within 0.1 s (53.36, 58.69); the beam slams on 64.02
-    k.cut1 = bar(w(l10, 'along').start + 0.25); k.cut2 = bar(guilt.start + 0.25); k.slam = bar(ours.start + 0.44);
-    k.l14 = first(l14);
-    k.end = this.ctx.end;
-    this.shadeOn = [w(l11, 'killed').start, w(l11, 'you').start, w(l11, 'every').start, w(l11, 'time').start, w(l11, 'caved').start];
-
-    // ---- the stage, the heroes and the answers
-    this.st = shoreStage(EXTRA, {
-      shBox: { value: new THREE.Vector4() }, bBox: { value: new THREE.Vector4() }, shD: { value: 0 }, bD: { value: 0 },
-      shA: { value: Array.from({ length: 5 }, () => new THREE.Vector4()) }, shT: { value: SHADE.tilt },
-      bP: { value: new THREE.Vector2() }, bL: { value: 100 }, bR: { value: 100 }, bS: { value: 50 }, bA: { value: 0 },
-      bSink: { value: 0 }, bOn: { value: 0 }, waterY: { value: 0 },
-    });
-    const hero = (word: Word, o: Partial<Hero> & { out: number }): Hero => {
-      const wd = new Word3D(word.w.toUpperCase().replace(/[,.]$/, ''), heroFont(), { size: 220 });
+    this.st = mirrorStage();
+    const hero = (text: string, on: number, from: number, to: number): Hero => {
+      const wd = new Word3D(text, heroFont(), { size: 220 });
       wd.lightMul = 2.8;
       this.st.add(wd, { shadows: false });
-      const h: Hero = { w: wd, x: 0, k: 1, on: word.start, ...o };
-      this.heroes.push(h);
-      return h;
+      clipAtWater(wd, 1);
+      const bf = new Word3D(text, heroFont(), { size: 220, incise: true });
+      for (const l of bf.letters) { l.mat.uniforms.bf!.value = 1; l.mat.side = THREE.DoubleSide; }
+      this.st.add(bf, { shadows: false });
+      clipAtWater(bf, -1);
+      return { w: wd, bf, on, from, to };
     };
     const H = this.hero;
-    H.monster = hero(mW, { out: wrong.start - 0.2 });
-    this.s = heroScale(H.monster.w);
-    H.wrong = hero(wrong, { out: problem.start - 0.2, x: this.centreX(wrong.start + 0.9) });
-    H.problem = hero(problem, { out: first(l11) - 0.18, x: this.centreX(problem.start + 0.9) });
-    H.guilt = hero(guilt, { out: foes.start - 0.2, x: this.centreX(guilt.start + 0.8) });
-    H.foes = hero(foes, { out: m2.start - 0.2, k: BAL.k });
-    H.ours = hero(ours, { out: m2.start - 0.2, k: BAL.k });
-    H.monster2 = hero(m2, { out: 1e9, x: this.centreX(m2.start + 1.2) });
-    // FOES and OURSELVES? either side of the balance, the pair centred where we will be just after FOES lands
-    const wF = H.foes.w.width * this.s * BAL.k, wO = H.ours.w.width * this.s * BAL.k, tot = wF + BAL.gap + wO;
-    const pc = this.centreX(foes.start + 1.0);
-    H.foes.x = pc - tot / 2 + wF / 2; H.ours.x = pc + tot / 2 - wO / 2;
-    this.pivotX = pc - tot / 2 + wF + BAL.gap / 2;
-    // the shades lie under where GUILT? will stand
-    this.shadeX = [0, 1, 2, 3, 4].map((i) => H.guilt.x + (i - 2) * SHADE.step);
-    this.ans.monster = new Answer(this.st, mW.w);
-    this.ans.hiding = new Answer(this.st, hiding.w);
-    this.ans.monster2 = new Answer(this.st, m2.w);
+    H.wrong = hero('WRONG?', T.wrong, T.wrong - 0.1, cAB);
+    H.problem = hero('PROBLEM', T.problem, cAB, cBC);
+    H.guilt = hero('GUILT?', T.guilt, cBC, cCD);
+    H.foes = hero('FOES', T.foes, cCD, cDE);
+    H.ours = hero('OURSELVES?', T.ours, cCD, cDE);
+    H.monster = hero('MONSTER?', T.m2, cDE, 1e9);
+    const answer = (text: string) => {
+      const a = new Word3D(text, heroFont(), { size: 220, incise: true });
+      for (const l of a.letters) { l.mat.uniforms.bf!.value = 1; l.mat.side = THREE.DoubleSide; }
+      this.st.add(a, { shadows: false });
+      return a;
+    };
+    this.ans.hiding = answer('HIDING');
+    this.ans.monster = answer('MONSTER');
+    this.post = new Word3D('I', heroFont(), { size: 220 });
+    this.post.lightMul = 2.2;
+    this.post.prop = true;
+    this.st.add(this.post, { shadows: false });
+    clipAtWater(this.post, 1);
+    const bronze = () => {
+      const b = new Word3D('.-.', heroFont(), { size: 220 });
+      b.prop = true; b.lightMul = 2.2;
+      for (const l of b.letters) l.mat.uniforms.bronze!.value = 1;
+      this.st.add(b, { shadows: false });
+      clipAtWater(b, 1);
+      return b;
+    };
+    this.beam = bronze();
+    this.pan = bronze();
 
-    // ---- the floating phrases, one at a time (exits: the next phrase's first onset, or 1.2 s after the last word)
+    // the small words: 1–4 word phrases standing on the water in the set, one at a time beside the hero
     const voice = F.archivo(112.5, 600);
     const sl = (l: Line, a: string, b?: string) => l.words.slice(l.words.indexOf(w(l, a)), b ? l.words.indexOf(w(l, b)) : undefined);
-    const groups: [Word[], number][] = [
-      [sl(l9, 'what', 'in'), 0.36], [sl(l9, 'in', 'wrong'), 0.6],
-      [sl(l10, 'what', 'problem'), 0.36], [sl(l10, 'thats', 'hiding'), 0.4], [sl(l10, 'all'), 0.62],
-      [sl(l11, 'what', 'one'), 0.36], [sl(l11, 'one', 'every'), 0.6], [sl(l11, 'every', 'i'), 0.38], [sl(l11, 'i', 'guilt'), 0.62],
-      [sl(l12, 'what', 'far'), 0.36], [sl(l12, 'far', 'foes'), 0.6],
-      [sl(l13, 'but', 'ourselves'), 0.5],
-      [l14.words.slice(0, l14.words.indexOf(m2)), 0.4],
-    ];
-    groups.forEach(([ws, fx], i) => {
-      const wd = new Word3D(ws.map((x) => x.w).join(' '), voice, { size: 200 });
+    const small = (ws: Word[], exit: number, t0: number, t1: number, place: Small['place']) => {
+      const wd = new Word3D(ws.map((x) => x.w.replace(/[,.]$/, '')).join(' '), voice, { size: 200 });
       this.st.add(wd, { shadows: false });
-      const next = groups[i + 1]?.[0][0]?.start ?? m2.start - 0.01;
-      const exit = Math.min(next - 0.11, ws[ws.length - 1]!.start + 1.2);
-      this.ph.push({ w: wd, on: ws.map((x) => x.start), exit: i === groups.length - 1 ? m2.start - 0.12 : exit, fx });
+      this.small.push({ w: wd, on: ws.map((x) => x.start), exit, t0, t1, place });
+    };
+    /** exit just before the next phrase's first word lands */
+    const before = (wd: Word) => wd.start - 0.13;
+    const centred = (x: number, z: number, cap: number) => (wd: (c: number) => number): Place => ({ x: x - wd(cap) / 2, z, cap, yaw: 0 });
+
+    // A: "What if I'm" centred where WRONG? will stand; "in the" just left of WRONG?, on its line
+    const wA = this.heroPose(0);
+    small(sl(l9, 'what', 'in'), before(w(l9, 'in')), 46, cAB, centred(X.A, -3.0, 0.28));
+    small(sl(l9, 'in', 'wrong'), 1e9, 46, cAB, (wd) => ({ x: wA.x - wA.width / 2 - 0.22 - wd(0.31), z: wA.z + 0.2, cap: 0.31, yaw: 0 }));
+    // B: "What if I'm the" left of PROBLEM on its line; "that's been", then "all along?" right of it (read in order)
+    const wB = this.heroPose(1);
+    const rightOfB = () => ({ x: wB.x + wB.width / 2 + 0.3, z: wB.z, cap: 0.3, yaw: 0 });
+    small(sl(l10, 'what', 'problem'), before(w(l10, 'thats')), cAB, cBC, (wd) => ({ x: wB.x - wB.width / 2 - 0.3 - wd(0.3), z: wB.z, cap: 0.3, yaw: 0 }));
+    small(sl(l10, 'thats', 'hiding'), before(w(l10, 'all')), cAB, cBC, rightOfB);
+    small(sl(l10, 'all'), 1e9, cAB, cBC, rightOfB);
+    // C: the phrases stand on the line where GUILT? will stand, over the frieze as its biers come one per word;
+    // "I caved to" left of GUILT?
+    const wC = this.heroPose(2), onC = centred(X.C, wC.z, 0.46);
+    small(sl(l11, 'what', 'im'), before(w(l11, 'im')), cBC, cCD, onC);
+    small(sl(l11, 'im', 'killed'), before(w(l11, 'killed')), cBC, cCD, onC);
+    small(sl(l11, 'killed', 'every'), before(w(l11, 'every')), cBC, cCD, onC);
+    small(sl(l11, 'every', 'i'), before(w(l11, 'i')), cBC, cCD, onC);
+    small(sl(l11, 'i', 'guilt'), 1e9, cBC, cCD, (wd) => ({ x: wC.x - wC.width / 2 - 0.25 - wd(0.4), z: wC.z, cap: 0.4, yaw: 0 }));
+    // D: the phrases stand on the water near us, below the beam and clear of its words
+    const nearD = centred(X.D + 1.65, -9.3, 0.25);
+    small(sl(l12, 'what', 'far'), before(w(l12, 'far')), cCD, cDE, nearD);
+    small(sl(l12, 'far', 'foes'), before(w(l13, 'but')), cCD, cDE, nearD);
+    small(sl(l13, 'but', 'ourselves'), T.ours! - 0.1, cCD, cDE, nearD);
+    // E: afloat near us as in hook 1, bobbing on the swell, before the dip
+    small(sl(l14, 'what', 'monster'), T.m2! + 0.02, cDE, 1e9, (wd) => ({ x: X.E - wd(VOICE.cap) / 2, z: VOICE.z - 1, cap: VOICE.cap, yaw: 0, amp: 0.012 }));
+  }
+
+  /** Where each hero stands (world): centre x, plane z, width (MONSTER?'s comes from the frame, see render). */
+  private heroPose(i: number) {
+    return [
+      { x: X.A + 1.1, z: -4.6, width: 5.6 },
+      { x: X.B, z: -6, width: 3.6 },
+      { x: X.C + 0.8, z: -6, width: 5.6 },
+      { x: (PAN.x0 + PAN.x1) / 2, z: BEAM.z + 0.04, width: 2.3 },
+      { x: X.D + 4.15, z: WORD_Z + 0.3, width: 7.3 },
+      { x: X.E, z: WORD_Z, width: 0 },
+    ][i]!;
+  }
+
+  /** The camera at time t: one set-up per line. */
+  private cam(t: number): Cam {
+    const T = this.T, [cAB, cBC, cCD, cDE] = this.cuts as [number, number, number, number];
+    if (t < cAB) {      // A: skimming low toward the far shore, tilting from hook 1's waterline to the plate's
+      const x = X.A, y = 0.35, z = 7 - 4.5 * ease.outCubic(prog(t, 46.022, 49.4));
+      const lineY = lerp(LINE_HOOK, LINE_Y, ease.inOutQuad(prog(t, 46.1, 47.9)));
+      return { x, y, z, pitch: pitchFor(y, z, lineY), roll: 0 };
+    }
+    if (t < cBC) {      // B: nearer PROBLEM, tracking along on "all along"
+      const y = 0.5, z = 4.2 - 0.25 * prog(t, cAB, cBC);
+      const x = X.B - 0.4 + 1.3 * ease.inOutQuad(prog(t, T.all! - 0.05, cBC + 0.4)) * (cBC + 0.45 - T.all!);
+      return { x, y, z, pitch: pitchFor(y, z, LINE_Y), roll: 0 };
+    }
+    if (t < cCD) {      // C: GUILT? over the frieze, a slow push
+      const y = 0.62, z = 4.4 - 0.4 * prog(t, cBC, cCD);
+      return { x: X.C, y, z, pitch: pitchFor(y, z, LINE_Y), roll: 0 };
+    }
+    if (t < cDE) {      // D: the beam: the world tips as FOES' side rises, slamming on the downbeat
+      const roll = keys(t, [[T.foes!, 0], [T.foes! + 0.5, 0.07, (u) => ease.outBack(u, 1.8)], [T.small!, 0.07],
+        [T.small! + 0.3, 0.1, (u) => ease.outBack(u, 2.2)], [T.ours!, 0.1], [T.ours! + 0.35, 0.14, ease.outCubic],
+        [T.slam!, 0.14], [T.slam! + 0.25, 0.21, (u) => ease.outBack(u, 2.2)]]);
+      const y = 0.55, z = -5.4;
+      return { x: X.D + 2.3, y, z, pitch: pitchFor(y, z, LINE_Y), roll };
+    }
+    // E: level, then hook 1's dip to the waterline and its slow push
+    const u = ease.inOutCubic(prog(t, T.m2! - 0.12, T.m2! + 0.45));
+    const y = lerp(0.5, LOW.y, u), z = LOW.z - 0.4 * prog(t, T.m2! + 0.45, this.ctx.end);
+    return { x: X.E, y, z, pitch: lerp(pitchFor(0.5, LOW.z, LINE_Y), LOW.pitch, u), roll: 0 };
+  }
+
+  /** Poses a run centred at x on the plane z, `s` world units per font px, baseline at y. */
+  private run(w: Word3D, x: number, z: number, s: number, y: number, hinge: (j: number) => number, on: boolean) {
+    w.letters.forEach((l, j) => {
+      l.x = x + (l.penX - w.width / 2) * s; l.z = z; l.y = y; l.yaw = 0; l.s = s;
+      l.hinge = hinge(j);
+      l.on = on && l.hinge < PI / 2 - 1e-3 || on && l.hinge > PI / 2 + 0.35 ? 1 : 0;
     });
-    for (const wd of this.st.words) for (const l of wd.letters) l.mat.side = THREE.DoubleSide;
+    w.update();
   }
 
-  /** The glide's x: from rest at hook 1's end up to speed, slower over the balance, slowing again for MONSTER?. */
-  private glideX(t: number) {
-    const k = this.k, T0 = this.ctx.start;
-    return GLIDE.v * rampInt(t, T0, T0 + 0.8) - 1.8 * rampInt(t, k.foes! - 0.6, k.foes! + 0.4) - 0.6 * rampInt(t, k.m2! - 0.6, k.m2! + 0.4);
-  }
-
-  /** The camera (position, yaw left of -z, pitch as the slope of its view, where the clay field ends) at time t. */
-  private camAt(t: number): CamState {
-    const k = this.k, T0 = this.ctx.start;
-    const x = this.glideX(t);
-    // one glide, two cuts on the downbeats: nearer and looking back at PROBLEM and HIDING, then wide for GUILT and the balance;
-    // the pitch (so the waterline) never changes across a cut. From line 14 the glide moves in for MONSTER?
-    const [z0, yaw] = t < k.cut1! ? [8.4, 0] : t < k.cut2! ? [6.4, 0.06] : [14.5, 0];
-    const z = t < k.cut2! ? z0 : lerp(z0, LOW.z, ease.inOutCubic(prog(t, k.l14!, k.m2! + 0.45)));
-    let c: CamState = { pos: new THREE.Vector3(x, GLIDE.y, z), yaw, pitch: GLIDE.pitch, bot: BOT };
-    const mix = (a: CamState, b: CamState, u: number): CamState =>
-      ({ pos: a.pos.clone().lerp(b.pos, u), yaw: lerp(a.yaw, b.yaw, u), pitch: lerp(a.pitch, b.pitch, u), bot: lerp(a.bot, b.bot, u) });
-    // hook 1's last frame (low at the waterline, still pushing in) rising into the glide
-    const hookEnd: CamState = { pos: new THREE.Vector3(x, LOW.y, lowPushZ(t, k.tD1!, T0)), yaw: 0, pitch: LOW.pitch, bot: 1.6 };
-    c = mix(hookEnd, c, ease.inOutCubic(prog(t, T0, T0 + 1.0)));
-    // MONSTER?: hook 1's dip to the waterline, then the slow push to the cut
-    const low: CamState = { pos: new THREE.Vector3(x, LOW.y, LOW.z), yaw: 0, pitch: LOW.pitch, bot: 1.6 };
-    c = mix(c, low, ease.inOutCubic(prog(t, k.m2! - 0.12, k.m2! + 0.45)));
-    c.pos.z -= 0.45 * prog(t, k.m2! + 0.45, k.end!);
-    return c;
-  }
-
-  /** The world x at the centre of the frame, on the waterline, at time t. */
-  private centreX(t: number) {
-    const c = this.camAt(t);
-    return c.pos.x - Math.tan(c.yaw) * (c.pos.z - WORD_Z);
-  }
-
-  private setCam(c: CamState) {
-    this.st.cam.set(c.pos, c.pos.clone().add(new THREE.Vector3(-30 * Math.sin(c.yaw), 30 * c.pitch, -30 * Math.cos(c.yaw))), FOV);
-  }
-
-  /** A hero standing up on the waterline as sung, folding back into the water from its `out`. */
-  private pose(h: Hero, t: number) {
-    const wd = h.w, s = this.s * h.k;
-    const gone = prog(t, h.out, h.out + 0.16, ease.inCubic);
-    wd.letters.forEach((l, j) => {
-      l.x = h.x + (l.penX - wd.width / 2) * s; l.z = WORD_Z; l.y = 0; l.yaw = 0; l.s = s;
-      const up = popHinge(t, h.on, j);
-      l.hinge = up + (HALF - up) * gone;
-      l.on = l.hinge < HALF - 1e-4 && gone < 0.999 && !(gone > 0 && l.hinge > 1.2) ? 1 : 0;
-    });
-    wd.update();
+  /** Poses a ".-." prop: a bar from x0 to x1 (bottom at y, height h) and a knob centred on each end (kh tall, kw
+   *  wide, its bottom kdy below the bar's), `depth` deep (world). */
+  private bar(w: Word3D, x0: number, x1: number, y: number, z: number, h: number, kh: number, kw: number, kdy: number, depth: number, on: boolean) {
+    const ls = w.letters, dz = depth / (220 * 0.17);
+    const fit = (l: Letter, cx: number, bottom: number, wd: number, ht: number) => {
+      const sx = wd / Math.max(1, l.box[2] - l.box[0]), sy = ht / Math.max(1, l.box[3] - l.box[1]);
+      l.x = cx - ((l.box[0] + l.box[2]) / 2) * sx; l.y = bottom - l.box[1] * sy; l.z = z; l.yaw = 0; l.hinge = 0; l.s = sy;
+      l.on = on ? 1 : 0;
+      return [sx, sy] as const;
+    };
+    const sc = [fit(ls[0]!, x0, y - kdy, kw, kh), fit(ls[1]!, (x0 + x1) / 2, y, x1 - x0, h), fit(ls[2]!, x1, y - kdy, kw, kh)];
+    w.update();
+    ls.forEach((l, i) => { l.mesh.scale.set(sc[i]![0], sc[i]![1], dz); l.mesh.updateMatrixWorld(true); });
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const { renderer, audio } = this.ctx;
-    const t = f.t, k = this.k, H = this.hero, sc = this.st.cam;
-    const c = this.camAt(t);
-    this.setCam(c);
-    const cam = sc.cam.position;
+    const t = f.t, T = this.T, H = this.hero, st = this.st, u = st.bg.u;
+    const [cAB, cBC, cCD, cDE] = this.cuts as [number, number, number, number];
+    const setup = t < cAB ? 0 : t < cBC ? 1 : t < cCD ? 2 : t < cDE ? 3 : 4;
+    const c = this.cam(t);
+    const pos = new THREE.Vector3(c.x, c.y, c.z);
+    st.cam.set(pos, pos.clone().add(new THREE.Vector3(0, 30 * c.pitch, -30)), FOV, c.roll);
+    const proj = (x: number, y: number, z: number) => { const p = st.cam.project({ x, y, z }); return new THREE.Vector2(p.x, HPX - p.y); };
+    /** px per world unit at a point on the water (along the water's line on screen, so it holds under the roll) */
+    const pxAt = (x: number, z: number) => proj(x + 0.5, 0, z).distanceTo(proj(x - 0.5, 0, z));
+    const fw = (z: number) => 2 * (c.z - z) * TANF * (WPX / HPX);    // frame width (world) at depth z
 
-    // ---- the heroes: bone, lit, an ember flash as each lands (as hook 1's MONSTER?)
-    for (const h of this.heroes) {
-      this.pose(h, t);
-      h.w.letters.forEach((l, i) => {
-        const tk = h.on + i * 0.014;
+    // ---- the bronze beam (D): it rises from the water just before FOES lands in its pan
+    const beamUp = setup === 3 ? ease.outCubic(prog(t, T.foes! - 0.6, T.foes! - 0.1)) : 0;
+    const by = -0.6 * (1 - beamUp), beamOn = setup === 3 && t >= T.foes! - 0.6;
+    this.bar(this.beam, BEAM.x0, BEAM.x1, by, BEAM.z, BEAM.h, BEAM.knob, BEAM.knobW, (BEAM.knob - BEAM.h) / 2, BEAM.depth, beamOn);
+    this.bar(this.pan, PAN.x0, PAN.x1, by + BEAM.h, BEAM.z, PAN.h, PAN.lip, PAN.lipW, 0, BEAM.depth, beamOn);
+    u.beamX!.value.set(BEAM.x0, BEAM.x1, beamUp);
+
+    // ---- the heroes: where each stands, its scale, how far it is sunk (world), and its twin under the surface
+    type Pose = { h: Hero; x: number; z: number; width: number; sink: number };
+    const sW = (h: Hero, width: number) => width / h.w.width;
+    const hs = [H.wrong, H.problem, H.guilt, H.foes, H.ours, H.monster];
+    const poses: Pose[] = hs.map((h, i) => ({ h, ...this.heroPose(i), sink: 0 }));
+    poses[5]!.width = BIG_W * fw(WORD_Z);
+    const cap = (p: Pose) => p.h.w.cap * sW(p.h, p.width);
+    // WRONG? sinks to its waist on the next two hits; FOES stands in its pan on the beam; OURSELVES? lands low and
+    // sinks as the beam slams
+    const hA = audio.timeOfBeat(Math.round(audio.beatAt(T.wrong!)) + 0.5), hB = audio.timeOfBeat(Math.round(audio.beatAt(T.wrong!)) + 1);
+    poses[0]!.sink = cap(poses[0]!) * keys(t, [[hA - 0.02, 0], [hA + 0.1, 0.27, (v) => ease.outBack(v, 1.6)], [hB - 0.02, 0.27], [hB + 0.1, 0.5, (v) => ease.outBack(v, 1.6)]]);
+    poses[3]!.sink = -(by + BEAM.h + PAN.h);
+    poses[4]!.sink = cap(poses[4]!) * keys(t, [[T.ours! + 0.1, 0], [T.ours! + 0.4, 0.15, ease.outCubic], [T.slam!, 0.18], [T.slam! + 0.2, 0.45, (v) => ease.outBack(v, 1.5)]]);
+    for (const p of poses) {
+      const s = sW(p.h, p.width), live = t >= p.h.from && t < p.h.to;
+      this.run(p.h.w, p.x, p.z, s, -p.sink, (j) => popHinge(t, p.h.on, j), live);
+      p.h.w.letters.forEach((l, i) => {
+        const tk = p.h.on + i * 0.014;
         l.mat.uniforms.glow!.value = 0.5 * pulse(t, tk, 0.14) * (t >= tk ? 1 : 0) * l.on;
         l.mat.uniforms.amb!.value = 0.05 * prog(t, tk, tk + 0.3);
       });
     }
 
-    // ---- the small words afloat near us, travelling with us, low in the frame, one phrase at a time
-    for (const p of this.ph) {
-      const r = new THREE.Vector3(p.fx * 2 - 1, 1 - PH.y * 2, 0.5).unproject(sc.cam).sub(cam).normalize();
-      const d = -cam.y / Math.min(r.y, -1e-3);
-      const P = cam.clone().addScaledVector(r, d);
-      const cap = PH.cap * 2 * d * Math.tan((FOV * Math.PI) / 360);
-      const x0 = P.x - (p.w.width * cap / p.w.cap) / 2;
-      popWords(p.w, p.on, t, bob(t, cam, x0, P.z, cap, p.w, 0.01), { exit: p.exit, exitDur: 0.06, exitRipple: 0 });
-      hideFlat(p.w);
+    // the post (the fulcrum, lit type: a stretched "I") rises from the water at the centre of the beam
+    const pl = this.post.letters[0]!;
+    const pW = 0.3 / Math.max(1, pl.box[2] - pl.box[0]);
+    const rise = ease.outCubic(prog(t, T.foes! - 0.3, T.foes! + 0.4));
+    const px = X.D;
+    this.run(this.post, px, WORD_Z + 0.25, pW, -0.4, () => 0, setup === 3 && t >= T.foes! - 0.3);
+    pl.x = px - (pl.box[0] + pl.box[2]) / 2 * pW;
+    this.post.update();
+    const pk = (1.6 * rise + 0.4) / (this.post.cap * pW);
+    pl.mesh.scale.y = pW * pk; pl.mesh.updateMatrixWorld(true);
+
+    // ---- the small words
+    for (const sm of this.small) {
+      const p = sm.place((cp) => sm.w.width * cp / sm.w.cap, c);
+      const sc = p.cap / sm.w.cap;
+      const cx = Math.cos(p.yaw), cz = -Math.sin(p.yaw);
+      popWords(sm.w, sm.on, t, (l: Letter) => {
+        l.x = p.x + cx * l.penX * sc; l.z = p.z + cz * l.penX * sc; l.yaw = p.yaw; l.s = sc;
+        l.y = p.amp ? p.amp * Math.sin(t * 2.1 + l.penX * 0.004 + p.z) : 0;
+      }, { exit: sm.exit, exitDur: 0.08, exitRipple: 0 });
+      if (t < sm.t0 || t >= sm.t1) for (const l of sm.w.letters) l.on = 0;
+      hideFlat(sm.w);
     }
 
-    // ---- the answers under the surface (MONSTER from hook 1, folding away with its word; HIDING, lingering and
-    // sinking into line 11; MONSTER, bigger than the word), each on the clay developing under it
-    const u = this.st.bg.u, s = this.s, gapK = GAP * H.monster.w.cap;
-    const mOut = H.monster.out;
-    const answers = [
-      { a: this.ans.monster, x: 0, s, on: k.mon!, d: 1 - prog(t, mOut - 0.1, mOut + 0.2), sink: 2.5 * prog(t, mOut - 0.1, mOut + 0.2, ease.inCubic) },
-      { a: this.ans.hiding, x: H.problem.x, s, on: k.hiding!,
-        d: ease.outCubic(prog(t, k.hiding! + 0.05, k.hiding! + 0.7)) * (1 - prog(t, this.shadeOn[3]!, k.guilt!)),
-        sink: 0.45 * Math.max(0, t - k.l11!) },
-      { a: this.ans.monster2, x: H.monster2.x, s: s * 1.3, on: k.m2!, d: ease.outCubic(prog(t, k.m2! + 0.05, k.m2! + 0.7)), sink: 0 },
-    ];
-    const act = answers.filter((a) => a.d > 0 && t >= a.on - 0.1);
-    const cur = act[act.length - 1];
-    u.develop!.value = cur ? cur.d : 0;
-    if (cur) setRegion(this.st, cur.a.box(this.st, cur.x, cur.s, gapK * cur.s));
-    u.fieldBot!.value = c.bot >= 1.5 ? -1 : (1 - c.bot) * HPX;
+    // ---- the crowd of the dead on the far shore (world space, fixed per stretch of shore): one at WRONG?, more on
+    // every beat, a dense crowd from FOES on
+    const beatT = audio.timeOfBeat(Math.floor(audio.beatAt(t) + 1e-4));
+    const lin = (v: number) => v;
+    const nDead = Math.floor(keys(beatT, [[T.wrong!, 1], [T.problem!, 5, lin], [T.along! + 0.6, 10, lin], [T.killed!, 12, lin],
+      [T.guilt!, 26, lin], [T.foes!, 28, lin], [T.foes! + 0.6, 300, lin]]) + 1e-6);
+    const crowdH = 0.5, cells = 130;
+    u.crowdH!.value = crowdH; u.crowdPx!.value = 1 / pxAt(c.x, SHORE.z);
+    u.crowdOne!.value = t >= T.wrong! - 0.02 ? 1 : 0;
+    u.crowdD!.value = nDead >= 299 ? 0.95 : Math.max(0, nDead - 1) / cells;
+    u.crowdX!.value = [X.A + 11.15, X.B + 0.37, X.C + 0.37, X.D + 0.37, X.E + 0.37][setup]!;
+    u.glowI!.value = 0.07 + 0.07 * clamp(nDead / 60, 0, 1);
 
-    // ---- the shades: lying under the surface, one more on each word from "killed you" to "caved"
-    const proj = (x: number, y: number) => { const p = sc.project({ x, y, z: WORD_Z }); return new THREE.Vector2(p.x, HPX - p.y); };
-    const lenPx = proj(SHADE.len, 0).x - proj(0, 0).x;
-    const shA = u.shA!.value as THREE.Vector4[];
-    this.shadeX.forEach((x, i) => {
-      const on = this.shadeOn[i]!, shown = prog(t, on - 0.03, on + 0.18);
-      const p = proj(x, -SHADE.depth[i % 2]! - 0.6 * (1 - ease.outCubic(prog(t, on - 0.03, on + 0.35))));
-      shA[i]!.set(p.x, p.y, lenPx, shown);
-    });
-    const wl = proj(H.guilt.x, 0), deep = proj(H.guilt.x, -3.0);
-    const sL = proj(this.shadeX[0]! - SHADE.len / 2, 0).x, sR = proj(this.shadeX[4]! + SHADE.len / 2, 0).x;
-    (u.shBox!.value as THREE.Vector4).set(sL - 30, sR + 30, wl.y, deep.y);
-    u.shD!.value = prog(t, this.shadeOn[0]! - 0.1, this.shadeOn[0]! + 0.25) * (1 - prog(t, k.foes! - 0.1, k.foes! + 0.4));
+    // ---- the clay fields under the surface: each anchored to a world point on the water every frame, sized in world
+    // units (converted to px at that point), turned with the water's line on screen
+    const fA = u.fA!.value as THREE.Vector4[], fB = u.fB!.value as THREE.Vector4[];
+    for (const v of fA) v.set(0, 0, 0, 0);
+    for (const v of fB) v.set(0, 0, 0, -1);
+    (u.frz!.value as THREE.Vector4).set(0, 0, 0, 0);
+    (u.pan!.value as THREE.Vector4).set(0, 0, 0, 0);
+    const develop = (on: number) => ease.outCubic(prog(t, on, on + 0.35));
+    /** Field i under (x, z): half width and depth (world, below the surface); returns px per world unit there. */
+    const field = (i: number, x: number, z: number, halfW: number, depth: number, d: number) => {
+      const an = proj(x, -0.02, z), a = proj(x - 1, 0, z), b = proj(x + 1, 0, z), k = pxAt(x, z);
+      u.fR!.value = Math.atan2(b.y - a.y, b.x - a.x);
+      fA[i]!.set(an.x, an.y, halfW * k * d, depth * k * d);
+      return k;
+    };
+    if (setup === 0) {
+      const p = poses[0]!;
+      const k = field(0, p.x, p.z, p.width * 0.66, cap(p) * 0.5 + 0.62, develop(hA - 0.02));
+      fB[0]!.set((cap(p) * 0.5 + 0.12) * k, 0.24 * k, 2, -1);
+    } else if (setup === 1) {
+      const p = poses[1]!, gap = 0.08 * cap(p);
+      const aw = p.width * 3, deep = this.ans.hiding.cap * (aw / this.ans.hiding.width);
+      const k = field(0, p.x, p.z, aw * 0.58, deep + gap + 0.75, develop(T.hiding! - 0.05));
+      fB[0]!.set((deep + gap + 0.15) * k, 0.32 * k, 1, -1);
+    } else if (setup === 2) {
+      // a meander band, the frieze (one bier per word from "killed" to "caved"), a second band; to the frame's foot
+      const p = poses[2]!, d = develop(T.killed! - 0.15);
+      const k = field(0, X.C, p.z, 7.9, 4.3, 1);
+      fA[0]!.z *= d;
+      fB[0]!.set(0.11 * k, 0.32 * k, 1, 2.68 * k);
+      (u.frz!.value as THREE.Vector4).set(0.53 * k, 2.05 * k, this.bierOn.reduce((s, on) => s + prog(t, on - 0.03, on + 0.15), 0), d);
+    } else if (setup === 3) {
+      // a soft band pinned to the water under the beam; the black-figure pan with his men under OURSELVES?
+      const p = poses[4]!, d = develop(T.ours! + 0.1), cx = (BEAM.x0 + BEAM.x1) / 2;
+      const ps = 0.07 * p.width, depth = Math.max(0, p.sink) + 0.15 + 2.2 * ps + 0.45;
+      const k = field(1, cx, BEAM.z, (BEAM.x1 - BEAM.x0) / 2 + 0.3, depth, d);
+      (u.pan!.value as THREE.Vector4).set((p.x - cx) * k, (Math.max(0, p.sink) + 0.12 + 1.72 * ps) * k, ps * k, d);
+    } else {
+      const an = proj(X.E, -0.02, WORD_Z);
+      const k = field(2, X.E, WORD_Z, 0.62 * fw(WORD_Z), 1, 1);
+      fA[2]!.set(an.x, an.y, fA[2]!.z * develop(T.m2! + 0.05), an.y + 80);
+      void k;
+    }
 
-    // ---- the balance across the waterline: FOES' pan rises out of the water, a jolt on the small "monster",
-    // OURSELVES' pan sinks beneath it, the beam slams on the downbeat
-    const bOn = prog(t, k.foes! - 0.05, k.foes! + 0.25) * (1 - prog(t, k.m2! - 0.4, k.m2! - 0.12));
-    const P = proj(this.pivotX, 0), bS = proj(this.pivotX, BAL.s).y - P.y;
-    u.bOn!.value = bOn; u.bD!.value = bOn; u.waterY!.value = P.y;
-    (u.bP!.value as THREE.Vector2).copy(P);
-    u.bL!.value = P.x - proj(this.pivotX - BAL.arm, 0).x; u.bR!.value = proj(this.pivotX + BAL.arm, 0).x - P.x; u.bS!.value = bS;
-    u.bA!.value = keys(t, [[k.foes!, 0], [k.foes! + 0.45, 0.22, (x) => ease.outBack(x, 1.8)],
-      [k.small!, 0.22], [k.small! + 0.25, 0.27, (x) => ease.outBack(x, 2.5)], [k.ours!, 0.27], [k.ours! + 0.4, 0.36, ease.outCubic],
-      [k.slam!, 0.36], [k.slam! + 0.3, 0.42, (x) => ease.outBack(x, 2.2)]]);
-    u.bSink!.value = keys(t, [[k.ours!, 0], [k.slam!, 0.5, ease.inOutCubic], [k.slam! + 0.5, 1.5, ease.inCubic]]);
-    const arm = u.bL!.value as number, bw = 0.5 * bS;
-    (u.bBox!.value as THREE.Vector4).set(P.x - arm - bw - 40, P.x + (u.bR!.value as number) + bw + 90, P.y, P.y - 2.5 * bS);
-
-    // the mirrored render holds no image of the heroes: only the small words' true reflections and the answers
+    // ---- the mirrored render: only the black-figure twins and answers
+    const twins = poses.filter((p) => p.sink > 0 && t >= p.h.from && t < p.h.to);
     const mirror = {
       before: () => {
-        for (const h of this.heroes) for (const l of h.w.letters) l.mesh.visible = false;
-        for (const a of act) a.a.pose(t, a.x, a.s, a.on, gapK * a.s, a.sink);
+        for (const p of twins) this.run(p.h.bf, p.x, p.z, sW(p.h, p.width), p.sink, () => PI, true);
+        if (setup === 1 && t >= T.hiding! - 0.1) {
+          const p = poses[1]!, s = p.width * 3 / this.ans.hiding.width;
+          this.run(this.ans.hiding, p.x, p.z, s, this.ans.hiding.cap * s + 0.08 * cap(p), (j) => PI - popHinge(t, T.hiding!, j), true);
+        }
+        if (setup === 4 && t >= T.m2! - 0.1) {
+          // the answer risen from the deep, wider than the frame, just under the surface
+          const fwE = fw(WORD_Z), s = 1.32 * fwE / this.ans.monster.width;
+          const rise = 4 * (1 - ease.outCubic(prog(t, T.m2! + 0.05, T.m2! + 0.75)));
+          this.run(this.ans.monster, X.E, WORD_Z, s, this.ans.monster.cap * s + 0.05 * cap(poses[5]!) + rise, (j) => PI - popHinge(t, T.m2!, j), true);
+        }
       },
       after: () => {
-        for (const a of answers) a.a.hide();
-        for (const h of this.heroes) h.w.update();
+        for (const w of [...poses.map((p) => p.h.bf), this.ans.hiding, this.ans.monster]) { for (const l of w.letters) l.on = 0; w.update(); }
       },
     };
-    this.st.render(renderer, out, t, keyLight(this.st.cam, audio, t, SHORE_KEY), SHORE_SURF, { ...SHORE_OPTS, mirror });
+    mirror.after();
+    st.render(renderer, out, t, keyLight(st.cam, audio, t, SHORE_KEY), SHORE_SURF, { ...SHORE_OPTS, mirror });
 
-    const hit = this.heroes.reduce((a, h) => a + (h === H.monster ? 0 : pulse(t, h.on, 0.08)), 0) + 1.2 * pulse(t, k.slam!, 0.1);
+    const hit = poses.reduce((s, p) => s + pulse(t, p.h.on, 0.08), 0) + 1.2 * pulse(t, T.slam!, 0.1);
     return { ...SHORE_POST, shake: [noise1(t * 60, 1) * 6 * hit, noise1(t * 60, 2) * 6 * hit].map((v) => clamp(v, -12, 12)) as [number, number] };
   }
 }

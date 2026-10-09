@@ -56,7 +56,10 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   // the water ends at the far shore, and the shore is the line, a bone hairline, and the horizon: beyond it the
   // ground takes the sky's own colour, so no black sliver opens between the line and the sky's glow
   float beyond = smoothstep(shoreZ + 0.02, shoreZ - 0.02, P.z);
-  float lineG = exp(-abs(P.z - shoreZ) / max(0.06, gPix * 1.5));
+  // (the glow keeps within a few px of the line: gPix grows without bound toward the true horizon, which without the
+  // second term lit up as a faint second line whenever the camera stands above the water)
+  float dzS = camPos.z - shoreZ, gS = dzS * dzS / (max(camPos.y, 1e-3) * 1484.0);
+  float lineG = exp(-abs(P.z - shoreZ) / max(0.06, gPix * 1.5)) * exp(-abs(P.z - shoreZ) / (6.0 * gS + 1.0));
   col = mix(col, skyTint(normalize(P - camPos), C_INK), beyond);
   return col + C_BONE * 0.8 * lineG;
 }
