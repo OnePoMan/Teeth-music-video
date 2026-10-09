@@ -44,7 +44,9 @@ const SMALL = 0.26;
 /** A world direction on the potion for an angle a (0: -z, screen-up when the camera's roll is 0; +pi/2: +x). */
 const dir = (a: number) => ({ x: Math.sin(a), z: -Math.cos(a) });
 
-type Pop = { exit?: number; exitDur?: number; ripple?: number; sink?: boolean; upBy?: (number | undefined)[] };
+type Pop = { exit?: number; exitDur?: number; ripple?: number; sink?: boolean; upBy?: (number | undefined)[];
+  /** Faces the camera more squarely under a camera nearly overhead (the lean's offset and its limit, radians). */
+  square?: [number, number] };
 
 export default class Circe extends Scene {
   private open = new Stage({
@@ -195,7 +197,7 @@ export default class Circe extends Scene {
     const cam = this.cup.cam.cam.position;
 
     // ---- the letters
-    const lean = (x: number, z: number, y: number) => clamp(Math.atan2(cam.y - y, Math.hypot(cam.x - x, cam.z - z)) - 0.12, 0, 1.38);
+    const lean = (x: number, z: number, y: number, off = 0.12, max = 1.38) => clamp(Math.atan2(cam.y - y, Math.hypot(cam.x - x, cam.z - z)) - off, 0, max);
     const psi = -rho;
     /** A straight row centred at (cx, cz), facing the camera, cap height capW (world); y on the potion. */
     const rowAt = (w: Word3D, cx: number, cz: number, capW: number, close?: (l: Letter) => number) => {
@@ -225,7 +227,7 @@ export default class Circe extends Scene {
         const uu = 1 - ph / (Math.PI / 2);
         const gone = prog(t, exit + k * rip, exit + k * rip + dur, o.sink ? ease.linear : ease.inOutQuad);
         const capW = w.cap * l.s;
-        const ln = lean(l.x, l.z, lv);
+        const ln = o.square ? lean(l.x, l.z, lv, o.square[0], o.square[1]) : lean(l.x, l.z, lv);
         const h = ln + (Math.PI / 2 - ln) * (1 - uu);
         l.hinge = h + (Math.PI / 2 + 0.05 - h) * gone * (o.sink ? 0.5 : 1);
         const bob = 0.02 * Math.sin(t * 2.3 + l.x * 1.7 + l.z);
@@ -258,7 +260,7 @@ export default class Circe extends Scene {
     // line 3: "Or did she learn" | "to be" COLDER | "when she got" | OLDER (the C drops away)
     // ("learn" is short: its pop is up within min(0.12 s, its sung length), the frame checker's SLOW-RISE)
     cupPop(this.sD, W3.slice(0, 4).map((x) => x.start), rowAt(this.sD, pS.x, pS.z, SMALL), { exit: W3[4]!.start - POP.lead - 0.06, exitDur: 0.12,
-      upBy: W3.slice(0, 4).map((x) => (x === this.w(this.l3, 'learn') ? Math.min(0.12, x.end - x.start) : undefined)) });
+      upBy: W3.slice(0, 4).map((x) => (x === this.w(this.l3, 'learn') ? Math.min(0.12, x.end - x.start) : undefined)), square: [0.03, 1.52] });
     cupPop(this.sE, W3.slice(4, 6).map((x) => x.start), rowAt(this.sE, pS.x, pS.z, SMALL), { exit: W3[7]!.start - POP.lead - 0.06, exitDur: 0.12 });
     cupPop(this.sF, W3.slice(7, 10).map((x) => x.start), rowAt(this.sF, pS.x, pS.z, SMALL), { exit: older.start - 0.02, exitDur: 0.12 });
     {
