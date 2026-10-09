@@ -69,7 +69,11 @@ uniform vec3 Lc, camPosL; uniform float LI, reach, glow, lineFreq, rim, amb, vas
 uniform float sheenD;
 // black-figure: the glyph's incised contour (red channel of incTex) and where this glyph sits in it
 uniform sampler2D incTex; uniform vec4 amap;
+// a clip plane at the height clipY: discarded where clipS * (y - clipY) < 0 (clipS 0, the default: off; +1 keeps what
+// is above it, -1 what is below; the frame checker reads the same two uniforms)
+uniform float clipY, clipS;
 void main() {
+  if (clipS * (vW.y - clipY) < 0.0) discard;
   // (degenerate bevel triangles carry zero normals: guard them, or their NaN blooms into a white star)
   float nl = length(vNW);
   vec3 N = nl > 1e-6 ? vNW / nl : vec3(0.0, 0.0, 1.0);
@@ -246,6 +250,7 @@ export class Word3D {
         Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, glow: { value: 0 },
         lineFreq: { value: o.lineFreq ?? 0.12 }, rim: { value: 1 }, amb: { value: 0 }, vaseL: { value: 1 }, camPosL: { value: new THREE.Vector3() }, glaze: { value: 0 },
         bf: { value: 0 }, incTex: { value: null }, amap: { value: new THREE.Vector4() }, sheenD: { value: 0 },
+        clipY: { value: 0 }, clipS: { value: 0 },
       },
     });
     let ax = 0;
