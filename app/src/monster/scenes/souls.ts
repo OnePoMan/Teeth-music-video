@@ -12,7 +12,7 @@ import { F, font, layout } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, keys, lerp, mulberry32, prog, pulse } from '../../engine/util';
 import { flameState, GLSL_KEY_DIST, GLSL_SHADE } from '../motifs';
-import { Stage, Word3D, keyLight, popHinge, popWords, row, vkeys, type Letter } from '../stage';
+import { POP, Stage, Word3D, keyLight, popHinge, popWords, row, vkeys, type Letter } from '../stage';
 
 /** The chamber's radius, the ring SOULS stands on, cap heights, the ring's centre. */
 const R = 6.5, RING = 3.4, CAP = 1.05, VCAP = 0.5, HOME = new THREE.Vector3(0, 0, 0.6);
@@ -225,14 +225,23 @@ export default class Souls extends Scene {
     // ---- the camera: circling above in the first set-up; at floor level in the second, then craning up
     let pos: THREE.Vector3, at: THREE.Vector3, fov = 40;
     if (!second) {
-      // the camera swings round the ring to each word as it is sung, looking across the ring at it
+      // the camera swings round the ring to each word as it is sung, looking across the ring at it. Where a word
+      // follows before the last swing has ended the camera jumps (a cut) as the next swing starts: if that jump would
+      // fall just after the previous word's pop, the swing starts a little earlier, so the cut comes first and the
+      // word pops on it (v7 note 8: nothing pops in on the frame before a cut)
       const wa = this.wordAngles;
+      const lead = (i: number) => {
+        const p = wa[i - 1], tj = wa[i]!.t - 0.12;
+        if (!p) return 0.12;
+        const tp = p.t - POP.lead;
+        return tj > tp - 0.02 && tj < tp + 0.1 ? wa[i]!.t - tp + 0.02 : 0.12;
+      };
       let a = wa[0]!.a;
       for (let i = 0; i < wa.length; i++) {
-        const k = wa[i]!;
-        if (t < k.t - 0.12) break;
+        const k = wa[i]!, ld = lead(i);
+        if (t < k.t - ld) break;
         const prev = i > 0 ? wa[i - 1]!.a : wa[0]!.a + 0.35;
-        a = lerp(prev, k.a, prog(t, k.t - 0.12, k.t + 0.28, ease.inOutCubic));
+        a = lerp(prev, k.a, prog(t, k.t - ld, k.t + 0.28, ease.inOutCubic));
       }
       if (t < wa[0]!.t - 0.12) a = wa[0]!.a + 0.35 * (1 - prog(t, T0, wa[0]!.t - 0.12, ease.inOutQuad)) + 0.35 * 0;
       const ca = a + Math.PI, rad = keys(t, [[T0, 5.0], [souls.start, 4.7, ease.inOutCubic], [tCut, 4.4, ease.linear]]);

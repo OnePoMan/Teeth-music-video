@@ -15,6 +15,9 @@ import { SHORE as SHORE_FRAME, Stage, Word3D, keyLight, popHinge, popWords, vkey
 /** The far shore (z), THREAT's cap height, the final camera (hook 1's first frame, shared with `hook`). */
 const SHORE = SHORE_FRAME.z, CAP = 2.1;
 const END = SHORE_FRAME.cam;
+/** "across the sea": the row's z and cap height, and the camera's height pulled back (the row's top stays below the
+ * far shore's line, so it never crosses THREAT). */
+const ROW = { x: 0.5, z: -4.5, cap: 0.54, camY: 1.5 };
 
 const HOOKS = /* glsl */ `
 uniform float tSea, shoreZ;
@@ -79,12 +82,15 @@ export default class Sea extends Scene {
     const T0 = this.ctx.start;
     const threat = this.w(this.l1, 'threat'), across = this.w(this.l1, 'across'), sea = this.w(this.l1, 'sea');
     const wi = this.l1.words.indexOf(threat);
+    const tOut = sea.end + 0.9;
     const back = prog(t, across.start - 0.05, sea.end + 0.4, ease.outExpo);
-    const settle = prog(t, sea.end + 0.2, this.l2.words[0]!.start - 0.1, ease.inOutCubic);
+    // the camera sinks into hook 1's frame once THREAT and "across the sea" have gone (lower, the row would cross THREAT)
+    const settle = prog(t, tOut, this.l2.words[0]!.start - 0.1, ease.inOutCubic);
 
-    // ---- the camera: low over the water gliding toward the shore; pulled back across the sea; settling into hook 1
+    // ---- the camera: low over the water gliding toward the shore; pulled back and up across the sea, so that the
+    // row floating before us stands below the far shore; settling into hook 1
     const p0 = vkeys(t, [[T0, [0.7, 0.8, 3.2]], [across.start - 0.05, [0.45, 0.7, 1.6], ease.linear]]);
-    const p1 = new THREE.Vector3(0.1, 0.4, END.z - 1.2), p2 = new THREE.Vector3(0, END.y, END.z);
+    const p1 = new THREE.Vector3(0.1, ROW.camY, END.z - 1.2), p2 = new THREE.Vector3(0, END.y, END.z);
     const pos = p0.clone().lerp(p1, back).lerp(p2, settle);
     const at = pos.clone().add(new THREE.Vector3(lerp(-0.8, 0, back), lerp(0.4, 30 * END.pitch, Math.max(back, settle)), -30));
     this.st.cam.set(pos, at, 40);
@@ -92,7 +98,6 @@ export default class Sea extends Scene {
     // ---- THREAT: standing up on the far shore as sung, black against the line; it lies down with "across the sea"
     // (client note: it may linger after it is sung, but leaves when that phrase leaves, not after)
     const wd = this.word, n = wd.letters.length, s = CAP / wd.cap;
-    const tOut = sea.end + 0.9;
     for (let k = 0; k < n; k++) {
       const l = wd.letters[k]!;
       l.x = -0.4 + (l.penX - wd.width / 2) * s; l.z = SHORE - 0.25; l.y = 0; l.yaw = 0; l.s = s;
@@ -119,7 +124,7 @@ export default class Sea extends Scene {
     popWords(q0, ws.slice(0, wi).map((w) => w.start), t, bobRow(cx(q0, 0.3, 0.75), -2.2, 0.3, q0), { exit: threat.start - 0.02 });
     popWords(q1, ws.slice(wi + 1, ai).map((w) => w.start), t, bobRow(cx(q1, 0.36, 0.5), -2.8, 0.36, q1), { exit: across.start - 0.02 });
     // "across the sea": one row tracked wide, spanning the water between us and the shore
-    popWords(pA, ws.slice(ai).map((w) => w.start), t, bobRow(cx(pA, 0.62, 0.2), -6.5, 0.62, pA), { exit: tOut, amb: 0.16 });
+    popWords(pA, ws.slice(ai).map((w) => w.start), t, bobRow(cx(pA, ROW.cap, ROW.x), ROW.z, ROW.cap, pA), { exit: tOut, amb: 0.16 });
     popWords(pM, this.l2.words.map((w) => w.start), t, bobRow(-1.75, END.z - 4.5, 0.3, pM));
 
     const u = this.st.bg.u;
