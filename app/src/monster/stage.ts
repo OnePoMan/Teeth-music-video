@@ -120,7 +120,7 @@ void main() {
   if (bronze > 0.5) {
     float top = smoothstep(0.55, 0.9, N.y) * (1.0 - face);
     vec3 body = mix(C_SIGNAL, C_EMBER, 0.3) * (0.3 + 0.6 * tone) * mix(0.55, 1.0, face);
-    col = mix(body, C_BONE * (0.55 + 0.35 * tone), top);
+    col = mix(body, C_BONE * 0.9, top);
   }
   // afterglow: a sung letter keeps a little warm light of its own
   col += mix(C_BONE, C_EMBER, 0.3) * amb * (0.35 + 0.65 * face) * (1.0 - 0.5 * lines);
