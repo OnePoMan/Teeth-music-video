@@ -1,9 +1,10 @@
 // `shield` — chorus 1, lines 12–13 (FOES / OURSELVES?, 59.355–64.689): the shield. A round, deep-dished bronze
 // hoplite shield fills the frame, lit by the fire behind us (bronze as the letters' `bronze` look: signal-orange body,
-// bone highlight). FOES stands on its face, the side his enemies see, plain and polished. On line 13's first word
-// (62.34) the shield swings round on its vertical axis to show its inside, the side his own men see: a clay lining where
-// Odysseus's shadow (odysseus.ts, the bow drawn) stands over a row of his men's shades, the arrow aimed down into them,
-// painted black-figure. OURSELVES? and the arm strap under it slam on together on the 64.02 downbeat.
+// bone highlight). FOES stands on its face, the side his enemies see, plain and polished. The shield swings round on
+// its vertical axis (62.10–62.58, edge-on on line 13's first word, 62.34) to show its inside, the side his own men see:
+// a clay lining where Odysseus's shadow (odysseus.ts, the bow drawn) stands over a row of his men's shades, the arrow
+// aimed down into them, painted black-figure. OURSELVES? and the arm strap under it slam on together on the 64.02
+// downbeat.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { GLSL_COMMON } from '../../engine/glsl/common';
@@ -23,7 +24,8 @@ const GROUND = -1.5, ODY = { x: -1.15, h: 2.25 }, MEN = { x0: 0.15, dx: 0.42, n:
 const NM = MEN.n;
 /** His aim: from his shoulders (0.81 h up) down at the middle of the row of men, chest high. */
 const ODY_AIM = Math.atan2(GROUND + 0.62 - (GROUND + 0.81 * ODY.h), MEN.x0 + MEN.dx * 1.5 - ODY.x);
-const T_SWING = [62.3, 62.78] as const, T_SLAM = 64.02;
+/** The swing (edge-on at its middle, 62.34: line 13's first word pops on an inside turning toward us) and the slam. */
+const T_SWING = [62.1, 62.58] as const, T_SLAM = 64.02;
 
 /** The bowl's profile (r, depth): the dome out to the rim, then the flat rim and its rolled lip. */
 function profile(): THREE.Vector2[] {
