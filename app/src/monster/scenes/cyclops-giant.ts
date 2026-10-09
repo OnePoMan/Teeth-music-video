@@ -34,6 +34,8 @@ uniform float railK;                 // the rail drawn out from his fist (0 none
 uniform float nightK;                // the night's own faint light (0 dark)
 uniform vec4 pool;                   // the fire's pool on the wall: centre x, y (world), radius, how dark beyond it
 float gOcc = 0.0;                    // the giant's shadow at the wall point being shaded (set by extraShadow)
+float gMoon = 0.0;                   // the moon's own light at the wall point (its disc and glow; set by wallHook): the fire's falloff spares it
+#define MOON_C (C_BONE * vec3(1.08, 0.9, 0.72))   // the moon: the lit letters' warm bone (not the neutral paper white)
 
 float cyEll(vec2 p, vec2 r) { float k0 = length(p / r), k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / max(k1, 1e-5); }
 float cyCap(vec2 p, vec2 a, vec2 b, float ra, float rb) {
@@ -126,7 +128,7 @@ vec3 skyTint(vec3 D, vec3 col) { return col; }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   if (!wall) return col;
   vec2 d = (P.xy - pool.xy) / pool.z;
-  return col * mix(pool.w, 1.0, exp(-dot(d, d)));
+  return col * mix(mix(pool.w, 1.0, exp(-dot(d, d))), 1.0, gMoon);
 }
 
 float extraShadow(vec3 P, bool wall) {
@@ -142,6 +144,7 @@ float extraShadow(vec3 P, bool wall) {
 
 // what is not shadow: the cave mouth, the boulder
 vec3 wallHook(vec3 P, vec3 col) {
+  gMoon = 0.0;
   vec3 Lv = Lc - P; float dl = length(Lv);
   float fall = LI / (1.0 + (dl / reach) * (dl / reach) * 4.0);
   vec3 clay = clayCol(fall * (0.3 + 0.7 * max(Lv.z / dl, 0.0)));
@@ -158,8 +161,10 @@ vec3 wallHook(vec3 P, vec3 col) {
   vec3 night = C_INK * 0.7 + C_INK2 * 0.5 + C_GRAPHITE * (0.035 + 0.05 * nightK) * exp(-mr * mr * 2.2);
   float st = min(min(length(e - vec2(-0.62, 0.17)), length(e - vec2(0.58, 0.24))), min(length(e - vec2(0.8, -0.08)), length(e - vec2(-0.4, -0.22))));
   night = mix(night, C_BONE * 0.4, 1.0 - smoothstep(0.022 - a, 0.022 + a, st));
-  night = mix(night, C_BONE * 0.74, 1.0 - smoothstep(0.36 - a, 0.36 + a, mr));
-  col = mix(col, night, 1.0 - smoothstep(-a, a, al));
+  float pup = 1.0 - smoothstep(0.36 - a, 0.36 + a, mr), inA = 1.0 - smoothstep(-a, a, al);
+  night = mix(night, MOON_C * 0.9, pup);
+  col = mix(col, night, inA);
+  gMoon = pup * inA;
   // its rim, reserved in the clay: the eye's contour scratched through his shadow
   col = mix(col, clay, (1.0 - smoothstep(0.035 - a, 0.035 + a, abs(al - 0.1))) * smoothstep(0.02, 0.1, mouth.w));
   // the boulder: a round stone of clay, outlined in black slip, its markings turning as it rolls. Risen into the sky it
@@ -174,7 +179,9 @@ vec3 wallHook(vec3 P, vec3 col) {
     if (moonK > 0.0 && bd > 0.0) {
       // the moon's glow on the night wall: bone at its edge, going to clay, then gone
       float od = bd * rs, gl = exp(-od * 4.2) * (0.55 + 0.1 * sin(3.0 * ang + 1.3) * exp(-od * 2.0));
-      col = mix(col, mix(clay * 1.35, mix(C_BONE, clay * 1.6, 0.3), exp(-od * 9.0)), sat(gl * 0.7 * moonK * bould.w));
+      float gw = sat(gl * 0.7 * moonK * bould.w);
+      col = mix(col, mix(clay * 1.35, mix(MOON_C, clay * 1.6, 0.3), exp(-od * 9.0)), gw);
+      gMoon = max(gMoon, gw);
     }
     if (inS > 0.0) {
       // a body: darker clay, lit from the fire's side (the shading stays put while the markings turn)
@@ -190,10 +197,12 @@ vec3 wallHook(vec3 P, vec3 col) {
       stone = mix(stone, mix(C_INK * 0.8, clay * 1.3, moonK), 1.0 - smoothstep(0.06 - aS, 0.06 + aS, -bd));                // its contour
       // the moon: a bone disc, a little darker to its limb, its cracks soft clay-grey seas, its rim lit
       float rr = sat(length(bq) / rb);
-      vec3 moon = mix(C_BONE, clay * 1.6, 0.1) * (1.0 + 0.05 * snoise(bq * 2.6)) * (0.86 + 0.14 * sqrt(1.0 - rr * rr));
-      moon = mix(moon, mix(C_BONE, clay * 1.4, 0.6) * 0.62, 0.7 * (1.0 - smoothstep(0.03, 0.2, m)));
-      moon = mix(moon, mix(C_BONE, clay * 1.6, 0.3), 0.6 * smoothstep(0.82, 1.0, rr));
-      col = mix(col, mix(stone, moon, smoothstep(0.0, 1.0, moonK)), inS * bould.w);
+      vec3 moon = MOON_C * 0.97 * (1.0 + 0.05 * snoise(bq * 2.6)) * (0.86 + 0.14 * sqrt(1.0 - rr * rr));
+      moon = mix(moon, mix(MOON_C, clay * 1.4, 0.55) * 0.62, 0.7 * (1.0 - smoothstep(0.03, 0.2, m)));
+      moon = mix(moon, mix(MOON_C, clay * 1.6, 0.3), 0.6 * smoothstep(0.82, 1.0, rr));
+      float mk = smoothstep(0.0, 1.0, moonK);
+      col = mix(col, mix(stone, moon, mk), inS * bould.w);
+      gMoon = mix(gMoon, mk, inS * bould.w);
     }
   }
   return col;
