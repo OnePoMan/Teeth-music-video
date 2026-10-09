@@ -48,7 +48,7 @@ float sdTaper(vec2 p, vec2 a, vec2 b, float r0, float r1) {
 // The six heads' fan, right side (the left mirrors it): pair 0 the outer (high), pair 1 the middle (out to the side),
 // pair 2 the inner (hooked back in beside HIDING). Base in the cave's dark (B), struck head (E, facing F, neck control C),
 // and where each waits coiled at the lip with its jaws shut (E0, facing F0).
-const vec2 HB[3] = vec2[3](vec2(1.5, 20.6), vec2(2.8, 19.3), vec2(3.1, 18.2));
+const vec2 HB[3] = vec2[3](vec2(1.5, 20.6), vec2(2.8, 19.3), vec2(3.1, 18.45));
 const vec2 HE[3] = vec2[3](vec2(4.2, 21.9), vec2(5.9, 19.7), vec2(5.6, 16.6));
 const vec2 HF[3] = vec2[3](vec2(0.922, 0.387), vec2(0.995, 0.0995), vec2(-0.989, -0.148));
 const vec2 HC[3] = vec2[3](vec2(2.72, 21.28), vec2(4.31, 19.54), vec2(7.38, 16.87));
@@ -92,9 +92,9 @@ vec3 scylla(vec2 p) {
     // the upper jaw: a long flat wedge to the snout, its mouth line straight; the lower a thinner blade
     float uj = max(sdTaper(hu, vec2(-0.25, 0.14), vec2(1.15, 0.05), 0.34, 0.09), -(hu.y + 0.02));
     float lj = max(sdTaper(hl, vec2(-0.2, -0.08), vec2(1.0, -0.03), 0.22, 0.06), hl.y - 0.02);
-    float bk = sdTaper(h, vec2(-0.6, 0.02), vec2(-0.05, 0.05), 0.3, 0.38);   // the back of the head, over the hinge
+    float bk = sdTaper(h, vec2(-0.6, 0.02), vec2(-0.05, 0.05), 0.28, 0.33);   // the back of the head, over the hinge
     float ga = atan(h.y, h.x);
-    float gul = (ga > -aL && ga < aU && length(h) < 0.6) ? -0.01 : 1.0;      // the gape dark to the gullet
+    float gul = (ga > -aL && ga < aU && length(h) < 0.3) ? -0.01 : 1.0;      // the gape dark to the gullet
     float fg = min(fang(hu, 0.95, 1.1), fang(hu, 0.72, 0.95));
     float fv = smoothstep(0.25, 0.6, op);
     float hd = min(min(uj, lj), min(bk, gul)) * HS;
@@ -261,7 +261,7 @@ export default class SketchC1Scylla extends Scene {
     popWords(hw, [ws[pi]!.start], t, (l: Letter) => { l.x = (l.penX - hw.width / 2) * s0; l.z = HERO_Z; l.y = LEDGE.top; l.yaw = 0; l.s = s0; }, { glow: 0.7 });
     void dist;
 
-    // the small phrases: on the water near us, then (all along?) riding up with us in the cloud
+    // the small phrases: the lead-in on the water near us, then the others riding up the face with us
     const [p0, p1, p2] = this.phrases as [typeof this.phrases[0], typeof this.phrases[0], typeof this.phrases[0]];
     const sm = (p: typeof p0, x0: number, y: number, z: number, cap: number) => {
       const s = cap / p.w.cap;
@@ -271,9 +271,10 @@ export default class SketchC1Scylla extends Scene {
     const D0 = 6, s0p = 0.16 / p0.w.cap, y0 = Math.max(0.02, cy + (lookY - cy) * (D0 / cd) - 0.72 * D0 * TANF);
     popWords(p0.w, p0.on, t, (l: Letter) => { l.x = (l.penX - p0.w.width / 2) * s0p; l.z = pos.z - D0; l.y = y0; l.s = s0p; l.yaw = 0; },
       { exit: p0.exit, exitDur: 0.14 });
-    sm(p1, 1.0, 0, WALL_Z + 9.8, 0.2);
+    // that's been, riding up the face with us in the upper frame, clear of PROBLEM sinking out below
+    sm(p1, -(p1.w.width * 0.2 / p1.w.cap) / 2, cy + (lookY - cy) * (5 / cd) + 0.4 * 5 * TANF, pos.z - 5, 0.2);
     // all along?, riding up with us, then low and centred under HIDING, between the inner heads
-    sm(p2, -(p2.w.width * 0.15 / p2.w.cap) / 2, cy + (lookY - cy) * (4.5 / cd) - 0.8 * 4.5 * TANF, pos.z - 4.5, 0.15);
+    sm(p2, -(p2.w.width * 0.15 / p2.w.cap) / 2, cy + (lookY - cy) * (4.5 / cd) - 0.76 * 4.5 * TANF, pos.z - 4.5, 0.15);
 
     // her necks, a pair on each hit: a 4-frame lunge a little past its mark, settling back; the jaws snap wide with it
     const sk = T_PAIR.map((h) => {
@@ -284,7 +285,7 @@ export default class SketchC1Scylla extends Scene {
     // HIDING on the downbeat
     const hd = this.hiding, hs = (CAVE.hw * 2 * 0.78) / hd.width;
     hd.letters.forEach((l, i) => {
-      l.x = CAVE.x - (hd.width / 2) * hs + l.penX * hs; l.y = 17.45 - hd.cap * hs / 2; l.z = WALL_Z + 0.03; l.yaw = 0; l.hinge = 0; l.s = hs;
+      l.x = CAVE.x - (hd.width / 2) * hs + l.penX * hs; l.y = 17.3 - hd.cap * hs / 2; l.z = WALL_Z + 0.03; l.yaw = 0; l.hinge = 0; l.s = hs;
       l.on = t >= T_HIT + i * 0.035 ? 1 : 0;
       l.mat.uniforms.glow!.value = 0;
     });
