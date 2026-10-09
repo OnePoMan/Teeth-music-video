@@ -37,6 +37,7 @@ uniform vec3 Lc, camPosL; uniform float LI, reach, rim;
 uniform float flip, crackA, crackR, glowK;
 uniform vec2 crackO, rest;
 uniform sampler2D atl; uniform vec4 amap;
+uniform float sheenD;
 vec3 clayLit(float tone) {
   vec3 clay = mix(mix(C_BLOOD, C_SIGNAL, 0.75), C_EMBER, 0.2);
   return clay * (0.1 + 0.8 * tone);
@@ -84,7 +85,14 @@ void main() {
     col = mix(col, C_EMBER * 2.0, glowK * 0.8);
   }
   if (any(isnan(col)) || any(isinf(col))) col = vec3(0.0);
-  fragColor = vec4(col, 1.0);
+  // the contact sheen in the glaze's mirrored render (as the stage's letters: \`Stage.sheen\`)
+  float sh = 1.0;
+  if (sheenD > 0.0) {
+    float x = sat(max(-vW.y, 0.0) / sheenD);
+    sh = (1.0 - x) * (1.0 - x) * (1.0 + 2.0 * x);
+    if (!(sh > 0.004)) discard;
+  }
+  fragColor = vec4(col, sh);
 }`;
 
 /** One shard: a stage shadow card (`Letter`) plus where it sits in the word. */
@@ -290,7 +298,7 @@ export class ShardWord {
       uniforms: {
         Lc: { value: new THREE.Vector3() }, camPosL: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, rim: { value: 1 },
         flip: { value: 0 }, crackA: { value: 0 }, crackR: { value: 0 }, glowK: { value: 0 },
-        crackO: { value: new THREE.Vector2() }, rest: { value: new THREE.Vector2() }, atl: { value: null }, amap: { value: new THREE.Vector4() },
+        crackO: { value: new THREE.Vector2() }, rest: { value: new THREE.Vector2() }, atl: { value: null }, amap: { value: new THREE.Vector4() }, sheenD: { value: 0 },
       },
     });
     built.forEach((b, i) => {

@@ -16,7 +16,7 @@ import { LineBatch } from '../../engine/lines';
 import { LIN } from '../../engine/palette';
 import { strokeText, writtenLength, type StrokeText } from '../../engine/stroke';
 import { ease, keys, lerp, mulberry32, prog, pulse } from '../../engine/util';
-import { Stage, Word3D, keyLight, popWords, vkeys, type Letter } from '../stage';
+import { POP, Stage, Word3D, keyLight, popWords, vkeys, type Letter } from '../stage';
 
 /** Token radius and thickness (world units); the word's cap height on it. */
 const RD = 1.6, TH = 0.2, CAPW = 0.36;
@@ -250,8 +250,10 @@ export default class Symbolon extends Scene {
       };
     };
     const lean = (w: Word3D) => { for (const l of w.letters) l.hinge = 0.42 + l.hinge * (1 - 0.42 / (Math.PI / 2)); w.update(); };
-    // one phrase at a time: "How am I to" lies down as "with my" stands up, and "with my" as the thread arrives
-    popWords(this.rimL, [how.start, am.start, i.start, to.start], t, onHalf(hl, this.rimL, 0.27), { glow: 0.6, exit: withW.start - 0.06 });
+    // one phrase at a time: "How am I to" is flat as "with" springs (a crisp hand-over, as in `everything`), and
+    // "with my" lies down as the thread arrives
+    popWords(this.rimL, [how.start, am.start, i.start, to.start], t, onHalf(hl, this.rimL, 0.27),
+      { glow: 0.6, exit: withW.start - POP.lead - 0.1, exitDur: 0.07, exitRipple: 0 });
     lean(this.rimL);
     popWords(this.rimR, [withW.start, my.start], t, onHalf(hr, this.rimR, 0.27), { glow: 0.6, exit: estr.start + 0.05 });
     lean(this.rimR);
