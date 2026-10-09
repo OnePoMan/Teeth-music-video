@@ -20,6 +20,8 @@ import { FlameSprite, flameState } from './motifs';
 export const MAX_CARDS = 40;
 /** Atlases (Word3D runs) one stage can cast shadows from. */
 export const MAX_ATLAS = 4;
+/** The default contact sheen (`Stage.sheen`): a letter's mirror image fades out within this fraction of its cap height. */
+export const SHEEN = 0.3;
 
 // ---------------------------------------------------------------- letters
 export interface Letter {
@@ -62,6 +64,9 @@ in vec3 vW; in vec3 vNW; in vec3 vP; in vec3 vN;
 out vec4 fragColor;
 ${GLSL_COMMON}
 uniform vec3 Lc, camPosL; uniform float LI, reach, glow, lineFreq, rim, amb, vaseL, glaze, bf;
+// the contact sheen: set (world units) only during the glaze's mirrored render, where the letter's mirror image fades
+// out within this distance below the floor, so a word is grounded on the gloss but never doubled (0: a true mirror image)
+uniform float sheenD;
 // black-figure: the glyph's incised contour (red channel of incTex) and where this glyph sits in it
 uniform sampler2D incTex; uniform vec4 amap;
 void main() {
@@ -110,7 +115,15 @@ void main() {
   col += mix(C_BONE, C_EMBER, 0.3) * amb * (0.35 + 0.65 * face) * (1.0 - 0.5 * lines);
   col = mix(col, C_EMBER * 2.2, glow * (0.6 + 0.4 * face));
   if (any(isnan(col)) || any(isinf(col))) col = vec3(0.0);
-  fragColor = vec4(col, 1.0);
+  // (the mirrored render flips the scene about the floor, y = 0: -vW.y is how far below the surface this point shows;
+  // the floor mixes the mirrored render in by its alpha, so a faded point shows the room's own reflection instead)
+  float sh = 1.0;
+  if (sheenD > 0.0) {
+    float x = sat(max(-vW.y, 0.0) / sheenD);
+    sh = (1.0 - x) * (1.0 - x) * (1.0 + 2.0 * x);       // 1 - smoothstep(0, 1, x)
+    if (!(sh > 0.004)) discard;                        // (also drops a NaN depth)
+  }
+  fragColor = vec4(col, sh);
 }`;
 
 /** Splits glyph path commands (y down) into contours, classifies holes by winding, returns extrudable shapes (y up). */
@@ -232,7 +245,7 @@ export class Word3D {
       uniforms: {
         Lc: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 6 }, glow: { value: 0 },
         lineFreq: { value: o.lineFreq ?? 0.12 }, rim: { value: 1 }, amb: { value: 0 }, vaseL: { value: 1 }, camPosL: { value: new THREE.Vector3() }, glaze: { value: 0 },
-        bf: { value: 0 }, incTex: { value: null }, amap: { value: new THREE.Vector4() },
+        bf: { value: 0 }, incTex: { value: null }, amap: { value: new THREE.Vector4() }, sheenD: { value: 0 },
       },
     });
     let ax = 0;
@@ -302,6 +315,9 @@ export class Word3D {
 
   /** Scales the light this run receives (0: a black silhouette, whatever the flame does). */
   lightMul = 1;
+  /** This run's contact sheen on the glaze (fraction of its cap height; 0 a true mirror image), overriding the
+   *  stage's (`Stage.sheen`); null: the stage's. */
+  sheen: number | null = null;
   /** Sets the light uniforms on every letter. */
   light(Lc: THREE.Vector3, LI: number, reach: number, rim = 1, camPos?: THREE.Vector3) {
     for (const l of this.letters) {
@@ -668,8 +684,17 @@ export class Stage {
    *  with their own uniforms passed in `uniforms`. */
   /** Shadow cards this stage holds (default MAX_CARDS; each costs ~8 fragment uniform vectors). */
   readonly maxCards: number;
-  constructor(o: { hooks?: string; uniforms?: Record<string, THREE.IUniform>; maxCards?: number } = {}) {
+  /**
+   * The letters' contact sheen on the glaze and the water (fraction of each letter's cap height, measured down from
+   * the surface): a letter's mirror image fades out within this depth, so words stand on the gloss without a second,
+   * upside-down copy of themselves (client, v7 note 8; the critics' "doubled type"). 0: true mirror images. Applies to
+   * Word3D letters and change's sherds (not black-figure answers, not figures or other meshes). Override per scene here or per render
+   * (`render(..., { sheen })`), or per run (`Word3D.sheen`).
+   */
+  sheen = SHEEN;
+  constructor(o: { hooks?: string; uniforms?: Record<string, THREE.IUniform>; maxCards?: number; sheen?: number } = {}) {
     this.maxCards = o.maxCards ?? MAX_CARDS;
+    if (o.sheen !== undefined) this.sheen = o.sheen;
     const arr = <T>(f: () => T) => Array.from({ length: this.maxCards }, f);
     this.bg = new FSPass(BG_FRAG(o.hooks ?? STAGE_HOOKS_DEFAULT, this.maxCards), {
       ...(o.uniforms ?? {}),
@@ -698,6 +723,19 @@ export class Stage {
   }
   private casters: Word3D[] = [];
 
+  /** Sets every letter's sheen depth (world units) for the mirrored render (k: fraction of the cap; 0 off). */
+  private setSheen(k: number) {
+    for (const w of this.words) {
+      const kw = k > 0 ? (w.sheen ?? k) : 0;
+      for (const l of w.letters) {
+        const u = l.mat?.uniforms?.sheenD;
+        if (!u) continue;                                   // (meshes without the uniform keep a true mirror image)
+        const d = kw * w.cap * l.s;
+        u.value = Number.isFinite(d) && d > 0 ? d : 0;
+      }
+    }
+  }
+
   /** The light's centre for a flame foot and height. */
   lightCentre(L: StageLight) { return this.Lc.set(L.base.x, L.base.y + L.h * 0.33, L.base.z); }
 
@@ -714,7 +752,9 @@ export class Stage {
       /** Where the flame stands on screen (logical px, y down) and its height, for scenes that draw their own. */
       flameScreen?: { x: number; y: number; h: number };
       /** Called around the mirrored render (a reflection that differs from its word: hook's black-figure answer). */
-      mirror?: { before?: () => void; after?: () => void } } = {}) {
+      mirror?: { before?: () => void; after?: () => void };
+      /** This frame's contact sheen (overrides `this.sheen`). */
+      sheen?: number } = {}) {
     const u = this.bg.u;
     const Lc = this.lightCentre(L);
     this.cam.invVP(u.invVP!.value as THREE.Matrix4);
@@ -757,9 +797,11 @@ export class Stage {
       renderer.setClearColor(0x000000, 0);
       renderer.clear(true, true, true);
       o.mirror?.before?.();
+      this.setSheen(o.sheen ?? this.sheen);
       this.scene.scale.y = -1; this.scene.updateMatrixWorld(true);
       renderer.render(this.scene, this.cam.cam);
       this.scene.scale.y = 1; this.scene.updateMatrixWorld(true);
+      this.setSheen(0);
       o.mirror?.after?.();
       u.reflTex!.value = this.refl.texture; u.reflOn!.value = 1;
     } else u.reflOn!.value = 0;
