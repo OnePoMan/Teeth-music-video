@@ -15,6 +15,14 @@ Read this first, then `docs/MONSTER.md` (the treatment), `docs/TREATMENT.md` (P(
 4. **The vase** as the client specified, with the lead's calls: the mourners identical and evenly spaced; the pass steady, easing to rest on Polites as GUILT? lands, no events in the band (the small words carry the timing); the handles solid black glaze with thin reserved lines.
 5. **Order:** moon → Scylla → vase → circe → stills of Scylla and the vase to the client → the chorus 1 build. Chorus 2: brainstorm per-line plates in chat while the agents work.
 - **Moon done (b849d26):** `MOON_C` = the lit letters' warm bone (`C_BONE * (1.08, 0.9, 0.72)`); the moon, its glow and his pupil keep their own light (`gMoon`, which `surfaceTint` exempts from the fire's falloff toward the frame's edges: that falloff was what greyed it). Sampled at 73.5: the moon (241,224,194), NIGHT?'s faces (249,222,191), his pupil (239,220,190); before, the moon was (193,182,173). Stills `out/stills/cyclops-moon2/` (72.4, 73.5, 75.0, 77.5). Cost ~2% of the window.
+- **Scylla done** (`sketch-c1-scylla.ts`, 1fc2cf8, 30f9542, 357126a, 09e1d77, 3a997ca; one agent continued over four rounds):
+  - **Heads:** six viper heads. A convex crown rounds into the neck, with a brow over an incised eye and rounded hinge corners. Open, the upper jaw is hinged up ~58°, two bone-white fangs at the front hang into the gape, and the gape is dark only at the gullet. Closed, each is one solid head with an incised mouth line (the first tries read as pliers, then clips, then crows).
+  - **Fan:** three a side, none crossing. The outer pair goes high, the middle out to the sides, and the inner pair, waiting low at the cave lip, turns in beside HIDING.
+  - **Timing:** per-pair `strike[3]`/`jaw[3]` on `T_PAIR` 53.01/53.34/53.82: a 4-frame lunge with overshoot, the jaws snapping open with outBack.
+  - **Camera and phrases:** the climb now runs 51.45–52.85, so the cave and all six closed heads are in frame by 52.95. The lead-in phrase sits low under PROBLEM (folds 51.30). "that's been" rides up in the upper frame; "all along?" sits centred under HIDING. HIDING is 78% of the cave's width.
+  - **Checks:** lint 0 errors (expected warnings only: PROBLEM cropped as the camera climbs past it; HIDING late/partial/lingering, on the downbeat by design). Client stills `out/stills/c1-scylla-final/` (49.6, 50.8, 52.2, 52.95, 53.05, 53.4, 53.98).
+  - **Left rough:** edges slightly soft at the snouts.
+  - **Cost:** ~19% of the window (10% → 29%), double the estimate: four rounds.
 - Git on this laptop has no user identity configured: commit with `git -c user.name=Claude -c user.email=noreply@anthropic.com commit …` (as the earlier commits were).
 
 **Client notes on the v11 preview (2026-10-09, binding; same session, now on branch `laptop-1009c` from `main` 86bcb00 after PR #6 was merged at the client's OK):**
