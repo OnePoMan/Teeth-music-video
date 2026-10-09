@@ -16,27 +16,26 @@ const FOV = 40, TANF = Math.tan((FOV * Math.PI) / 360);
 const WALL_Z = -5.5, CAM = new THREE.Vector3(0, 1.8, 5.6), AT = new THREE.Vector3(0, 0.35, -5.5);
 /** The hero's foot line (z) in the unrolled room, and the small phrase's row on the floor. */
 const HERO_Z = 0.4, SMALL = { x: -1.9, z: 1.2, cap: 0.24 };
-/** Our own shadow, Odysseus's (odysseus.ts, the archer, long loose hair, no cloak): a figure standing between the fire
- * and the room, just behind the camera (x, z, height; short enough that, rolled, his head stays clear of WRONG?). */
-const US = { x: 1.4, z: 6.0, h: 1.45 };
+/** Our own shadow, Odysseus's (odysseus.ts, the archer, long loose hair, no cloak), thrown whole on the clay wall and
+ * crisp, as on the design sheet (sketch-souls): standing on the wall's foot at x, its height h on the wall (short
+ * enough that, rolled, his head hangs clear of WRONG?). */
+const US = { x: 1.6, h: 1.15 };
 
-// the shadow theatre's one puppet is us, as Odysseus: the fire behind us throws his figure up the floor and onto the wall;
-// the black glaze takes a little of the firelight so the shadows read on the floor too
+// the shadow theatre's one puppet is us, as Odysseus: the fire behind us throws his whole figure onto the clay wall, a
+// crisp silhouette (none of it on the floor); the black glaze takes a little of the firelight so the letters' shadows
+// read on the floor too
 const HOOKS = /* glsl */ `
-uniform vec3 usFig;
+uniform vec2 usFig;
 ${GLSL_ODYSSEUS}
 float carve(vec2 xz) { return 0.0; }
 float floorLines(vec3 P, float u) { return u; }
 float extraShadow(vec3 P, bool wall) {
-  vec3 r = Lc - P;
-  if (r.z < 1e-4) return 0.0;
-  float k = (usFig.y - P.z) / r.z;
-  if (k <= 0.0 || k >= 1.0) return 0.0;
-  vec2 q = (P.xy + r.xy * k - vec2(usFig.x, 0.0)) / usFig.z;
+  if (!wall) return 0.0;
+  vec2 q = vec2(P.x - usFig.x, P.y) / usFig.y;
   if (abs(q.x) > 0.7 || q.y > 1.12 || q.y < -0.05) return 0.0;
-  float soft = gPix * 2.0 + 0.02 * k, inc;
-  float d = odysseus(q, 1.0, 0.0, 0.0, 1.0, 0.0, gPix / usFig.z, inc) * usFig.z;
-  return 0.92 * (1.0 - smoothstep(-soft, soft, d)) * (1.0 - 0.85 * inc);
+  float inc;
+  float d = odysseus(q, 1.0, 0.0, 0.0, 1.0, 0.0, gPix / usFig.y, inc) * usFig.y;
+  return 0.94 * (1.0 - smoothstep(-gPix, gPix, d)) * (1.0 - 0.85 * inc);
 }
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) { return wall ? col : col + mix(C_EMBER, C_BONE, 0.35) * 0.065 * sat(b); }
 vec3 skyTint(vec3 D, vec3 col) { return col; }`;
@@ -49,7 +48,7 @@ export default class SketchC1Wrong extends Scene {
   private flat = new StageCam();
 
   override async init() {
-    this.st = new Stage({ hooks: HOOKS, maxCards: 24, uniforms: { usFig: { value: new THREE.Vector3(US.x, US.z, US.h) } } });
+    this.st = new Stage({ hooks: HOOKS, maxCards: 24, uniforms: { usFig: { value: new THREE.Vector2(US.x, US.h) } } });
     this.line = this.ctx.lyrics.lines.find((l) => l.start > 46 && l.start < 47.5 && /wrong/i.test(l.text))!;
     const ws = this.line.words, wi = ws.findIndex((w) => /wrong/i.test(w.w));
     this.hero = new Word3D(ws[wi]!.w.toUpperCase().replace(/[^A-Z?]/g, ''), heroFont(), { size: 220 });
