@@ -7,8 +7,10 @@
 //    his eye is the boulder. GUILT? stands on "guilt"; his club is lifted on the snare and comes down beside the word
 //    on "kills".
 //  - "Up": the boulder rolls clear and the eye opens on the night; NIGHT?.
-//  - "Or": the camera turns from the eye to the wall beside it; on the six snares of bar 3 his club strikes the clay
-//    and each blow leaves a black tally stroke (MEN small, AVENGE before the tally).
+//  - "Or": the camera turns from the eye to the wall beside it, and six of his men (shadow puppets) run in along a
+//    rail beside his fist, turn and run in place; on each of the six snares of bar 3 his club comes down on the next
+//    man, nearest first, and he folds flat onto the rail with a puff of chips while the others keep running. The
+//    flattened row stays as the count (MEN small, AVENGE under the last two strikes; the club stays above the rail).
 //  - "Sleep": back to the eye; the boulder rolls across the mouth, the eye shuts, the club sinks; RIGHT? stands in
 //    front of the shut eye into the cut.
 // Kit candidates (to move into the shared kit once the chorus 1 branch is merged): the giant as a bust with a free
@@ -19,7 +21,7 @@ import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, keys, lerp, noise1, prog, pulse, type Key } from '../../engine/util';
 import { POP, Stage, Word3D, keyLight, popHinge, popWords, vkeys } from '../stage';
-import { CLUB, CYCLOPS_HOOKS, MOUTH, N_TALLY } from './cyclops-giant';
+import { CLUB, CYCLOPS_HOOKS, MEN, MOON, MOUTH, N_MEN } from './cyclops-giant';
 import { centredRow, faceYaw, hideFlat, phrases, type Phrase } from './cyclops-kit';
 
 /** The clay wall; the camera's vertical fov. */
@@ -31,13 +33,10 @@ const GIANT = { s0: 0.95, b0: -3.4, s1: 1.1, b1: 0 };
 const HERO_Z = -5.4, SMALL_Z = -2.0, SMALL_CAP = 0.36, HERO_CAP = 2.8, HERO_FILL = 0.62;
 /** A line whose hero is followed by small words: the hero a little narrower, the words beside it on its row. */
 const HERO_FILL_POST = 0.5, POST_CAP = 0.5;
-/** The club meets the wall this long before each snare (it is off the stroke again by the hit). */
-const STRIKE_LEAD = 0.03;
-/** The tally (figure units): six strokes beside his eye, the fifth across the first four. */
-const TALLY: [number, number, number, number][] = [
-  [5.9, 5.55, 5.9, 7.05], [6.35, 5.55, 6.35, 7.05], [6.8, 5.55, 6.8, 7.05], [7.25, 5.55, 7.25, 7.05],
-  [5.55, 5.75, 7.6, 6.85], [8.15, 5.55, 8.15, 7.05],
-];
+/** The club lands on a man this long before each snare (he is falling by the hit). */
+const STRIKE_LEAD = 0.01;
+/** A struck man's fall (s), the height of his flattened shadow (share of his own), his stride (radians/s). */
+const FALL = 0.09, FLAT = 0.17, STRIDE = 15;
 const HERO_FONT = () => F.archivo(75, 900), SMALL_FONT = () => F.archivo(112.5, 600);
 
 interface Staged { p: Phrase; w: Word3D; line: number; exit: number; dur: number; post: boolean }
@@ -48,9 +47,9 @@ export default class Cyclops extends Scene {
     maxCards: 24,
     uniforms: {
       gT: { value: new THREE.Vector4(0, 0, 1, 1) }, clubR: { value: 0 },
-      mouth: { value: new THREE.Vector4() }, bould: { value: new THREE.Vector4() },
-      tal: { value: Array.from({ length: N_TALLY }, () => new THREE.Vector4()) },
-      talOn: { value: new Array(N_TALLY).fill(0) }, nightK: { value: 0 }, pool: { value: new THREE.Vector4(0, 4, 9, 1) },
+      mouth: { value: new THREE.Vector4() }, bould: { value: new THREE.Vector4() }, moonK: { value: 0 },
+      men: { value: Array.from({ length: N_MEN }, () => new THREE.Vector4()) },
+      chipT: { value: new Array(N_MEN).fill(-1) }, railK: { value: 0 }, nightK: { value: 0 }, pool: { value: new THREE.Vector4(0, 4, 9, 1) },
     },
   });
   private lines: Line[] = [];
@@ -59,8 +58,6 @@ export default class Cyclops extends Scene {
   private ev = { loom: 69.34, windup: 70.99, kills: 71.26, bar2: 72.022, up: 72.11, night: 73.38, or: 73.83, bar3: 74.688, avenge: 75.88, and: 76.87, sleep: 77.22, bar4: 77.355, right: 78.68 };
   private strikes: number[] = [];
   private clubKeys: Key[] = [];
-  /** The tally strokes' world segments and each one's club angle. */
-  private tallyW: [number, number, number, number][] = [];
 
   override async init() {
     const { lyrics: ly, audio: au } = this.ctx;
@@ -74,8 +71,8 @@ export default class Cyclops extends Scene {
     ev.bar2 = nextDown(ev.kills); ev.up = L2.words[2]!.start; ev.night = L2.words[8]!.start;
     ev.or = L3.words[0]!.start; ev.bar3 = nextDown(ev.or); ev.avenge = L3.words[7]!.start;
     ev.and = L4.words[0]!.start; ev.sleep = L4.words[2]!.start; ev.bar4 = nextDown(ev.sleep - 0.3); ev.right = L4.words[8]!.start;
-    this.strikes = au.events('snare', ev.bar3 - 0.1, ev.bar3 + 2.0).map(([t]) => t).slice(0, N_TALLY);
-    while (this.strikes.length < N_TALLY) this.strikes.push(ev.bar3 + 0.333 * this.strikes.length);
+    this.strikes = au.events('snare', ev.bar3 - 0.1, ev.bar3 + 2.0).map(([t]) => t).slice(0, N_MEN);
+    while (this.strikes.length < N_MEN) this.strikes.push(ev.bar3 + 0.333 * this.strikes.length);
 
     // ---- the words: one phrase on screen; the hero alone; pre-hero phrases fold as the next one springs, the hero and
     // what follows it stay to the end of the line (the next line's first word, or the cut)
@@ -98,6 +95,8 @@ export default class Cyclops extends Scene {
         let exit = lineExit, dur = 0.05;
         // (gone by the frame the next phrase starts to spring: onset - POP.lead)
         if (k < heroAt) { exit = nx!.words[0]!.start - POP.lead - 0.055; dur = 0.05; }
+        // (GUILT? leaves ~0.3 s after its word, its small words standing on to the end of the line)
+        if (p.hero && li === 0) exit = Math.min(exit, p.words[0]!.end + 0.3);
         const w = p.hero ? new Word3D(heroText, HERO_FONT(), { size: 220 }) : new Word3D(p.text, SMALL_FONT(), { size: 200 });
         (p.hero ? heroes : smalls).push({ p, w, line: li, exit, dur, post: k > heroAt });
       });
@@ -107,10 +106,14 @@ export default class Cyclops extends Scene {
     for (const s of smalls) this.st.add(s.w, { shadows: false });
     this.staged = [...heroes, ...smalls];
 
-    // ---- the tally (world) and the club's angle for each blow
-    const S = GIANT.s1, [px, py] = CLUB.piv;
-    this.tallyW = TALLY.map(([ax, ay, bx, by]) => [ax * S, GIANT.b1 + ay * S, bx * S, GIANT.b1 + by * S]);
-    const aim = TALLY.map(([ax, ay, bx, by]) => Math.atan2((ay + by) / 2 - py, (ax + bx) / 2 - px));
+    // ---- the club's angle for each blow (figure units): its underside meets the top of the man's head. The club's
+    // axis runs through the fist; its radius grows from 0.26 at c0 (1.17 behind the fist) to 0.62 at c1 (6.73 on).
+    const [px, py] = CLUB.piv;
+    const aim = Array.from({ length: N_MEN }, (_, i) => {
+      const dx = MEN.x0 + i * MEN.dx - px, dy = MEN.rail + MEN.h - py, r = Math.hypot(dx, dy);
+      const rad = 0.26 + 0.36 * (r + 1.17) / 6.73;
+      return Math.atan2(dy, dx) + Math.asin(Math.min(0.9, rad / r));
+    });
     // ---- the club's angle through the plate (radians ccw, absolute): raised at rest; lifted back on the snare before
     // "kills" and down beside the word on it; up again on "Or"; a blow on each snare of bar 3; at rest (upright, as in the opening) from then on
     const up = CLUB.phi0, back = up + 0.32, down = -0.62;
@@ -119,12 +122,12 @@ export default class Cyclops extends Scene {
       [ev.kills + 0.16, down, ease.inQuad], [ev.or, down, ease.linear], [ev.or + 0.4, back, ease.inOutCubic]];
     let prev = ev.or + 0.4;
     this.strikes.forEach((s, i) => {
-      // (the club meets the wall just ahead of the snare and springs off it at once, so the stroke shows on the hit)
+      // (the club lands just ahead of the snare and springs off at once, so the man is falling on the hit)
       const a = s - STRIKE_LEAD, gap = a - prev, dd = Math.min(0.09, gap * 0.45);
       k.push([a - dd, back, ease.inOutQuad]);
       k.push([a, aim[i]!, ease.inQuad]);
-      prev = a + Math.min(0.06, gap * 0.35);
-      k.push([prev, aim[i]! + 0.22, ease.outQuad]);
+      prev = a + Math.min(0.07, gap * 0.35);
+      k.push([prev, aim[i]! + 0.14, ease.outQuad]);
     });
     const last = prev;
     k.push([last + 0.3, up, ease.inOutCubic]);
@@ -179,22 +182,36 @@ export default class Cyclops extends Scene {
     (u.gT!.value as THREE.Vector4).set(gx, gb, gs, 1);
     u.clubR!.value = keys(t, this.clubKeys) - CLUB.phi0;
 
-    // ---- the cave mouth: the boulder rolls clear on "up" and back across on "sleep"; the eye opens and shuts with it
+    // ---- the cave mouth: the boulder rolls clear on "up", rises over his shoulder into the night as the full moon (its
+    // cracks its markings), crosses the sky slowly through the verse, and on "sleep" sets back down over the eye, a stone
+    // again as it lands; the eye opens and shuts with it. The moon keeps to the sky left of and above his head, clear of
+    // the club and the men (right) and the hero words (below).
     const open = prog(t, e.up - 0.04, e.up + 0.5, ease.inOutQuad), shut = prog(t, e.sleep - 0.02, e.sleep + 0.42, ease.inOutQuad);
-    const r = open * (1 - shut);
-    const bx = MOUTH.clear[0] * r, by = MOUTH.clear[1] * r + 0.18 * Math.sin(Math.PI * r);
-    (u.bould!.value as THREE.Vector4).set(bx, by, -bx / MOUTH.rb, 1);
-    const eyeOpen = Math.min(prog(open, 0.25, 1, ease.outCubic), 1 - prog(shut, 0, 0.6, ease.inOutQuad));
+    const rise = prog(t, e.up + 0.42, e.night - 0.05, ease.inOutCubic), cross = prog(t, e.night - 0.05, e.sleep - 0.02);
+    const mx = lerp(MOON.at[0], MOON.to[0], cross), my = lerp(MOON.at[1], MOON.to[1], cross) + MOON.arc * Math.sin(Math.PI * cross);
+    let bx = MOUTH.clear[0] * open, by = MOUTH.clear[1] * open + 0.18 * Math.sin(Math.PI * open);
+    bx = lerp(bx, mx, rise); by = lerp(by, my, rise) + 0.3 * Math.sin(Math.PI * rise);
+    bx = lerp(bx, 0, shut); by = lerp(by, 0, shut);
+    (u.bould!.value as THREE.Vector4).set(bx, by, -(MOUTH.clear[0] * open) / MOUTH.rb + 0.5 * rise + 0.3 * cross - 0.8 * shut, 1);
+    u.moonK!.value = rise * (1 - prog(shut, 0.45, 1, ease.inOutQuad));
+    const eyeOpen = Math.min(prog(open, 0.25, 1, ease.outCubic), 1 - prog(shut, 0.3, 0.85, ease.inOutQuad));
     // (the mouth and its boulder ride on the shadow's eye: across it from the first frame, rising with it)
     (u.mouth!.value as THREE.Vector4).set(gx, gb + MOUTH.eyeY * gs, gs, eyeOpen);
     u.nightK!.value = prog(t, e.night - 0.02, e.night + 0.3, ease.outCubic) * (1 - shut) + 0.6 * pulse(t, e.night, 0.25);
 
-    // ---- the tally, one stroke per blow
-    const tal = u.tal!.value as THREE.Vector4[], talOn = u.talOn!.value as number[];
-    this.tallyW.forEach((s, i) => {
-      tal[i]!.set(...s);
-      talOn[i] = prog(t, this.strikes[i]! - STRIKE_LEAD, this.strikes[i]! - STRIKE_LEAD + 0.03, ease.outCubic);
-    });
+    // ---- his men: they run in from the right on "Or" (facing him), turn on arriving and run in place; each folds
+    // flat about his feet as the club lands on him (accelerating, like a letter folding, with a small bounce)
+    const men = u.men!.value as THREE.Vector4[], chipT = u.chipT!.value as number[];
+    u.railK!.value = prog(t, e.or, e.or + 0.7, ease.outCubic);
+    for (let i = 0; i < N_MEN; i++) {
+      const a = this.strikes[i]! - STRIKE_LEAD, land = a + FALL;
+      const runIn = prog(t, e.or + 0.05 + 0.03 * i, e.or + 0.5 + 0.03 * i, ease.outQuad);
+      const fold = prog(t, a, land, ease.inQuad), bo = prog(t, land, land + 0.14);
+      const h = lerp(1, FLAT, fold) + 0.12 * Math.sin(Math.PI * bo) * (1 - bo);
+      const ph = Math.min(t, a) * STRIDE + i * 1.9;
+      men[i]!.set(MEN.x0 + i * MEN.dx + 6.5 * (1 - runIn), h, ph, t < e.or ? 0 : runIn < 1 ? -1 : 1);
+      chipT[i] = t >= land ? t - land : -1;
+    }
 
     // ---- the words. Each line stands on the camera's axis as it will be while it is up, facing it (no swimming): the
     // hero where the camera lands, a small phrase before it where the camera is halfway through its life (the turn pans

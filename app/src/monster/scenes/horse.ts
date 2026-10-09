@@ -1,4 +1,4 @@
-// `horse` — verse 2, lines 27–30 (docs/verse2-plan.md "horse"). Heroes: TROJANS, VILE?, REMORSE, GUILE? (VILE re-lettered).
+// `horse` — verse 2, lines 27–30 (docs/verse2-plan.md "horse"). Heroes: TROJANS, VILE?, REMORSE, GUILE?.
 //  - Open (to the first downbeat): outside Troy's wall at night, the wooden horse's shadow on the clay, the city's
 //    lamps in the windows; the camera pushes toward the horse's open hatch and cuts inside on the downbeat.
 //  - Inside: a clay barrel vault (planks, glazed ribs), black-glaze floor with a hatch, the horse's chest at the far end
@@ -7,14 +7,13 @@
 //  - Line 28: VILE? stands in the same place.
 //  - Line 29 ("Or"): the camera rises over the hatch; it drops open on the "throw" onset; REMORSE stands at its edge,
 //    tips back into it and falls away to the ground far below (lit only where our light comes through the hole).
-//  - Line 30: VILE? stands again (orch hit) and re-letters from "lives": V folds down, U folds up, G slides in, so the
-//    word is GUILE? by its onset; the soldiers' shadows file toward the hatch and go down through it.
-// GUILE? is sung past the cut to hook 2 (110.021): the re-lettering starts early (see the plan's note).
+//  - Line 30: GUILE? stands up on its own onset, just before the cut to hook 2 (110.021); the soldiers' shadows file
+//    toward the hatch and go down through it.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
-import { ease, lerp, mulberry32, noise1, prog, pulse } from '../../engine/util';
+import { ease, mulberry32, noise1, prog, pulse } from '../../engine/util';
 import { POP, Word3D, keyLight, popHinge, popWords, vkeys, type Letter } from '../stage';
 import { HatchDoor, HorseStage, NL, NR } from './horse-stage';
 
@@ -194,37 +193,12 @@ export default class Horse extends Scene {
     const hideFlat = (w: Word3D) => { for (const l of w.letters) if (l.hinge > 1.2) l.on = 0; w.update(); };
     showHero(this.trojans, trojW.start, this.l2.words[0]!.start - POP.lead - HAND, 0.66); hideFlat(this.trojans);
 
-    // VILE? and its re-lettering into GUILE?, on "guile" itself (client, 2026-10-09: GUILE? on its onset, and the G
-    // with the rest of the word): the V folds down as the U and the G stand up together, the G in its own place, while
-    // I L E ? step right, so no frame reads as a non-word
-    const gCap = capFor(this.guile, heroDist, 0.62), gs = gCap / this.guile.cap;
-    const vx = (l: Letter) => (l.penX - this.vile.width / 2) * gs, gx = (l: Letter) => (l.penX - this.guile.width / 2) * gs;
-    // (I L E ? open the gap first, the V folds as it opens, then the G and the U rise in their places from tA)
-    const tA = guileW.start - POP.lead - 0.03, mv = prog(t, tA - 0.05, tA + 0.03, ease.inOutCubic);
-    const vileExit = orW.start - POP.lead - HAND;
-    this.vile.letters.forEach((l, k) => {
-      l.z = HERO_Z; l.y = 0; l.yaw = 0; l.s = gs;
-      const first = popHinge(t, vileW.start, k), gone1 = prog(t, vileExit, vileExit + EXIT_DUR, ease.inCubic);
-      const again = 0;
-      let h = t < this.tRe ? first + (Math.PI / 2 - first) * gone1 : again;
-      l.x = vx(l);
-      if (k === 0) h = Math.max(h, (Math.PI / 2) * prog(t, tA - 0.01, tA + 0.025, ease.inCubic));   // V folds down
-      else l.x = lerp(vx(l), gx(this.guile.letters[k + 1]!), mv);                                    // I L E ? make room
-      l.hinge = h;
-      l.on = h < 1.2 && t < tA + 0.03 ? 1 : 0;
-      l.mat.uniforms.glow!.value = t < this.tRe ? 0.32 * pulse(t, vileW.start, 0.08) * (t >= vileW.start - 0.02 ? 1 : 0) * l.on : 0;
-    });
-    this.vile.update();
-    this.guile.letters.forEach((l, k) => {
-      l.z = HERO_Z; l.y = 0; l.yaw = 0; l.s = gs; l.x = gx(l);
-      let h = Math.PI / 2;
-      if (k < 2) h = popHinge(t, tA + POP.lead);        // G and U stand up together, each in its own place
-      else h = t >= tA + 0.03 ? 0 : Math.PI / 2;         // the rest take over from VILE's I L E ?
-      l.hinge = h;
-      l.on = h < 1.2 ? 1 : 0;
-      l.mat.uniforms.glow!.value = 0.32 * pulse(t, guileW.start, 0.08) * (t >= guileW.start - 0.02 ? 1 : 0) * l.on;
-    });
-    this.guile.update();
+    // VILE? leaves with its line; GUILE? stands up fresh on its own onset (client, 2026-10-09), both at one letter size
+    const gs = capFor(this.guile, heroDist, 0.62) / this.guile.cap;
+    for (const [w, on, exit] of [[this.vile, vileW.start, orW.start - POP.lead - HAND], [this.guile, guileW.start, this.ctx.end + 1]] as const) {
+      popWords(w, [on], t, this.place(w, w.cap * gs, 0, HERO_Z), { exit, exitDur: EXIT_DUR, exitRipple: 0, glow: 0.32 });
+      hideFlat(w);
+    }
 
     // REMORSE: stands at the hatch's near edge, tips back into it and falls to the ground below
     const rCap = capFor(this.remorse, 4.2, 0.62), rs = rCap / this.remorse.cap;
