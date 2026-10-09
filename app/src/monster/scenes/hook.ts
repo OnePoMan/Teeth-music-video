@@ -4,7 +4,8 @@
 // hook it obeys the word less. The signature shot of every hook: on MONSTER the camera dips to the waterline, half
 // word, half reflection.
 //   n=1 "What if I'm the monster?"  `sea`'s last frame, on the stage in 3D: black mirror water, wine-dark, lit by the
-//       fire behind us (never seen); the far shore is the line, a bone hairline. "Is me?" lies down; "What if I'm
+//       fire behind us (never seen); the far shore is the line, a bone hairline. ME? (carried over the cut at its
+//       size and place in `sea`, the small word beside it) lies down; "What if I'm
 //       the" pops up afloat near us, truly reflected; MONSTER? stands up on the waterline as it is sung, bone, lit
 //       (red-figure: a lit figure on black). Its reflection follows it in everything but two: it has no question
 //       mark, and it is black-figure (black slip, the contour incised back to the clay, the clay's orange developing
@@ -22,7 +23,7 @@ import type { Word } from '../../engine/lyrics';
 import { ease, lerp, prog, pulse, noise1 } from '../../engine/util';
 import { meanderBand } from '../motifs';
 import { SHORE, Stage, Word3D, keyLight, popHinge, popWords } from '../stage';
-import { LOW, SHORE_KEY, SHORE_OPTS, SHORE_POST, SHORE_SURF, VOICE, WORD_Z, Answer, bob as bobAt, heroScale, hideFlat, setRegion, shoreStage } from '../shore';
+import { LOW, SHORE_KEY, SHORE_OPTS, SHORE_POST, SHORE_SURF, VOICE, WORD_Z, Answer, bob as bobAt, heroFont, heroScale, hideFlat, placeMe, setRegion, shoreStage } from '../shore';
 
 /** The answer's top under the surface (fraction of the hero word's cap height). */
 const ANSWER_GAP = 0.06;
@@ -34,10 +35,11 @@ export default class Hook extends Scene {
   n = 1;
   // ---- n = 1, 2: the shore, on the stage
   private st!: Stage;
-  /** MONSTER? (incised for its black-figure reflection), the question before it, and (n=1) `sea`'s "Is me?". */
+  /** MONSTER? (incised for its black-figure reflection), the question before it, and (n=1) `sea`'s last line: ME?
+   *  and the small word before it. */
   private big!: Word3D;
   private voice!: Word3D;
-  private prev: Word3D | null = null;
+  private prev: { is: Word3D; me: Word3D } | null = null;
   private bigW!: Word;
   private small: Word[] = [];
   private prevOn: number[] = [];
@@ -67,11 +69,15 @@ export default class Hook extends Scene {
     this.st.add(this.big, { shadows: false });
     this.st.add(this.voice, { shadows: false });
     if (this.n === 1) {
-      // `sea`'s last phrase, carried over the cut exactly where it stood, to lie down
+      // `sea`'s last line, carried over the cut exactly where it stood (as built there), to lie down
       const l2 = lyrics.get('Is me');
-      this.prev = new Word3D(l2.words.map((w) => w.w).join(' '), voice, { size: 200 });
+      this.prev = {
+        is: new Word3D(l2.words[0]!.w, voice, { size: 200 }),
+        me: new Word3D(l2.words.slice(1).map((w) => w.w.toUpperCase()).join(' '), heroFont(), { size: 220 }),
+      };
       this.prevOn = l2.words.map((w) => w.start);
-      this.st.add(this.prev, { shadows: false });
+      this.st.add(this.prev.is, { shadows: false });
+      this.st.add(this.prev.me, { shadows: false });
     }
     for (const w of this.st.words) for (const l of w.letters) l.mat.side = THREE.DoubleSide;
     // MONSTER? fills BIG_W of the frame once the camera is down
@@ -151,12 +157,14 @@ export default class Hook extends Scene {
     });
 
     // ---- the question afloat near us, bobbing on the swell, facing us, truly reflected; it lies down as MONSTER?
-    // stands. (n=1) "Is me?" from `sea` lies down first, from exactly where it stood.
+    // stands. (n=1) ME? and the word before it, from `sea`, lie down first, from exactly where they stood.
     const bob = (x0: number, z0: number, cap: number, w: Word3D, amp: number) => bobAt(t, cam, x0, z0, cap, w, amp);
     // (a letter nearly flat, rising or folding, is hidden: hideFlat)
     if (this.prev) {
-      popWords(this.prev, this.prevOn, t, bob(-1.75, C.z - 4.5, 0.3, this.prev, 0.025), { exit: T0 + 0.02, exitDur: 0.24 });
-      hideFlat(this.prev);
+      const { is, me } = this.prev, mp = placeMe(t, cam, is, me);
+      popWords(is, [this.prevOn[0]!], t, mp.is, { exit: T0 + 0.02, exitDur: 0.24 });
+      popWords(me, [this.prevOn[1]!], t, mp.me, { exit: T0 + 0.02, exitDur: 0.24 });
+      hideFlat(is); hideFlat(me);
     }
     // it folds away as the camera starts down, all its letters at once and fast: "the" is up only from 45.095, and
     // the question is gone before MONSTER?'s first letter starts up (45.275; one phrase at a time)
@@ -184,8 +192,10 @@ export default class Hook extends Scene {
         this.big.update();
       },
     };
-    // the fire behind us (as `sea`); the water mirrors, wine-dark, its swells bending what it mirrors
-    this.st.render(renderer, out, t, keyLight(this.st.cam, audio, t, SHORE_KEY), SHORE_SURF, { ...SHORE_OPTS, mirror });
+    // the fire behind us (as `sea`); the water mirrors, wine-dark, its swells bending what it mirrors. (n=1) `sea`
+    // ends with the fire dipped to 0.35 of its light: it starts there and flares back up after the cut
+    const relit = this.n === 1 ? 0.35 + 0.65 * prog(t, T0, T0 + 0.4, ease.outQuad) : 1;
+    this.st.render(renderer, out, t, keyLight(this.st.cam, audio, t, { ...SHORE_KEY, I: SHORE_KEY.I * relit }), SHORE_SURF, { ...SHORE_OPTS, mirror });
 
     const hit = pulse(t, bw.start, 0.08);
     return { ...SHORE_POST,

@@ -14,7 +14,7 @@ import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { ease, mulberry32, noise1, prog, pulse } from '../../engine/util';
-import { POP, Word3D, keyLight, popHinge, popWords, vkeys, type Letter } from '../stage';
+import { POP, Word3D, keyLight, popHinge, popHingeBy, popWords, vkeys, type Letter } from '../stage';
 import { HatchDoor, HorseStage, NL, NR } from './horse-stage';
 
 /** The vault (radius, axis height), the chest's z, the ground under the hatch, the hatch (half-width, near z, far z). */
@@ -27,7 +27,10 @@ const FOV = 40;
 /** Hand-overs: the outgoing phrase folds in EXIT_DUR and is gone a frame before the next word springs. */
 const EXIT_DUR = 0.001, HAND = 0.002;
 
-type Phrase = { w: Word3D; on: number[]; exit: number; x: number; z: number; cap: number };
+type Phrase = { w: Word3D; on: number[]; exit: number; x: number; z: number; cap: number; upBy?: (number | undefined)[] };
+/** Words whose pop must be up within min(0.12 s, their sung length) of the onset (the frame checker's SLOW-RISE). */
+const QUICK = new Set(['throw', 'lives']);
+const quickBy = (w: Word) => Math.min(0.12, w.end - w.start);
 
 export default class Horse extends Scene {
   private st = new HorseStage(16);
@@ -61,7 +64,8 @@ export default class Horse extends Scene {
       const ws = line.words.slice(a, b);
       const w = new Word3D(ws.map((x) => x.w).join(' '), voice, { size: 200 });
       this.st.add(w, { shadows: false });
-      this.phrases.push({ w, on: ws.map((x) => x.start), exit, x, z, cap: SMALL_CAP });
+      const upBy = ws.map((x) => (QUICK.has(x.w.toLowerCase().replace(/[^a-z]/g, '')) ? quickBy(x) : undefined));
+      this.phrases.push({ w, on: ws.map((x) => x.start), exit, x, z, cap: SMALL_CAP, upBy: upBy.some((x) => x !== undefined) ? upBy : undefined });
     };
     const ix = (l: Line, s: string) => l.words.findIndex((w) => w.w.toLowerCase().replace(/[^a-z]/g, '') === s);
     const w1 = this.l1.words, w2 = this.l2.words, w3 = this.l3.words, w4 = this.l4.words;
@@ -205,7 +209,7 @@ export default class Horse extends Scene {
     const tip = this.tTip, fallT = Math.max(0, t - tip - 0.06);
     this.remorse.letters.forEach((l, k) => {
       l.x = (l.penX - this.remorse.width / 2) * rs; l.yaw = 0; l.s = rs;
-      const up = popHinge(t, remW.start, k);
+      const up = popHingeBy(t, remW.start, k, quickBy(remW));
       const back = (Math.PI / 2) * ease.inQuad(prog(t, tip, tip + 0.08));
       l.hinge = t < tip ? up : back + 0.35 * fallT;
       l.z = HATCH.zN + 0.1 - (HATCH.zN - hatchC + 0.1) * prog(t, tip + 0.03, tip + 0.25, ease.outQuad);
@@ -221,7 +225,7 @@ export default class Horse extends Scene {
     for (const p of this.phrases) {
       const s = p.cap / p.w.cap;
       popWords(p.w, p.on, t, (l) => { l.x = p.x - (p.w.width * s) / 2 + l.penX * s; l.z = p.z; l.y = 0; l.yaw = 0; l.s = s; },
-        { exit: p.exit, exitDur: EXIT_DUR, exitRipple: 0 });
+        { exit: p.exit, exitDur: EXIT_DUR, exitRipple: 0, upBy: p.upBy });
       // the phrases of the other set are not shown
       const outside = p.z === -6.6;
       if (outside === inside) for (const l of p.w.letters) l.on = 0;

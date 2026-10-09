@@ -15,7 +15,7 @@ import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { clamp, ease, keys, lerp, noise1, prog, pulse } from '../../engine/util';
 import { GLSL_FIGURES } from '../figures';
-import { POP, Stage, Word3D, keyLight, popHinge, popWords, type Letter } from '../stage';
+import { POP, Stage, Word3D, keyLight, popHinge, popHingeBy, popWords, type Letter } from '../stage';
 import { CUP, CupStage, FULL } from './circe-cup';
 
 // ---------------------------------------------------------------- the open: her shadow at the cup (the opening's)
@@ -44,7 +44,9 @@ const SMALL = 0.26;
 /** A world direction on the potion for an angle a (0: -z, screen-up when the camera's roll is 0; +pi/2: +x). */
 const dir = (a: number) => ({ x: Math.sin(a), z: -Math.cos(a) });
 
-type Pop = { exit?: number; exitDur?: number; ripple?: number; sink?: boolean };
+type Pop = { exit?: number; exitDur?: number; ripple?: number; sink?: boolean; upBy?: (number | undefined)[];
+  /** Faces the camera more squarely under a camera nearly overhead (the lean's offset and its limit, radians). */
+  square?: [number, number] };
 
 export default class Circe extends Scene {
   private open = new Stage({
@@ -195,7 +197,7 @@ export default class Circe extends Scene {
     const cam = this.cup.cam.cam.position;
 
     // ---- the letters
-    const lean = (x: number, z: number, y: number) => clamp(Math.atan2(cam.y - y, Math.hypot(cam.x - x, cam.z - z)) - 0.12, 0, 1.38);
+    const lean = (x: number, z: number, y: number, off = 0.12, max = 1.38) => clamp(Math.atan2(cam.y - y, Math.hypot(cam.x - x, cam.z - z)) - off, 0, max);
     const psi = -rho;
     /** A straight row centred at (cx, cz), facing the camera, cap height capW (world); y on the potion. */
     const rowAt = (w: Word3D, cx: number, cz: number, capW: number, close?: (l: Letter) => number) => {
@@ -220,15 +222,17 @@ export default class Circe extends Scene {
         const k = kIn.get(l.word) ?? 0;
         kIn.set(l.word, k + 1);
         const on = onsets[Math.min(l.word, onsets.length - 1)]!;
-        const uu = 1 - popHinge(t, on, k) / (Math.PI / 2);
+        const by = o.upBy?.[Math.min(l.word, o.upBy.length - 1)];
+        const ph = by !== undefined ? popHingeBy(t, on, k, by) : popHinge(t, on, k);
+        const uu = 1 - ph / (Math.PI / 2);
         const gone = prog(t, exit + k * rip, exit + k * rip + dur, o.sink ? ease.linear : ease.inOutQuad);
         const capW = w.cap * l.s;
-        const ln = lean(l.x, l.z, lv);
+        const ln = o.square ? lean(l.x, l.z, lv, o.square[0], o.square[1]) : lean(l.x, l.z, lv);
         const h = ln + (Math.PI / 2 - ln) * (1 - uu);
         l.hinge = h + (Math.PI / 2 + 0.05 - h) * gone * (o.sink ? 0.5 : 1);
         const bob = 0.02 * Math.sin(t * 2.3 + l.x * 1.7 + l.z);
         l.y = lv + bob * (stopped ? 0.2 : 1) * (1 - gone) - capW * 0.55 * (1 - Math.min(uu, 1)) - capW * (o.sink ? 1.05 * Math.max(0.3, Math.cos(h)) * gone : 0.7 * Math.max(0, (gone - 0.55) / 0.45));
-        l.on = t >= on - POP.lead + k * POP.ripple && t < exit + k * rip + dur && popHinge(t, on, k) <= 0.75 ? 1 : 0;   // (hideFlat)
+        l.on = t >= on - POP.lead + k * POP.ripple && t < exit + k * rip + dur && ph <= 0.75 ? 1 : 0;   // (hideFlat)
         l.mat.uniforms.glow!.value = 0.3 * Math.pow(0.5, Math.max(0, t - on) / 0.08) * (t >= on - 0.02 ? 1 : 0) * l.on;
       }
       w.update();
@@ -252,8 +256,11 @@ export default class Circe extends Scene {
         l.x = RA * p.x; l.z = RA * p.z; l.yaw = -al; l.s = s;
       }, { exit: Math.min(tipT, or.start - 0.15), exitDur: 0.14 });
     }
+    let frostOn: [number, number, number, number, number, number, number] | undefined;
     // line 3: "Or did she learn" | "to be" COLDER | "when she got" | OLDER (the C drops away)
-    cupPop(this.sD, W3.slice(0, 4).map((x) => x.start), rowAt(this.sD, pS.x, pS.z, SMALL), { exit: W3[4]!.start - POP.lead - 0.06, exitDur: 0.12 });
+    // ("learn" is short: its pop is up within min(0.12 s, its sung length), the frame checker's SLOW-RISE)
+    cupPop(this.sD, W3.slice(0, 4).map((x) => x.start), rowAt(this.sD, pS.x, pS.z, SMALL), { exit: W3[4]!.start - POP.lead - 0.06, exitDur: 0.12,
+      upBy: W3.slice(0, 4).map((x) => (x === this.w(this.l3, 'learn') ? Math.min(0.12, x.end - x.start) : undefined)), square: [0.03, 1.52] });
     cupPop(this.sE, W3.slice(4, 6).map((x) => x.start), rowAt(this.sE, pS.x, pS.z, SMALL), { exit: W3[7]!.start - POP.lead - 0.06, exitDur: 0.12 });
     cupPop(this.sF, W3.slice(7, 10).map((x) => x.start), rowAt(this.sF, pS.x, pS.z, SMALL), { exit: older.start - 0.02, exitDur: 0.12 });
     {
@@ -272,6 +279,21 @@ export default class Circe extends Scene {
         c.on = t < older.start + 0.32 ? 1 : 0;
         c.mat.uniforms.glow!.value = 0;
       }
+      // cold: on "colder" the fire's warmth drains out of the word (a dim ash stone, no orange on its sides) as frost
+      // grows up it from its foot and out across the potion; on "older" the frost breaks off in flakes and OLDER warms
+      // back to lit bone; the C keeps its frost and its cold and goes under with them, a crack across its foot
+      const tO = older.start, coldK = prog(t, colder.start, colder.start + 0.6, ease.outQuad);
+      const warmBack = prog(t, tO - 0.02, tO + 0.22, ease.outCubic), brk = prog(t, tO - 0.02, tO + 0.45);
+      const grow = prog(t, colder.start + 0.02, colder.start + 0.7, ease.outQuad);
+      for (const l of L) {
+        const u = l.mat.uniforms, isC = l === c;
+        u.cold!.value = coldK * (isC ? 1 : 1 - warmBack);
+        u.frost!.value = grow;
+        u.fBrk!.value = isC ? 0 : brk;
+        u.crack!.value = isC ? prog(t, tO - 0.02, tO + 0.02) : 0;
+      }
+      const s = capW / w.cap;
+      frostOn = [heroX, heroZ, Math.cos(psi), -Math.sin(psi), ((L[L.length - 1]!.penX - L[0]!.penX) / 2) * s + 0.1, grow, brk];
       w.update();
     }
     // line 4: "and now she" | "saves them the" (they go down with the potion) | PAIN? on the rim
@@ -320,7 +342,7 @@ export default class Circe extends Scene {
     const L = keyLight(this.cup.cam, audio, t, { seed: 11, I: 1.55 * (1 + 0.25 * stopJolt), reach: 30, right: 2.2, up: 1.5, back: 2.5 });
     this.cup.render(renderer, out, t, L, {
       level, wine: 0.35, gloss: 0.7, mirror: false, swell: stopped ? 0 : 0.35, reflBend: 0.05, spec: 0.05, swirl, swirlT: Om,
-      staff: [butt.x, butt.z, tip.x, tip.z], staffOn: 1 - prog(t, pain.start - 0.1, pain.start + 0.25), rips, tondoRot: -this.omega(T1), dancePh: 2.5 * t,
+      staff: [butt.x, butt.z, tip.x, tip.z], staffOn: 1 - prog(t, pain.start - 0.1, pain.start + 0.25), rips, tondoRot: -this.omega(T1), dancePh: 2.5 * t, frost: frostOn,
     });
     return { bloom: 0.55, bloomThreshold: 0.9, vignette: 0.55, grain: 0.06, ca: 0.5, halation: 0.3, shake: [0, 0.004 * jolt] };
   }

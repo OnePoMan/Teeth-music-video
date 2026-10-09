@@ -1,8 +1,8 @@
-// The shore (hook 1 and chorus 1, `mirror`): black mirror water, wine-dark, lit by the fire behind us; the far
+// The shore (hook 1 and chorus 1's last plate, `lookback`): black mirror water, wine-dark, lit by the fire behind us; the far
 // shore is the line, a bone hairline, and the horizon. A hero word stands lit on the waterline with no mirror image
 // of its own; when the water answers, the answer is painted under the surface right way round, in black-figure
 // (black slip, incised contour) on the clay's orange developing in the water, rippling with the swell (client,
-// 2026-10-08: "the answer under the surface"). Shared by `scenes/hook.ts` (n=1, 2) and `scenes/mirror.ts`.
+// 2026-10-08: "the answer under the surface"). Shared by `scenes/hook.ts` (n=1, 2) and `scenes/c1-lookback.ts`.
 import * as THREE from 'three';
 import { W, H } from '../engine/gl';
 import { F } from '../engine/type';
@@ -131,6 +131,20 @@ export function bob(t: number, cam: THREE.Vector3, x0: number, z0: number, cap: 
     l.x = x0 + l.penX * sc; l.z = z0; l.s = sc;
     l.y = amp * Math.sin(t * 2.1 + l.penX * 0.004 + z0);
     l.yaw = Math.atan2(cam.x - (x0 + (w.width * sc) / 2), cam.z - z0);
+  };
+}
+
+/** ME? (the end of `sea`, carried into hook 1): near us on the water (z, cap height, x of its centre), the line's
+ *  first word small beside it (`isCap`). */
+export const ME = { z: SHORE.cam.z - 3.2, cap: 0.3, x: 0.75, isCap: 0.09 };
+
+/** Places ME? (`me`, standing, facing us) and the small word before it (`is`, afloat) where `sea` stands them and
+ *  hook 1 lays them down, so the cut between the two is seamless. */
+export function placeMe(t: number, cam: THREE.Vector3, is: Word3D, me: Word3D) {
+  const ms = ME.cap / me.cap, mx0 = ME.x - (me.width * ms) / 2;
+  return {
+    is: bob(t, cam, mx0 - 0.1 - is.width * (ME.isCap / is.cap), ME.z, ME.isCap, is, 0.025),
+    me: (l: Letter) => { l.x = mx0 + l.penX * ms; l.z = ME.z; l.s = ms; l.y = 0.012 * Math.sin(t * 2.1 + ME.z); l.yaw = 0; },
   };
 }
 

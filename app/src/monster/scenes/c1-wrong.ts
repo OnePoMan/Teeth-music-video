@@ -1,8 +1,8 @@
-// SKETCH (stills only) — chorus 1, line 1 (the WRONG? line, 46.02–49.0), ?sketch=mirror&opt=wrong: "the world turns
-// over". Verse 1's shadow theatre: a clay wall, a black-glaze floor, the fire unseen behind us. The small phrase pops on
-// the floor as sung (its shadows thrown up the wall) and folds flat before the roll. Slamming into the 48.02 downbeat,
-// the room rolls a half turn about our line of sight: the floor and its shadows hang overhead, the wall upside down.
-// WRONG? stands up on the same hit and reads the right way up: the word is turned with us, the world is not.
+// `wrong` — chorus 1, line 9 (WRONG?, 46.02–49.02): the world turns over. Verse 1's shadow theatre: a clay wall, a
+// black-glaze floor, the fire unseen behind us. The small lead-in phrase pops on the floor as sung (its shadows thrown
+// up the wall) and folds flat before the roll. Slamming into the 48.02 downbeat, the room rolls a half turn about our
+// line of sight: the floor and its shadows hang overhead, the wall upside down. WRONG? stands up on the same hit and
+// reads the right way up: the word is turned with us, the world is not.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { F } from '../../engine/type';
@@ -40,7 +40,7 @@ float extraShadow(vec3 P, bool wall) {
 vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) { return wall ? col : col + mix(C_EMBER, C_BONE, 0.35) * 0.065 * sat(b); }
 vec3 skyTint(vec3 D, vec3 col) { return col; }`;
 
-export default class SketchC1Wrong extends Scene {
+export default class C1Wrong extends Scene {
   private st!: Stage;
   private hero!: Word3D;
   private small!: Word3D;

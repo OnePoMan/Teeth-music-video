@@ -1,9 +1,10 @@
-// SKETCH (stills only) — chorus 1, the FOES / OURSELVES? lines (~59.4–64.7), ?sketch=mirror&opt=shield: "the shield".
-// A round, deep-dished bronze hoplite shield fills the frame, lit by the fire behind us (bronze as the letters' `bronze`
-// look: signal-orange body, bone highlight). FOES stands on its face, the side his enemies see, plain and polished. On
-// "but" (62.34) the shield swings round on its vertical axis to show its inside, the side his own men see: a clay lining
-// where Odysseus's shadow (odysseus.ts, the bow drawn) stands over a row of his men's shades, the arrow aimed down into them,
-// painted black-figure. OURSELVES? and the arm strap under it slam on together on the 64.02 downbeat.
+// `shield` — chorus 1, lines 12–13 (FOES / OURSELVES?, 59.355–64.689): the shield. A round, deep-dished bronze
+// hoplite shield fills the frame, lit by the fire behind us (bronze as the letters' `bronze` look: signal-orange body,
+// bone highlight). FOES stands on its face, the side his enemies see, plain and polished. The shield swings round on
+// its vertical axis (62.10–62.58, edge-on on line 13's first word, 62.34) to show its inside, the side his own men see:
+// a clay lining where Odysseus's shadow (odysseus.ts, the bow drawn) stands over a row of his men's shades, the arrow
+// aimed down into them, painted black-figure. OURSELVES? and the arm strap under it slam on together on the 64.02
+// downbeat.
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { GLSL_COMMON } from '../../engine/glsl/common';
@@ -12,7 +13,7 @@ import type { Line } from '../../engine/lyrics';
 import { ease, prog } from '../../engine/util';
 import { GLSL_SHADE } from '../motifs';
 import { GLSL_ODYSSEUS, odysseusUniforms, setOdysseus } from '../odysseus';
-import { Stage, Word3D, keyLight, popWords, type Letter } from '../stage';
+import { POP, Stage, Word3D, keyLight, popWords, type Letter } from '../stage';
 import { heroFont } from '../shore';
 
 const FOV = 40;
@@ -23,7 +24,8 @@ const GROUND = -1.5, ODY = { x: -1.15, h: 2.25 }, MEN = { x0: 0.15, dx: 0.42, n:
 const NM = MEN.n;
 /** His aim: from his shoulders (0.81 h up) down at the middle of the row of men, chest high. */
 const ODY_AIM = Math.atan2(GROUND + 0.62 - (GROUND + 0.81 * ODY.h), MEN.x0 + MEN.dx * 1.5 - ODY.x);
-const T_SWING = [62.3, 62.78] as const, T_SLAM = 64.02;
+/** The swing (edge-on at its middle, 62.34: line 13's first word pops on an inside turning toward us) and the slam. */
+const T_SWING = [62.1, 62.58] as const, T_SLAM = 64.02;
 
 /** The bowl's profile (r, depth): the dome out to the rim, then the flat rim and its rolled lip. */
 function profile(): THREE.Vector2[] {
@@ -134,7 +136,7 @@ void main() {
   fragColor = vec4(col, 1.0);
 }`;
 
-export default class SketchC1Shield extends Scene {
+export default class C1Shield extends Scene {
   private st!: Stage;
   private shield = new THREE.Group();
   private mat!: THREE.RawShaderMaterial;
@@ -142,7 +144,7 @@ export default class SketchC1Shield extends Scene {
   private strap!: THREE.Mesh;
   private foes!: Word3D;
   private ours!: Word3D;
-  private phrases: { w: Word3D; on: number[]; exit: number; inside: boolean }[] = [];
+  private phrases: { w: Word3D; on: number[]; exit: number; dur: number; inside: boolean }[] = [];
   private l1!: Line;
   private l2!: Line;
 
@@ -175,15 +177,17 @@ export default class SketchC1Shield extends Scene {
     this.foes.lightMul = 2.0; this.ours.lightMul = 2.0;
     this.st.add(this.foes, { shadows: false });
     this.st.add(this.ours, { shadows: false });
-    // small phrases: "What if I've" / "been far too" / "kind to" on the face's rim; "but a monster to" inside
+    // small phrases: three on the face's rim, one after another in the same place, then line 13's lead-in inside;
+    // a rim phrase followed by another is flat and gone before the next one starts to rise (they share a place)
     for (const [a, b, inside] of [[0, 3, false], [3, 6, false], [6, fi, false]] as const) {
       const w = new Word3D(w1.slice(a, b).map((x) => x.w).join(' '), F.archivo(112.5, 600), { size: 200 });
       this.st.add(w, { shadows: false });
-      this.phrases.push({ w, on: w1.slice(a, b).map((x) => x.start), exit: w1[b]!.start - 0.08, inside });
+      const next = b < fi;                                   // (the last one leaves as FOES, elsewhere, comes up)
+      this.phrases.push({ w, on: w1.slice(a, b).map((x) => x.start), exit: w1[b]!.start - (next ? POP.lead + 0.11 : 0.08), dur: next ? 0.08 : 0.14, inside });
     }
     const w = new Word3D(w2.slice(0, oi).map((x) => x.w).join(' '), F.archivo(112.5, 600), { size: 200 });
     this.st.add(w, { shadows: false });
-    this.phrases.push({ w, on: w2.slice(0, oi).map((x) => x.start), exit: T_SLAM - 0.05, inside: true });
+    this.phrases.push({ w, on: w2.slice(0, oi).map((x) => x.start), exit: T_SLAM - 0.05, dur: 0.14, inside: true });
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
@@ -225,7 +229,7 @@ export default class SketchC1Shield extends Scene {
         if (!p.inside) { l.x = x0 + l.penX * s; l.y = -1.95; l.z = 0.6; l.yaw = 0; }
         else { l.x = -(x0 + l.penX * s); l.y = GROUND - 0.85; l.z = 0.05; l.yaw = Math.PI; }
         l.s = s;
-      }, { exit: p.exit, exitDur: 0.14 });
+      }, { exit: p.exit, exitDur: p.dur });
       place(p.w);
     }
 

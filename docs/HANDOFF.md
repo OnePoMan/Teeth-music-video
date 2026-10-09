@@ -8,6 +8,113 @@ Read this first, then `docs/MONSTER.md` (the treatment), `docs/TREATMENT.md` (P(
 1. **Ideas before implementing.** In the first message of every session, give your answers and/or ideas (what you would do and why, options with a recommendation, open questions) before implementing anything, and wait for the client's go-ahead. Reading the handoff, code, stills and clips to form those ideas is fine; building, rendering and launching agents wait for the reply. Notes the client dictates for this file may be written straight away.
 2. **Usage and session limits.** Plan the work around the account's limits (Pro: the 5-hour window and the weekly limit, both in `get_usage`) and this session's context, so that no agent is cut off mid-task: check `get_usage` before launching each agent and again between agents; run one agent at a time (two at most, both small); give each agent a task that can finish well inside what is left, split into steps; have each agent commit its work in progress at every step, so a cut-off loses minutes and not the step (the `scale` sketch agent lost its last uncommitted step at the limit on 2026-10-09); leave ~10–15% of the window for the wrap-up (commit, PR, merge, this file); when what is left cannot fit the next task, stop at a clean point and hand off instead of launching it. Note each task's cost here (window % before/after) so later sessions can size tasks.
 
+**FIRST, when the client picks up the next session (client's request, 2026-10-09): follow up with them on all the open items below before starting any work** (this comes with standing directive 1: ideas and questions first):
+1. **Their notes on what was sent at the end of the 2026-10-09 fourth session:**
+   - the Scylla and vase last-look stills (`out/stills/scylla-final-sheet.jpg`, `vase-final-sheet.jpg`);
+   - the circe clip (`out/review/v14-circe-review.mp4`);
+   - the chorus 1 clip (`out/review/v15-chorus1-review.mp4`);
+   - the full preview, 0–110.03, rendered after PR #8 was merged at the client's request: `out/review/v16-full-review.mp4`. If the file is missing, the render did not finish: re-run `bash app/scripts/clip.sh v16-full 0 110.0333 everything,endless,symbolon,change,souls,sea,hook1,wrong,scylla,vase,shield,lookback,cyclops,circe,poseidon,horse 16` (it resumes from finished segments).
+2. **The lookback face (design call):** when Odysseus turns to look back at us (66.69), his frontal head is all hair, with no face. The lead's proposal: as he turns frontal, incise a face into his black head (brow, two eyes, the nose and beard line) with the hair parting either side, as black-figure detail was scratched to the clay. Frontal faces are rare in vase painting, which is what would make it land: this is from memory, so fetch and cite a source before telling the client.
+3. **The hard cut from hook 1's dark shore to WRONG?'s bright clay wall (46.03):** a big brightness jump. Keep it, or soften it?
+4. **Polites's size in the vase's final frame:** modest, carried by the light pool. Offer fewer, larger mourners near him.
+5. **Small items to mention, not design calls:**
+   - FOES pokes past the shield's rim for a frame as it turns (~62.27): fix it by letting FOES leave ~0.08 s earlier;
+   - the vase's last rim phrase is squeezed and turned;
+   - line 9's "the" shows for only 0.07 s;
+   - the long hair reads as a ponytail when Odysseus is small (on the wall in `wrong`).
+6. **Their chorus 2 picks** (the brainstorm is in this session's block below; nothing chosen yet).
+7. **Still on hold:** the bridge stills and the six verse 2 taste calls. Ask whether to take them up.
+
+**Laptop session 2026-10-09, fourth (branch `laptop-1009d`, from `main` 1fe97dc; started at 2% of the 5-hour window, weekly 47%, which resets 2026-10-14 06:00 UTC; one full window has cost ~16% of the weekly).** Client decisions on the lead's proposals (binding):
+1. **Scylla's heads snap in three pairs on the orchestra's hits 53.01 / 53.34 / 53.82** (option A): outer pair first, the middle pair with HIDING on the 53.36 downbeat, the inner pair last, closing in on the word. (The end of line 10, 52.86–53.81, is under three eighth notes long, so one head per eighth could not fit; B, one per sixteenth, and C, one per eighth from 52.02, were not chosen.) Line 10's small lead-in phrase moves down onto the water in front of the ledge (as under MONSTER?), clear of PROBLEM, leaving the frame as the camera climbs.
+2. **Circe: the warmth drains out of COLDER as the frost grows** (bone-white frost on bone letters would not show): on "colder" (86.00) the faces go from lit bone to a dim, cold grey and the orange on the letter sides dies, while bone-white crystal hairlines grow from the potion's glassy surface up over the letters; on "older" (87.39) the C cracks off into the potion (as now), the frost breaks into flakes that drop and fade, and OLDER comes back lit and warm, the hero. No blue. The four SLOW-RISE words in the same pass.
+3. **Chorus 1 is built as separate plates**: one scene per plate, five timeline entries after hook 1 (WRONG?, PROBLEM/HIDING, GUILT?, FOES/OURSELVES?, MONSTER?) plus "Is me?" into `sea.ts`, cuts on the beat grid; `mirror.ts`/`mirror-kit.ts` retired, `GLSL_FRIEZE` moved into the vase's file. **The "I'm" timing is corrected from the vocal envelope** in lines 10, 11 and 14 (each has a 0.48 s "if"; line 11's envelope dips at 54.86 and 55.13, so "I'm" ≈ 54.86–55.13, not 55.02–55.18), then the frame checker re-run.
+4. **The vase** as the client specified, with the lead's calls: the mourners identical and evenly spaced; the pass steady, easing to rest on Polites as GUILT? lands, no events in the band (the small words carry the timing); the handles solid black glaze with thin reserved lines.
+5. **Order:** moon → Scylla → vase → circe → stills of Scylla and the vase to the client → the chorus 1 build. Chorus 2: brainstorm per-line plates in chat while the agents work.
+- **Moon done (b849d26):** `MOON_C` = the lit letters' warm bone (`C_BONE * (1.08, 0.9, 0.72)`); the moon, its glow and his pupil keep their own light (`gMoon`, which `surfaceTint` exempts from the fire's falloff toward the frame's edges: that falloff was what greyed it). Sampled at 73.5: the moon (241,224,194), NIGHT?'s faces (249,222,191), his pupil (239,220,190); before, the moon was (193,182,173). Stills `out/stills/cyclops-moon2/` (72.4, 73.5, 75.0, 77.5). Cost ~2% of the window.
+- **Scylla done** (`sketch-c1-scylla.ts`, 1fc2cf8, 30f9542, 357126a, 09e1d77, 3a997ca; one agent continued over four rounds):
+  - **Heads:** six viper heads. A convex crown rounds into the neck, with a brow over an incised eye and rounded hinge corners. Open, the upper jaw is hinged up ~58°, two bone-white fangs at the front hang into the gape, and the gape is dark only at the gullet. Closed, each is one solid head with an incised mouth line (the first tries read as pliers, then clips, then crows).
+  - **Fan:** three a side, none crossing. The outer pair goes high, the middle out to the sides, and the inner pair, waiting low at the cave lip, turns in beside HIDING.
+  - **Timing:** per-pair `strike[3]`/`jaw[3]` on `T_PAIR` 53.01/53.34/53.82: a 4-frame lunge with overshoot, the jaws snapping open with outBack.
+  - **Camera and phrases:** the climb now runs 51.45–52.85, so the cave and all six closed heads are in frame by 52.95. The lead-in phrase sits low under PROBLEM (folds 51.30). "that's been" rides up in the upper frame; "all along?" sits centred under HIDING. HIDING is 78% of the cave's width.
+  - **Checks:** lint 0 errors (expected warnings only: PROBLEM cropped as the camera climbs past it; HIDING late/partial/lingering, on the downbeat by design). Client stills `out/stills/c1-scylla-final/` (49.6, 50.8, 52.2, 52.95, 53.05, 53.4, 53.98).
+  - **Left rough:** edges slightly soft at the snouts.
+  - **Cost:** ~19% of the window (10% → 29%), double the estimate: four rounds.
+- **The vase made tragic** (`sketch-c1-vase.ts`, bacb29c, 06d2aaf, dfbcd0f). The vase owns its frieze now: the meander and zigzag are copied in, it no longer imports `GLSL_FRIEZE`, and `mirror-kit.ts` is untouched.
+  - **The frieze:** one even procession of identical tall mourners in long robes, heads bowed, one hand to the head, walking toward Polites. Those right of him face left, toward him. Smaller biers of the other dead stand at regular intervals, each taking two of the procession's spaces. Every shroud is plain black with an incised border.
+  - **Polites:** 1.2x, at rest, arms open low, palms up, floating slightly above his bier (a Geometric convention).
+  - **No pops:** `bornT`/`nShown`/`stT` are gone.
+  - **Camera:** one steady pass at constant radius and height, easing from 57.15 to rest on Polites at 58.35 and holding to the cut. The resting frame shows GUILT? on the rim.
+  - **Light and handles:** the key light is cut to 0.17x with a warm pool on Polites, and GUILT? lights at 3.0. The handles are black glaze with two reserved lines.
+  - **Checks:** lint 54.02–59.355 0 errors, 0 warnings. Stills `out/stills/c1-vase2/`.
+  - **Left rough:** the last small phrase on the rim is turned and squeezed (left of GUILT?); the neck bands stay fairly bright; Polites is modest in size in the final frame (the pool carries him; "fewer, larger mourners near him" not used).
+  - **Cost:** ~11% (31% → 42%).
+- **Sent to the client for a last look:** `out/stills/scylla-final-sheet.jpg` and `out/stills/vase-final-sheet.jpg` (with a full-size crop of Polites).
+- **Circe's frost done** (7488e2d, d588a23, f05208a), all in `circe-cup.ts`, where the cup's letters use their own copy of the letter shader (`clipWord`); `stage.ts` is untouched.
+  - **New uniforms**, all defaulting to 0: letter `cold`, `frost`, `fBrk`, `crack`, `capH`; potion `frostA`/`frostB` and `CupState.frost`.
+  - **The frost moment:**
+    - 86.0: COLDER pops warm.
+    - From 86.1: white-line frost fronds grow over the potion from its foot. The faces drain to a dim ash (the cold eases out, fastest at the start) and the sides go black.
+    - ~86.7: fully frosted.
+    - 87.4: the C, still frosted, tips and sinks with a thin crack across its foot; the rest warms back to bone.
+    - 87.5–87.6: the potion frost breaks into flakes and fades.
+    - 87.7: clean, lit OLDER.
+  - **SLOW-RISE fixed:** "throw", REMORSE, "lives" (horse) and "learn" (circe). `popWords`' `upBy` now takes per-word gaps, and `cupPop` passes it. "learn"'s phrase also leans back further under the overhead camera (a `square` option), since the checker's flag there was its facing.
+  - **Checks:** lint circe 0 errors (TITLE-SAFE ×2 in the open, the known COLDER→OLDER findings, BLINK "the" 89.17); horse 0 errors (BLINK ×3, TWO LINES 108.3, TITLE-SAFE 108.5).
+  - **Clip** `out/review/v14-circe-review.mp4`, sent.
+  - **Left rough:** the flakes sliding off OLDER barely show (bone on bone); a few curled arcs where the frost's growth direction flips near the word's foot.
+  - **Cost:** ~11% (42% → 53%).
+- **Chorus 1 build, phases 1–2 done** (one agent, continued per phase; 55618ed, 85b1a93, 4fce668, ed655e8):
+  - **Five plates on the timeline**, promoted with `git mv` from the approved sketches (the design is unchanged):
+
+    | id | file | from |
+    |---|---|---|
+    | `wrong` | `scenes/c1-wrong.ts` | 46.022 |
+    | `scylla` | `scenes/c1-scylla.ts` | 49.022 (the off-beat: `cut()` takes an `off` argument, 0.5 here) |
+    | `vase` | `scenes/c1-vase.ts` | 54.022 |
+    | `shield` | `scenes/c1-shield.ts` | 59.355 |
+    | `lookback` | `scenes/c1-lookback.ts` (MONSTER?, the shadow looks back; from `sketch-mirror.ts`) | 64.689 |
+
+    The cyclops cut follows at 68.689. All cuts are beat expressions in `timeline.ts`. `mirror.ts`, `mirror-kit.ts`, `sketch-mirror.ts` and `sketch-mirror-kit.ts` are gone, so the old `?sketch=mirror&opt=…` stills URLs no longer apply: render a plate with `--only <id>`.
+  - **"Is me?"** is in `sea.ts` (the sketch moved over it). ME?'s placement is one shared function, `placeMe` in `shore.ts`, used by `sea` and `hook` (n=1). Hook 1 starts with the fire dipped as `sea` leaves it, flaring back over 0.4 s, so ME? keeps its brightness across the cut (94.6 → 95.5). Stills `out/stills/c1-isme/`.
+  - **The shield:** its first two rim phrases now leave flat before the next one rises in the same place (the checker's two COLLISION errors).
+  - **"I'm" timing:** only line 11 changed: "if" 54.54–54.86, "I'm" 54.86–55.13, "the" from 55.13 (were 55.02/55.18). Evidence: envelope dips at 54.86 and 55.12, the nasal 55.07–55.15, "the" at 55.16. The same FIX entries are in `analysis/monster/align.py`. Lines 10 and 14 were checked and left unchanged: their "f", nasal and "the" onsets match the data.
+  - **Lint 43.4–68.69: 0 errors.** Expected warnings: PROBLEM cropped 51.8–54.0; HIDING late/partial/lingering (it lands on the downbeat); OURSELVES? late (it slams on 64.02); BLINK "the" 45.13 (hook 1) and 47.80 (line 9's phrase folds flat before the roll). Also flagged: line 13's first word (62.34) popped on the shield's inside while it was still swinging (BACKWARDS, SLOW-RISE). Lead's call: the swing starts earlier, so the shield is edge-on at the word.
+  - **Cost:** ~12% (54% → 66%).
+- **Chorus 1 build, phase 3 done** (d24286d):
+  - **The shield:** it now swings 0.2 s earlier (62.10–62.58, the same length and easing), edge-on on line 13's first word. Lint 59.3–64.7: 0 errors; only OURSELVES? LATE remains (the slam, by design).
+  - **Review clip** `out/review/v15-chorus1-review.mp4` (36.03–68.69 s, with the song; full quality `v15-chorus1.mp4`; the agent's contact sheets in `out/review/v15-look/`), sent to the client. Command: `bash app/scripts/clip.sh v15-chorus1 36.0333 68.6889 sea,hook1,wrong,scylla,vase,shield,lookback 16` (~10 min).
+  - **Cuts:** 43.367 seamless; 46.033, 49.033, 54.033, 59.367 and 64.700 clean hard cuts, with nothing new just before any of them. The roll lands WRONG? on 48.02; the snaps read; GUILT? lands on 58.42; "but" pops on an inside already facing us.
+  - **Open, for the client or the next session:**
+    1. **lookback, the head turn (66.69–66.8):** facing us, Odysseus's head is a mass of locks with no face, so the moment he looks back at us does not read. Needs a design call: reserve an eye or a face out of the hair. At this size the dead's turn is not visible either.
+    2. **The shield:** FOES' letters stick past the rim for a frame or two as it turns (~62.27–62.30), as in the sketch. Fix: FOES leaves ~0.08 s earlier (cheap).
+    3. **The hard cut hook 1 → `wrong`:** a big step from the dark shore to the bright clay wall.
+    4. **Known:** BLINK "the" 47.80 (0.07 s); the vase's last rim phrase squeezed and turned.
+  - **The hair:** in profile the long locks read and give him a clear silhouette; small on the wall in `wrong` they read as a ponytail; facing us they hide the face.
+  - **Cost** of phase 3 with the lead's review: ~8% (66% → ~74%). The session from 2% to 76% of the window (weekly 47% → 57%).
+- **Next, in order (session 2026-10-09 fourth, superseding the list in the third session's entry below):**
+  1. **The client's notes:**
+     - the Scylla and vase last-look stills (`out/stills/scylla-final-sheet.jpg`, `vase-final-sheet.jpg`);
+     - the circe clip (`v14-circe-review.mp4`);
+     - the chorus 1 clip (`v15-chorus1-review.mp4`);
+     - the chorus 2 picks (brainstorm below).
+  2. **Chorus 1's open items** (above): propose the lookback face to the client (ideas first); fix FOES' exit (cheap); then the client's notes on the clip, plate by plate (`--only <id>`, lint, a clip).
+  3. **A full preview** (0 → 110.03, as v11: `bash app/scripts/clip.sh v15-full 0 110.0333 everything,endless,symbolon,change,souls,sea,hook1,wrong,scylla,vase,shield,lookback,cyclops,circe,poseidon,horse 16`, ~16 min).
+  4. **Chorus 2 once picked:** fetch and cite the sources, then stills per plate (one agent at a time; ~10% per plate round).
+  5. **On hold until the client says:** the bridge stills; the six verse 2 taste calls.
+- **Chorus 2 brainstorm, sent to the client 2026-10-09 (no picks yet).** Lines 32–38, 115.4–134.7. Hook 2 (A) on the shore before it; the last line back on the shore.
+  - **Music:** the drums drop out 114.7–122.7 (bar averages 0.08–0.12 against 0.45–0.58) and return exactly on line 34's MONSTER (122.68). Orchestra hits: 117.35, 119.34, 120.02, 122.36, 126.99.
+  - **Proposed frame: "the voyage still ahead of him".** Each plate is an episode he has not reached yet, or meets in this Underworld. Each plate is a step darker toward black-figure (chorus 3's flip).
+  - **The options** (A recommended in each):
+    1. **STRONGER? (117.20).** A: Heracles' shade (Od. 11): the strongest man, still a shade, bow drawn as Homer describes him, lion skin for legibility; Odysseus's own pose, a mirror. B: the Sirens (Od. 12): bound to the mast, STRONGER? lashed to it, the ropes biting on 117.35.
+    2. **FOES/BAY? (119.05/119.80).** A: the Laestrygonians' harbour (Od. 10), a literal bay seen from above on a clay plate: eleven ships inside, his outside; giants' shadows on FOES; boulders on BAY? as he cuts his cable. B: the Sirens, red-figure (after the British Museum's Siren vase).
+    3. **EVERYONE/US (124.03/125.23).** A: the bronze balance (A1 colouring): MONSTER on the drums' return as the beam swings in; EVERYONE a heap of tiny men in one pan; US slams the other down on the 125.2 hit. B: the suitors' hall (Od. 22): the barred doors, the bow on the threshold.
+    4. **HOME (127.94).** A: Ithaca at dawn (Od. 13): the island's ridge, the first dawn of chorus 2 breaking behind it, HOME in the dawn accent, its reflection black-figure (his ship's empty benches). B: Argos (Od. 17). C: the olive-tree bed (Od. 23).
+    5. **UNJUST? (130.34).** A: the Sun's cattle (Od. 12): a black-figure frieze; on "care" the hides crawl (Homer's omen); Zeus's bolt splits UNJUST?. B: the balance's beam snaps (if not on line 3).
+    6. **The ensemble's MONSTER (132.88), on the shore.** A: the far bank fills with the shadows of every monster so far; the answer under the water bigger than ever. B: the dead alone, closer, on our side.
+  - **Sources:** the book numbers are from memory. Fetch and cite (Butler on Wikisource) once picked.
+- Git on this laptop has no user identity configured: commit with `git -c user.name=Claude -c user.email=noreply@anthropic.com commit …` (as the earlier commits were).
+
 **Client notes on the v11 preview (2026-10-09, binding; same session, now on branch `laptop-1009c` from `main` 86bcb00 after PR #6 was merged at the client's OK):**
 1. **"Is me?" (sea, 42.31–43.36): option A, his own shadow is the threat**: ME? stands up near us as the line's hero; its letters throw a man's shadow (souls' trick) that the fire behind us casts across the water onto the far shore, giant, where THREAT sank (a low clay bank there catches it); it fades as the fire dips into the cut; hook 1 carries ME? over at its new size. **Plus a distinctive shadow for Odysseus**, recognizable apart from any generic shade: ideas first, before drafting (being discussed).
 2. **Both choruses as plates, one per line, with the shore as bookends** (hook 1 → … → the last line back on the shore); **`scale` (chorus 2) gets the same treatment**. The client liked the first option of each line, but **every mythical creature in the video must be directly relevant to the Odyssey** (no Minotaur, no Gorgon as proposed); **MONSTER? needs more than the word standing up**; **nothing is kept from the current chorus build**. Plates proposed (first options): WRONG? the world turns over; PROBLEM/HIDING (labyrinth: creature to be replaced); GUILT? the Geometric funeral vase; FOES/OURSELVES? the bronze shield (its inside to be replaced); MONSTER? on the shore (to be rethought). Under discussion; nothing built yet.
@@ -163,11 +270,15 @@ The work is collaborative: propose, show stills/clips, ask the client (the user)
 | symbolon 14.69–19.36 | `scenes/symbolon.ts` | v6: phrases readable on the halves, mirror water, Penelope at her loom and the dawn thread |
 | change 19.36–25.36 | `scenes/change.ts`, `shards.ts` | v8: "shattered and remade" (client's choice of two prototypes, 4f9376f; see `docs/MONSTER.md`): the word cracks on 21.36, its potsherds hang through the hush and slam back black side out on the four notes, its cracks incised to the clay. 87 ms/frame at 1 sub-frame (souls 95). Final cut clip `out/review/change-concepts/concept1-final-cuts.mp4` |
 | souls 25.36–36.02 | `scenes/souls.ts` | v6: no central flame; the line is the edge of our light. v11 (2026-10-09): LINE A, LINE stands on the line, folding up out of the groove (see "Start here"; option B, the script stroke, was built in f0cf733 and replaced) |
-| sea 36.02–43.36 | `scenes/sea.ts` | v7: no lamp, mirror water; THREAT lies down with "across the sea" (765aa5b); ends on hook 1's first frame (`SHORE` in `stage.ts`) |
+| sea 36.02–43.36 | `scenes/sea.ts` | v7: no lamp, mirror water; THREAT lies down with "across the sea" (765aa5b); ends on hook 1's first frame (`SHORE` in `stage.ts`); v14 (2026-10-09): "Is me?": ME? stands near us and throws Odysseus's shadow onto a far bank where THREAT sank (`placeMe` in `shore.ts`, shared with hook 1) |
 | hook1 43.36–46.02 | `scenes/hook.ts` n=1 | v7 (d437124): 3D on the stage, "the reflection disobeys": wine-dark mirror water, fire behind us; "Is me?" carried over from `sea` lies down; "What if I'm the" afloat near us, truly reflected; MONSTER? stands up on the waterline, lit; its reflection is black-figure (`bf` + `incise`) with no "?", the orange developing behind it (`WATER_HOOK`); the camera dips to the waterline on MONSTER. No 2D type left (the WATERLINE ledger label and the flat question are gone). `ae66938`: the question folds away from the dip's start (45.20), and nearly flat letters are hidden. Verified on a clip, then on the laptop render, which needed two fixes: the question folds in 0.06 s with all letters at once (gone before MONSTER?'s first letter starts up at 45.275), and nearly flat letters are hidden in both floating phrases, rising or folding (see the v7 checklist) |
 | hook2 | `scenes/hook.ts` n=2 | placeholder on hook 1's 3D shore: the reflection leads the word by 0.15 s, `creep` (orange above the line). Needs its own design with the scale. |
 | hook3 | `scenes/hook.ts` n=3 | draft (2D, unchanged): clay field, black MONSTER with inset incised contour, ground line, meander band. To be rebuilt on the motif (the reflection stands up and takes the word's place). |
-| mirror 46.02–68.69 | `scenes/mirror.ts`, `mirror-kit.ts` | v11 (2026-10-09): "Into the water" with the crowd of the dead, built from the sketch stills, the bronze beam (A1) on line 4 (see "Start here"; `docs/MONSTER.md`). Its sketch files (`sketch-mirror.ts`, `sketch-mirror-kit.ts`, loaded only under `?sketch=mirror`) are superseded and can be deleted. Hook 1's second horizon glow fixed in `shore.ts` along the way |
+| wrong 46.02–49.02 | `scenes/c1-wrong.ts` | v14: WRONG?, the world turns over: Odysseus's shadow on the clay wall, the room rolls a half turn on 48.02 |
+| scylla 49.02–54.02 | `scenes/c1-scylla.ts` | v14: PROBLEM/HIDING, Scylla's cliff: PROBLEM on the ledge, the climb through the cloud, six viper heads striking in pairs on 53.01/53.34/53.82 round a painted HIDING |
+| vase 54.02–59.36 | `scenes/c1-vase.ts` | v14: GUILT?, the Geometric funeral krater: one procession of mourners, Polites at rest in a pool of light, the camera still as GUILT? lands on the rim |
+| shield 59.36–64.69 | `scenes/c1-shield.ts` | v14: FOES/OURSELVES?, the bronze shield: FOES on the turned bronze; it swings round to the clay inside, Odysseus aiming at his own men; the strap slams on 64.02 with OURSELVES? |
+| lookback 64.69–68.69 | `scenes/c1-lookback.ts` | v14: MONSTER?, back on the shore: its shadow is Odysseus among the dead on the far bank; on 66.69 he turns his head to us and the dead turn with him |
 | cyclops 68.69–79.36 | `scenes/cyclops.ts`, `cyclops-giant.ts`, `cyclops-kit.ts` | prototype, option A (`docs/verse2-plan.md`): his eye is the cave mouth, the boulder its lid; GUILT?, NIGHT?, AVENGE, RIGHT?; the club tallies the men on the snares. Three critic rounds (3826842). Not yet seen by the client |
 | circe 79.36–90.02 | `scenes/circe.ts`, `circe-cup.ts` | prototype, option A: down into her kylix; MEN sinks and PIGS rises, INSANE? rides the vortex, COLDER drops its C, the drain uncovers the nymphs in the tondo; no words mirrored in the potion. Three critic rounds (b0fb11b). Not yet seen by the client |
 | poseidon 90.02–100.69 | `scenes/poseidon.ts`, `poseidon-board.ts` | prototype, option A: the sea as the god's board game, galley pieces sunk and pinned by the trident's shadow, the sunk fleet painted on the seabed for DARES?; no words mirrored in the water. Two critic rounds plus fixes (11c37f8). Not yet seen by the client |

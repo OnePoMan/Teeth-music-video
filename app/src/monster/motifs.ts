@@ -249,7 +249,7 @@ export function drawLamp2D(c: CanvasRenderingContext2D, x: number, y: number, al
 /** Where the flame stands for a lamp body centred at (x, y). */
 export const lampFlame = (x: number, y: number) => ({ x: x + LAMP_BODY.w * LAMP_BODY.nozzle.x, y: y + LAMP_BODY.h * LAMP_BODY.nozzle.y });
 
-/** A standing man as a shadow (souls' shades; the shades lying in `mirror`'s water): a signed distance in units of
+/** A standing man as a shadow (souls' shades; the dead on `lookback`'s far bank): a signed distance in units of
  *  his height, feet at the origin, y up. Needs sdSegment and smin (GLSL_COMMON). */
 export const GLSL_SHADE = /* glsl */ `
 // a standing figure as a shadow: proportions in units of its height, feet at the origin, y up. v varies the build,
