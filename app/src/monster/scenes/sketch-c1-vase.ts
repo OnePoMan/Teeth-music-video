@@ -84,15 +84,15 @@ vec2 polites(vec2 X) {
   d = min(d, sdSegment(p, vec2(-0.07, 0.0), vec2(0.2, -0.01)) - 0.036);               // thighs, shins, feet
   d = min(d, sdSegment(p, vec2(0.2, -0.01), vec2(0.44, -0.03)) - 0.021);
   d = min(d, sdSegment(p, vec2(0.44, -0.03), vec2(0.455, 0.04)) - 0.015);
-  // the open arms: out from the shoulders in a wide V, open hands spread
+  // the open arms: flung wide from the shoulders, long and straight in a broad V, the open hands spread
   for (int k = 0; k < 2; k++) {
     float sx = k == 0 ? -1.0 : 1.0;
-    vec2 sh = vec2(-0.33, 0.07), el = sh + vec2(0.17 * sx, 0.1), ha = el + vec2(0.15 * sx, 0.13);
-    d = min(d, sdSegment(p, sh, el) - 0.021);
-    d = min(d, sdSegment(p, el, ha) - 0.017);
-    for (int j = 0; j < 3; j++) {
-      float a = (float(j) - 1.0) * 0.5 + 0.75 * sx;
-      d = min(d, sdSegment(p, ha, ha + 0.055 * vec2(sin(a), cos(a))) - 0.009);
+    vec2 sh = vec2(-0.33 + 0.03 * sx, 0.06), dir = normalize(vec2(0.82 * sx, 0.58)), ha = sh + dir * 0.4;
+    d = min(d, sdSegment(p, sh, ha) - mix(0.03, 0.022, 0.5));
+    d = min(d, length(p - ha - dir * 0.02) - 0.03);
+    for (int j = 0; j < 4; j++) {
+      float a = atan(dir.x, dir.y) + (float(j) - 1.5) * 0.42;
+      d = min(d, sdSegment(p, ha, ha + 0.075 * vec2(sin(a), cos(a))) - 0.011);
     }
   }
   // the cloth hung under the bier between its legs, chequered
@@ -121,16 +121,16 @@ void main() {
   vec3 clay = mix(mix(C_BLOOD, C_SIGNAL, 0.75), C_EMBER, 0.2) * 0.8;
   vec3 clayLit = clay * (0.02 + 0.85 * sat(b)) + C_BONE * 0.06 * smoothstep(0.9, 1.8, b);
   vec3 glaze = C_INK * 0.9 + clay * 0.03 * sat(b);
-  if (inside) { fragColor = vec4(glaze * 0.6, 1.0); return; }
   if (handle > 0.5) {
-    // the strap handles: clay with black bars across, glazed at their roots
-    float hb = fract(vU * 9.0);
-    float hi = max(smoothstep(0.55, 0.6, hb) * (1.0 - smoothstep(0.9, 0.95, hb)), 1.0 - smoothstep(0.08, 0.12, min(vU, 1.0 - vU)));
+    // the Geometric strap handles: flat straps in black glaze, a few bars painted across in reserved clay
+    float bw = fwidth(vU) * 1.5 + 1e-4;
+    float bars = (1.0 - smoothstep(0.018, 0.018 + bw, abs(fract((vU - 0.35) / 0.15 + 0.5) - 0.5) * 0.15)) * step(0.3, vU) * step(vU, 0.7);
     vec3 Hh = normalize(Lv + V);
     float spec = pow(max(dot(N, Hh), 0.0), 60.0) * fall * 0.18;
-    fragColor = vec4(mix(clayLit, glaze + vec3(spec) * mix(C_EMBER, C_BONE, 0.5), hi), 1.0);
+    fragColor = vec4(mix(glaze + vec3(spec) * mix(C_EMBER, C_BONE, 0.5), clayLit, bars), 1.0);
     return;
   }
+  if (inside) { fragColor = vec4(glaze * 0.6, 1.0); return; }
   // the band's coordinates: arc length round the vase (continuous about the camera's side) and height
   float dth = atan(vL.x, vL.z) - phi;
   dth -= TAU * floor((dth + PI) / TAU);
@@ -179,6 +179,31 @@ void main() {
   fragColor = vec4(col, 1.0);
 }`;
 
+/** A flat strap (width w across `side`, thickness k) along a curve through pts; uv.x runs along it. */
+function strapGeo(pts: THREE.Vector3[], side: THREE.Vector3, w: number, k: number): THREE.BufferGeometry {
+  const c = new THREE.CatmullRomCurve3(pts), n = 40, pos: number[] = [], nor: number[] = [], uv: number[] = [], idx: number[] = [];
+  for (const [fs, fn] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    const base = pos.length / 3;
+    for (let i = 0; i <= n; i++) {
+      const p = c.getPointAt(i / n), T = c.getTangentAt(i / n);
+      const N = new THREE.Vector3().crossVectors(T, side).normalize();
+      const fN = side.clone().multiplyScalar(fs).addScaledVector(N, fn);
+      for (const e of [-1, 1]) {
+        const a = fs !== 0 ? fs : e, b = fs !== 0 ? e : fn;
+        const v = p.clone().addScaledVector(side, (a * w) / 2).addScaledVector(N, (b * k) / 2);
+        pos.push(v.x, v.y, v.z); nor.push(fN.x, fN.y, fN.z); uv.push(i / n, 0);
+      }
+      if (i < n) { const q = base + i * 2; idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx);
+  return g;
+}
+
 /** Camera arc position (along the band) through the shot: biers come in from the right as their words are sung. */
 function camU(t: number) {
   const k: [number, number][] = [[54.0, -11.4], [55.8, -1.3], [58.02, 11.4]];
@@ -222,8 +247,7 @@ export default class SketchC1Vase extends Scene {
     for (const side of [-1, 1]) for (const off of [-0.075, 0.075]) {
       const th = thEnd + (side * Math.PI) / 2 + off;
       const pts = HANDLE.map(([r, y]) => new THREE.Vector3(r * VS * Math.sin(th), y * VS, r * VS * Math.cos(th)));
-      const tube = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.085 * VS, 10, false);
-      this.st.scene.add(new THREE.Mesh(tube, hMat));
+      this.st.scene.add(new THREE.Mesh(strapGeo(pts, new THREE.Vector3(Math.cos(th), 0, -Math.sin(th)), 0.24 * VS, 0.06 * VS), hMat));
     }
     // the small phrases (1–4 words each), and GUILT?
     const gi = ws.findIndex((w) => /guilt/i.test(w.w));
@@ -255,11 +279,12 @@ export default class SketchC1Vase extends Scene {
 
     // the camera: round the vase at the frieze's height, rising over the lip for GUILT?
     const phi = camU(t) / R_BAND;
-    const up = prog(t, tG - 0.12, tG + 0.5, ease.inOutCubic);
+    const up = prog(t, 58.4, 58.9, ease.inOutCubic);
     // the shot opens on the whole krater, foot to rim, and closes in to hold the band in mid-frame with the rim's
-    // phrases in shot; for GUILT? it rises and pulls back to hold Polites and the word on the rim above him
+    // phrases in shot; for GUILT? a short push-in that rises to hold Polites, larger, and the word on the rim above him
     const fc = FRZ.y + FRZ.h / 2, wide = 1 - prog(t, 54.0, 55.6, ease.inOutCubic);
-    const rc = 16.0 + 8.5 * wide + 3.0 * up, cy = fc + 1.0 - 1.4 * wide + 2.0 * up, ly = fc + 0.15 - 1.6 * wide + 1.5 * up;
+    const upL = prog(t, 58.3, 58.75, ease.outCubic);
+    const rc = 16.0 + 8.5 * wide - 2.6 * up, cy = fc + 1.0 - 1.4 * wide + 2.0 * up, ly = fc + 0.15 - 1.6 * wide + 1.5 * upL;
     const pos = new THREE.Vector3(rc * Math.sin(phi), cy, rc * Math.cos(phi));
     const at = new THREE.Vector3(R_BAND * Math.sin(phi), ly, R_BAND * Math.cos(phi));
     this.st.cam.set(pos, at, FOV);
