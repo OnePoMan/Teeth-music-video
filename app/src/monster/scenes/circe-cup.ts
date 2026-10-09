@@ -478,9 +478,10 @@ export class CupStage {
     });
   }
   private noMirror = new Set<Word3D>();
+  /** Adds a run; words have no reflection in the potion (client, 2026-10-09) unless `mirror: true`. */
   add(w: Word3D, o: { mirror?: boolean } = {}) {
     clipWord(w);
-    if (o.mirror === false) this.noMirror.add(w);
+    if (o.mirror !== true) this.noMirror.add(w);
     this.words.push(w);
     this.scene.add(w.group);
   }

@@ -140,7 +140,7 @@ export default class Horse extends Scene {
     const w1 = this.l1.words, w3 = this.l3.words, w4 = this.l4.words;
     const trojW = w1[w1.length - 1]!, vileW = this.l2.words[this.l2.words.length - 1]!;
     const throwW = w3.find((w) => w.w.toLowerCase().startsWith('throw'))!, remW = w3[w3.length - 1]!;
-    const orW = w3[0]!, livesW = w4.find((w) => w.w.toLowerCase().startsWith('lives'))!, guileW = w4[w4.length - 1]!;
+    const orW = w3[0]!, guileW = w4[w4.length - 1]!;
     u.tNow!.value = t;
 
     // ---- the frame width a hero should fill, from the camera's distance
@@ -194,11 +194,13 @@ export default class Horse extends Scene {
     const hideFlat = (w: Word3D) => { for (const l of w.letters) if (l.hinge > 1.2) l.on = 0; w.update(); };
     showHero(this.trojans, trojW.start, this.l2.words[0]!.start - POP.lead - HAND, 0.66); hideFlat(this.trojans);
 
-    // VILE? and its re-lettering into GUILE?
+    // VILE? and its re-lettering into GUILE?, on "guile" itself (client, 2026-10-09: GUILE? on its onset, and the G
+    // with the rest of the word): the V folds down as the U and the G stand up together, the G in its own place, while
+    // I L E ? step right, so no frame reads as a non-word
     const gCap = capFor(this.guile, heroDist, 0.62), gs = gCap / this.guile.cap;
     const vx = (l: Letter) => (l.penX - this.vile.width / 2) * gs, gx = (l: Letter) => (l.penX - this.guile.width / 2) * gs;
-    const withW = w4[w4.indexOf(livesW) + 1]!;
-    const tA = withW.start, mv = prog(t, tA + 0.05, tA + 0.27, ease.inOutCubic);
+    // (I L E ? open the gap first, the V folds as it opens, then the G and the U rise in their places from tA)
+    const tA = guileW.start - POP.lead - 0.03, mv = prog(t, tA - 0.05, tA + 0.03, ease.inOutCubic);
     const vileExit = orW.start - POP.lead - HAND;
     this.vile.letters.forEach((l, k) => {
       l.z = HERO_Z; l.y = 0; l.yaw = 0; l.s = gs;
@@ -206,27 +208,21 @@ export default class Horse extends Scene {
       const again = 0;
       let h = t < this.tRe ? first + (Math.PI / 2 - first) * gone1 : again;
       l.x = vx(l);
-      if (k === 0) h = Math.max(h, (Math.PI / 2) * prog(t, tA, tA + 0.08, ease.inCubic));   // V folds down
-      else l.x = lerp(vx(l), gx(this.guile.letters[k + 1]!), mv);                            // I L E ? make room
+      if (k === 0) h = Math.max(h, (Math.PI / 2) * prog(t, tA - 0.01, tA + 0.025, ease.inCubic));   // V folds down
+      else l.x = lerp(vx(l), gx(this.guile.letters[k + 1]!), mv);                                    // I L E ? make room
       l.hinge = h;
-      l.on = h < 1.2 && t < tA + 0.27 ? 1 : 0;
+      l.on = h < 1.2 && t < tA + 0.03 ? 1 : 0;
       l.mat.uniforms.glow!.value = t < this.tRe ? 0.32 * pulse(t, vileW.start, 0.08) * (t >= vileW.start - 0.02 ? 1 : 0) * l.on : 0;
     });
     this.vile.update();
     this.guile.letters.forEach((l, k) => {
       l.z = HERO_Z; l.y = 0; l.yaw = 0; l.s = gs; l.x = gx(l);
       let h = Math.PI / 2;
-      if (k === 0) {                                     // G slides in from the left, standing up as it comes
-        h = popHinge(t, tA + 0.12);
-        l.x = gx(l) - 1.4 * (1 - prog(t, tA + 0.08, tA + 0.29, ease.outCubic));
-      } else if (k === 1) {                              // U folds up where V was, then moves into its place
-        h = popHinge(t, tA + 0.06);
-        l.x = lerp(vx(this.vile.letters[0]!), gx(l), mv);
-      } else h = t >= tA + 0.27 ? 0 : Math.PI / 2;       // the rest take over from VILE's I L E ?
+      if (k < 2) h = popHinge(t, tA + POP.lead);        // G and U stand up together, each in its own place
+      else h = t >= tA + 0.03 ? 0 : Math.PI / 2;         // the rest take over from VILE's I L E ?
       l.hinge = h;
       l.on = h < 1.2 ? 1 : 0;
-      l.mat.uniforms.glow!.value = 0.32 * pulse(t, guileW.start, 0.08) * (t >= guileW.start - 0.02 ? 1 : 0) * l.on
-        + 0.25 * pulse(t, k === 0 ? tA + 0.12 : tA + 0.06, 0.08) * (k < 2 ? 1 : 0) * l.on;
+      l.mat.uniforms.glow!.value = 0.32 * pulse(t, guileW.start, 0.08) * (t >= guileW.start - 0.02 ? 1 : 0) * l.on;
     });
     this.guile.update();
 

@@ -47,8 +47,11 @@ export function makeTimeline(ly: Lyrics, au: AudioData): TimelineEntry[] {
     end: au.duration,
   };
 
+  // stills of a plate's options before it is built (render.ts --query "sketch=<id>&opt=<x>"): entry <id> then loads
+  // scenes/sketch-<id>.ts, which reads its option from the URL; without the parameter nothing changes
+  const sketch = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('sketch') : null;
   const E = (id: string, file: string, start: number, end: number, extra: Partial<TimelineEntry> = {}): TimelineEntry =>
-    ({ id, load: scene(file), start, end, ...extra });
+    ({ id, load: scene(sketch === id ? `sketch-${id}` : file), start, end, ...extra });
 
   return [
     // the opening and verse 1 (revision 1): one shot per line, cut on the beat before each line; `everything` opens

@@ -44,7 +44,10 @@ float atlasA(float k, vec2 uv, float lod) {
   if (k < 2.5) return textureLod(atlas2, uv, lod).a;
   return textureLod(atlas3, uv, lod).a;
 }
+// 0 while the glaze samples the vault it mirrors: a word's shadow is never mirrored (as the stage's \`cardK\`)
+float cardK = 1.0;
 float cardShadow(vec3 P) {
+  if (cardK <= 0.0) return 0.0;
   float lit = 1.0;
   for (int i = 0; i < ${NC}; i++) {
     if (i >= nCards) break;
@@ -281,7 +284,9 @@ void main() {
       vec3 R = reflect(D, Nf);
       int kR;
       float tR = wallTrace(P, R, kR);
+      cardK = 0.0;
       vec3 refl = tR < 1e8 ? wallCol(P + R * tR, kR) : C_INK;
+      cardK = 1.0;
       if (reflOn > 0.0) {
         vec4 rt = texture(reflTex, FRAG_PX / vec2(${W.toFixed(1)}, ${H.toFixed(1)}));
         if (any(isnan(rt)) || any(isinf(rt))) rt = vec4(0.0);
