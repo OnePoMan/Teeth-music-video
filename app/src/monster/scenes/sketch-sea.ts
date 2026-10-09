@@ -147,9 +147,11 @@ export default class Sea extends Scene {
     popWords(pM, [this.l2.words[0]!.start], t, bobRow(mx0 - 0.1 - pM.width * (IS_CAP / pM.cap), ME.z, IS_CAP, pM));
     const tMe = this.l2.words[1]!.start;
     popWords(me, [tMe], t, (l: Letter) => { l.x = mx0 + l.penX * ms; l.z = ME.z; l.s = ms; l.y = 0.012 * Math.sin(t * 2.1 + ME.z); l.yaw = 0; });
-    // its shadow: Odysseus on the bank, rising with ME?, fading as the fire dips into the cut
+    // its shadow: Odysseus on the bank, rising with ME?, fading as the fire dips into the cut; the bank sinks with him,
+    // gone by the cut to hook 1
     const fade = 1 - prog(t, this.ctx.end - 0.4, this.ctx.end - 0.02, ease.inQuad);
-    u0.bankH!.value = BANK.h * prog(t, this.l2.words[0]!.start - 0.35, tMe - 0.05, ease.outCubic) * (0.25 + 0.75 * fade);
+    const sink = 1 - prog(t, this.ctx.end - 0.4, this.ctx.end - 0.1, ease.inQuad);
+    u0.bankH!.value = BANK.h * prog(t, this.l2.words[0]!.start - 0.35, tMe - 0.05, ease.outCubic) * sink;
     u0.odyFade!.value = prog(t, tMe - 0.02, tMe + 0.2, ease.outCubic) * fade;
     setOdysseus(u0, { x: ODY.x, h: ODY.h, pose: 'archer', lean: 0, stretch: 1 });
 
