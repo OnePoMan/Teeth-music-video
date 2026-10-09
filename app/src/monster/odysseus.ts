@@ -31,6 +31,8 @@ export interface OdysseusParams {
   hair?: OdyHair;
   /** The cloak (chlamys) over his back shoulder (default off: a short tunic only, so the long hair reads on its own). */
   cloak?: boolean;
+  /** The archer's aim (radians about his shoulders; negative points the arrow down; default 0, level). */
+  aim?: number;
   /** The black-figure incision (default on). */
   incise?: boolean;
   /** The cast shadow: its sideways slant per unit of his height (negative leans left) and its stretch (>= 1). */
@@ -46,7 +48,7 @@ export function odysseusUniforms(): Record<string, THREE.IUniform> {
 export function setOdysseus(u: Record<string, THREE.IUniform>, p: OdysseusParams) {
   (u.odyA!.value as THREE.Vector4).set(p.x, p.h, ODY_POSE[p.pose], p.turn ?? 0);
   (u.odyB!.value as THREE.Vector4).set(p.incise === false ? 0 : 1, p.lean ?? -0.8, Math.max(1, p.stretch ?? 1.35), p.on === false ? 0 : 1);
-  (u.odyC!.value as THREE.Vector4).set(p.cap ? 1 : 0, ODY_HAIR[p.hair ?? 'loose'], p.cloak ? 1 : 0, 0);
+  (u.odyC!.value as THREE.Vector4).set(p.cap ? 1 : 0, ODY_HAIR[p.hair ?? 'loose'], p.cloak ? 1 : 0, p.aim ?? 0);
 }
 
 export const GLSL_ODYSSEUS = /* glsl */ `
@@ -60,6 +62,7 @@ float odyTri(vec2 p, vec2 q) {
   vec2 d = min(vec2(dot(a, a), s * (p.x * q.y - p.y * q.x)), vec2(dot(b, b), s * (p.y - q.y)));
   return -sqrt(d.x) * sign(d.y);
 }
+float odyAim = 0.0;                                                 // the archer's aim, set by odysseusOcc (C.w)
 vec2 odyRot(vec2 p, float a) { float c = cos(a), s = sin(a); return vec2(c * p.x - s * p.y, s * p.x + c * p.y); }
 // the Scythian bow: grip at c, axis ax (unit, tip1 end), half-length L, bulge b (the limbs' two humps, signed: + to the
 // right of the axis), the grip set forward of the string, the tips curling back onto it
@@ -169,15 +172,16 @@ float odysseus(vec2 q, float pose, float turn, float cap, float hair, float cloa
   float dBow, dStr, dX = 1e9;
   if (ps == 1) {
     // the archer: bow arm straight out at the target, the string drawn back to the chin, an arrow on it
-    d = smin(d, sdSegment(q, vec2(0.1, 0.785), vec2(0.4, 0.8)) - 0.026, 0.02);
-    d = smin(d, sdSegment(q, vec2(-0.1, 0.785), vec2(-0.13, 0.84)) - 0.028, 0.02);
-    d = smin(d, sdSegment(q, vec2(-0.13, 0.84), vec2(0.05, 0.84)) - 0.025, 0.02);
-    dBow = odyBow(q, vec2(0.41, 0.8), vec2(0.0, 1.0), 0.29, 0.065, t0, t1);
+    vec2 qa = vec2(0.0, 0.81) + odyRot(q - vec2(0.0, 0.81), -odyAim);                       // arms, bow and arrow turned to the aim
+    d = smin(d, sdSegment(qa, vec2(0.1, 0.785), vec2(0.4, 0.8)) - 0.026, 0.02);
+    d = smin(d, sdSegment(qa, vec2(-0.1, 0.785), vec2(-0.13, 0.84)) - 0.028, 0.02);
+    d = smin(d, sdSegment(qa, vec2(-0.13, 0.84), vec2(0.05, 0.84)) - 0.025, 0.02);
+    dBow = odyBow(qa, vec2(0.41, 0.8), vec2(0.0, 1.0), 0.29, 0.065, t0, t1);
     gS = vec2(0.05, 0.84);
-    dStr = min(sdSegment(q, t0, gS), sdSegment(q, gS, t1));
-    dX = sdSegment(q, vec2(-0.02, 0.84), vec2(0.53, 0.82)) - 0.006;                          // the shaft
-    dX = min(dX, odyTri(vec2(q.y - 0.82, 0.6 - q.x), vec2(0.02, 0.065)));                       // its head
-    dX = min(dX, sdSegment(q, vec2(-0.04, 0.84), vec2(0.03, 0.84)) - 0.012);                 // the fletching
+    dStr = min(sdSegment(qa, t0, gS), sdSegment(qa, gS, t1));
+    dX = sdSegment(qa, vec2(-0.02, 0.84), vec2(0.53, 0.82)) - 0.006;                          // the shaft
+    dX = min(dX, odyTri(vec2(qa.y - 0.82, 0.6 - qa.x), vec2(0.02, 0.065)));                       // its head
+    dX = min(dX, sdSegment(qa, vec2(-0.04, 0.84), vec2(0.03, 0.84)) - 0.012);                 // the fletching
   } else if (ps == 2) {
     // the traveller: the bow slung on his back, a quiver over his shoulder, arms down
     d = smin(d, sdSegment(q, vec2(0.11, 0.775), vec2(0.155, 0.64)) - 0.027, 0.02);
@@ -233,6 +237,7 @@ float odysseusOcc(vec2 p, vec4 A, vec4 B, vec4 C, float px) {
   if (B.w <= 0.0) return 0.0;
   vec2 q = vec2(p.x - A.x, p.y) / A.y;
   float pq = px / A.y, occ = 0.0, inc;
+  odyAim = C.w;
   if (q.y > -0.05 && q.y < 1.12 && abs(q.x) < 0.7) {
     float d = odysseus(q, A.z, A.w, C.x, C.y, C.z, pq, inc);
     occ = (1.0 - smoothstep(-pq, pq, d)) * (1.0 - inc * B.x);
