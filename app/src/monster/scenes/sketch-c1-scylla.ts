@@ -90,6 +90,8 @@ vec3 scylla(vec2 p) {
     float sgs = clamp(f.x * 3.0, -1.0, 1.0), sg = sgs < 0.0 ? -1.0 : 1.0;
     vec2 nrm = vec2(-f.y, f.x) * sg, hp = p - e;
     vec2 h = vec2(dot(hp, f), dot(hp, nrm) / max(abs(sgs), 0.15)) / HS;
+    float shut = 1.0 - smoothstep(0.0, 0.25, op);   // closed: one solid head, a touch shorter and blunter
+    h.x *= 1.0 + 0.14 * shut;
     float aU = mix(0.04, 0.5, op), aL = mix(0.03, 0.52, op);
     float cu = cos(aU), su = sin(aU), cl = cos(aL), sl = sin(aL);
     vec2 hu = vec2(cu * h.x + su * h.y, -su * h.x + cu * h.y);   // the upper jaw's frame (it turns up by aU)
@@ -107,6 +109,7 @@ vec3 scylla(vec2 p) {
     float lj = smax((length(vec2(hl.x - 0.33, (yl - 0.02) * (1.0 + 0.4 * tl * tl)) / vec2(0.82, 0.28)) - 1.0) * 0.25, yl - 0.02, 0.04);
     lj = smin(lj, sdTaper(hl, vec2(0.2, -0.07), vec2(1.0, -0.1), 0.13, 0.065), 0.06);
     float bk = smin(uj, lj, 0.08);
+    if (shut > 0.0) bk = min(bk, sdTaper(h, vec2(-0.3, 0.02), vec2(1.0, 0.0), 0.24, 0.12) + 0.3 * (1.0 - shut));
     float ga = atan(h.y, h.x);
     float gul = (ga > -aL && ga < aU && length(h) < 0.26) ? -0.01 : 1.0;     // the gape dark to the gullet
     float fg = min(fang(hu, 1.0, 1.15), fang(hu, 0.84, 1.0));               // at the front, behind the snout
@@ -119,8 +122,9 @@ vec3 scylla(vec2 p) {
     float l1 = 1.0 - smoothstep(lw - px, lw, abs(dmin + 0.1));
     float eye = 1.0 - smoothstep(lw - px, lw, abs(length((hu - vec2(-0.02, 0.27)) / vec2(1.0, 0.6)) - 0.075) * HS);
     float jl = (1.0 - smoothstep(lw - px, lw, abs(hl.y + 0.1) * HS)) * step(-0.1, hl.x) * step(hl.x, 0.6);
+    float mth = (1.0 - smoothstep(lw - px, lw, abs(h.y - 0.0) * HS)) * step(-0.05, h.x) * step(h.x, 1.0) * step(0.5, shut);  // the shut mouth
     float headZone = step(hd, dmin + 0.05);
-    inc = max(inc, fi * max(l1 * (1.0 - headZone), headZone * max(eye, jl * step(lj, 0.0))));
+    inc = max(inc, fi * max(l1 * (1.0 - headZone), headZone * max(max(eye, jl * step(lj, 0.0) * step(shut, 0.5)), mth)));
     // the fangs: added white
     float tw = 1.0 - smoothstep(-px, px, fg * HS);
     wht = max(wht, tw * fv);
