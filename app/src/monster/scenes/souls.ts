@@ -26,12 +26,14 @@ const MAXF = 16;
 const LINE = { cap: 1.0, x: -0.2, depth: 26 };
 /** The second set-up's camera: low across the floor, then the crane up and back (its last pose). */
 const CAM2 = {
-  a: [-1.2, 0.95, 4.9] as [number, number, number], b: [-0.6, 0.95, 4.6] as [number, number, number],
-  at: [0.6, 0.85, -4.5] as [number, number, number],
+  a: [-1.2, 1.6, 4.9] as [number, number, number], b: [-0.6, 1.6, 4.6] as [number, number, number],
+  at: [0.6, 0.75, -4.5] as [number, number, number],
   end: [0.2, 6.3, 5.7] as [number, number, number], endAt: [0.0, 0.0, -0.9] as [number, number, number],
 };
+/** The key light's height in the second set-up (its foot; below LINE's top, so the double stands above the word). */
+const LIGHT_Y = 0.2;
 /** Where the small phrases of the second line stand (our side, near us): z, cap height, x of their centre. */
-const NEAR = { z: 1.6, cap: 0.17, x: -0.75 };
+const NEAR = { z: 0.75, cap: 0.17, x: -0.75 };
 
 const HOOKS = /* glsl */ `
 ${GLSL_KEY_DIST}
@@ -206,11 +208,12 @@ export default class Souls extends Scene {
     popWords(this.crossed, w2.slice(li2 + 1).map((w) => w.start), t, row(NEAR.x - (this.crossed.width * cs) / 2, NEAR.z, 0, cs),
       { exit: crossed.end + 0.3 });
 
-    // ---- the cutting point: in from the left wall, slowing as it passes under LINE, then out to the right wall
+    // ---- the cutting point: in from the left wall, slowing as it passes under LINE, then out to the right wall (and
+    // on, unseen, beyond it, so the groove's heat runs out of the right end as it cools)
     const lw = this.lineWord, ls = LINE.cap / lw.cap, lx0 = LINE.x - (lw.width * ls) / 2;
     const xA = lx0 + lw.letters[0]!.penX * ls, xB = lx0 + lw.letters[lw.letters.length - 1]!.penX * ls;
     const tA = lineW.start + 0.02, tB = lineW.start + 0.32, tIn = lineW.start - 0.16, tOut = lineW.end;
-    const fx = keys(t, [[tIn, -R + 0.15], [tA, xA, ease.inQuad], [tB, xB, ease.linear], [tOut, R - 0.15, ease.linear]]);
+    const fx = keys(t, [[tIn, -R + 0.15], [tA, xA, ease.inQuad], [tB, xB, ease.linear], [tOut, R - 0.15, ease.linear], [tOut + 1.5, R + 9, ease.linear]]);
     u.flameX!.value = fx; u.headOn!.value = second && t >= tIn && t <= tOut ? 1 : 0;
     u.lineOn!.value = second && t >= tIn ? 1 : 0;
     u.revealX!.value = t < tIn ? -99 : t <= tOut ? fx : 99;
@@ -258,10 +261,10 @@ export default class Souls extends Scene {
       fov = lerp(44, 50, prog(t, tCrane, T1, ease.inOutCubic));
     }
     // the key light: behind the camera; in the second set-up it stays where the low camera stood (low, so LINE's
-    // shadow runs across the dark and up the wall), and the crane leaves it behind
+    // shadow runs across the dark and up the wall above him, among the shades), and the crane leaves it behind
     if (second) this.st.cam.set(vkeys(Math.min(t, tCrane), [[tCut, CAM2.a], [tCrane, CAM2.b, ease.linear]]), new THREE.Vector3(...CAM2.at), 44);
     else this.st.cam.set(pos, at, fov);
-    const L = keyLight(this.st.cam, audio, t, { seed: 13, I: 1.5, reach: 25, up: second ? 0.35 : undefined });
+    const L = keyLight(this.st.cam, audio, t, { seed: 13, I: 1.5, reach: 25, up: second ? LIGHT_Y - this.st.cam.cam.position.y : undefined });
     this.st.cam.set(pos, at, fov);
 
     this.st.render(renderer, out, t, L,
