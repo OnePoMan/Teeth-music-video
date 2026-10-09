@@ -28,8 +28,9 @@ const X = { A: 0, B: 40, C: 80, D: 120, E: 160 };
 /** Hook 1's waterline (px from the top) as it cuts to A, and the plate's. */
 const LINE_HOOK = 582, LINE_Y = 490;
 /** The bronze beam (D): its ends, bar and knob heights, depth, and the lit pan at its high end (world). */
-const BEAM = { x0: X.D - 4.2, x1: X.D + 4.2, h: 0.26, knob: 0.46, knobW: 0.32, z: WORD_Z + 0.05, depth: 0.32 };
-const PAN = { x0: X.D - 3.75, x1: X.D - 1.05, h: 0.08, lip: 0.3, lipW: 0.1 };
+// (the pivot, the post, stands at X.D: FOES' arm short, OURSELVES?' long, so the heavy side carries the bigger word)
+const BEAM = { x0: X.D - 3.8, x1: X.D + 8.1, h: 0.26, knob: 0.46, knobW: 0.32, z: WORD_Z + 0.05, depth: 0.32 };
+const PAN = { x0: X.D - 3.5, x1: X.D - 0.85, h: 0.08, lip: 0.3, lipW: 0.1 };
 
 interface Cam { x: number; y: number; z: number; pitch: number; roll: number }
 /** A hero (lit, clipped at the water) and its black-figure twin (the part under the surface). */
@@ -161,7 +162,7 @@ export default class Mirror extends Scene {
     small(sl(l11, 'every', 'i'), before(w(l11, 'i')), cBC, cCD, onC);
     small(sl(l11, 'i', 'guilt'), 1e9, cBC, cCD, (wd) => ({ x: wC.x - wC.width / 2 - 0.25 - wd(0.4), z: wC.z, cap: 0.4, yaw: 0 }));
     // D: the phrases stand on the water near us, below the beam and clear of its words
-    const nearD = centred(X.D + 0.2, -11, 0.15);
+    const nearD = centred(X.D + 1.65, -9.3, 0.25);
     small(sl(l12, 'what', 'far'), before(w(l12, 'far')), cCD, cDE, nearD);
     small(sl(l12, 'far', 'foes'), before(w(l13, 'but')), cCD, cDE, nearD);
     small(sl(l13, 'but', 'ourselves'), T.ours! - 0.1, cCD, cDE, nearD);
@@ -176,7 +177,7 @@ export default class Mirror extends Scene {
       { x: X.B, z: -6, width: 3.6 },
       { x: X.C + 0.8, z: -6, width: 5.6 },
       { x: (PAN.x0 + PAN.x1) / 2, z: BEAM.z + 0.04, width: 2.3 },
-      { x: X.D + 2.55, z: WORD_Z + 0.3, width: 3.9 },
+      { x: X.D + 4.15, z: WORD_Z + 0.3, width: 7.3 },
       { x: X.E, z: WORD_Z, width: 0 },
     ][i]!;
   }
@@ -202,8 +203,8 @@ export default class Mirror extends Scene {
       const roll = keys(t, [[T.foes!, 0], [T.foes! + 0.5, 0.07, (u) => ease.outBack(u, 1.8)], [T.small!, 0.07],
         [T.small! + 0.3, 0.1, (u) => ease.outBack(u, 2.2)], [T.ours!, 0.1], [T.ours! + 0.35, 0.14, ease.outCubic],
         [T.slam!, 0.14], [T.slam! + 0.25, 0.21, (u) => ease.outBack(u, 2.2)]]);
-      const y = 0.55, z = -7.6;
-      return { x: X.D + 0.5, y, z, pitch: pitchFor(y, z, LINE_Y), roll };
+      const y = 0.55, z = -5.4;
+      return { x: X.D + 2.3, y, z, pitch: pitchFor(y, z, LINE_Y), roll };
     }
     // E: level, then hook 1's dip to the waterline and its slow push
     const u = ease.inOutCubic(prog(t, T.m2! - 0.12, T.m2! + 0.45));
@@ -283,7 +284,7 @@ export default class Mirror extends Scene {
     const pl = this.post.letters[0]!;
     const pW = 0.3 / Math.max(1, pl.box[2] - pl.box[0]);
     const rise = ease.outCubic(prog(t, T.foes! - 0.3, T.foes! + 0.4));
-    const px = (BEAM.x0 + BEAM.x1) / 2;
+    const px = X.D;
     this.run(this.post, px, WORD_Z + 0.25, pW, -0.4, () => 0, setup === 3 && t >= T.foes! - 0.3);
     pl.x = px - (pl.box[0] + pl.box[2]) / 2 * pW;
     this.post.update();
@@ -350,7 +351,7 @@ export default class Mirror extends Scene {
     } else if (setup === 3) {
       // a soft band pinned to the water under the beam; the black-figure pan with his men under OURSELVES?
       const p = poses[4]!, d = develop(T.ours! + 0.1), cx = (BEAM.x0 + BEAM.x1) / 2;
-      const ps = 0.1 * p.width, depth = Math.max(0, p.sink) + 0.15 + 2.2 * ps + 0.45;
+      const ps = 0.07 * p.width, depth = Math.max(0, p.sink) + 0.15 + 2.2 * ps + 0.45;
       const k = field(1, cx, BEAM.z, (BEAM.x1 - BEAM.x0) / 2 + 0.3, depth, d);
       (u.pan!.value as THREE.Vector4).set((p.x - cx) * k, (Math.max(0, p.sink) + 0.12 + 1.72 * ps) * k, ps * k, d);
     } else {
