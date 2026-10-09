@@ -2,11 +2,11 @@
 // (odysseus.ts) beside two generic shades for comparison, chosen with ?opt=:
 //   a  calm: the bow held low at his side      b  the archer: bow drawn, an arrow nocked
 //   c  the traveller: bow slung, a quiver      aturn  pose a, his head turned to look at us
-//   bturn  pose b turned to us; add "-nocap" for the bare head, "-plain" for no incision (e.g. opt=bturn-nocap)
+//   bturn  pose b turned to us; add "-loose" / "-tied" / "-short" for the hair, "-cap" for the cap, "-plain" for no incision (e.g. opt=bturn-tied)
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { GLSL_SHADE } from '../motifs';
-import { GLSL_ODYSSEUS, odysseusUniforms, setOdysseus, type OdyPose } from '../odysseus';
+import { GLSL_ODYSSEUS, odysseusUniforms, setOdysseus, type OdyHair, type OdyPose } from '../odysseus';
 import { Stage, keyLight } from '../stage';
 
 const R = 6.5, WALL_A = -Math.PI / 2;
@@ -40,13 +40,15 @@ export default class SketchSouls extends Scene {
   private pose: OdyPose = 'calm';
   private turn = 0;
   private incise = true;
-  private cap = true;
+  private cap = false;
+  private hair: OdyHair = 'loose';
 
   override async init() {
     const opt = (typeof location !== 'undefined' ? new URLSearchParams(location.search).get('opt') : null) ?? 'a';
     this.pose = opt.startsWith('b') ? 'archer' : opt.startsWith('c') ? 'traveller' : 'calm';
     this.turn = opt.includes('turn') ? 1 : 0;
-    this.cap = !opt.includes('nocap');
+    this.cap = opt.includes('-cap');
+    this.hair = opt.includes('tied') ? 'tied' : opt.includes('short') ? 'short' : 'loose';
     this.incise = !opt.endsWith('-plain');
     this.st = new Stage({
       hooks: HOOKS,
@@ -61,7 +63,7 @@ export default class SketchSouls extends Scene {
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const t = f.t, { renderer, audio } = this.ctx;
-    setOdysseus(this.st.bg.u, { x: -1.4, h: 4.1, pose: this.pose, turn: this.turn, cap: this.cap, incise: this.incise, lean: -0.75, stretch: 1.3 });
+    setOdysseus(this.st.bg.u, { x: -1.4, h: 4.1, pose: this.pose, turn: this.turn, cap: this.cap, hair: this.hair, incise: this.incise, lean: -0.75, stretch: 1.3 });
     // facing the wall square on, a little above floor level; the fire low behind us
     const pos = new THREE.Vector3(0.4, 1.6, 2.6), at = new THREE.Vector3(0.4, 2.1, -R);
     this.st.cam.set(pos, at, 42);
