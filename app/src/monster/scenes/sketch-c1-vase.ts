@@ -26,7 +26,7 @@ const RIM = { y: 6.42 * VS, r: 3.75 * VS };
 /** Polites's place along the band (frieze heights), and as arc length. */
 const POL_X = 6.15 * 1.95, POL_U = POL_X * FRZ.h;
 /** The procession: its step (frieze heights), the mourners' height, the leader's distance from Polites's centre. */
-const MSTEP = 0.42, MH = 0.86, LEAD = 0.84;
+const MSTEP = 0.42, MH = 0.86, LEAD = 1.0, PS = 1.2;
 /** The camera's pass: from U0 at T0, steady, easing to rest on Polites from TB to TE, then still. */
 const U0 = -5.0, T0 = 54.0, TB = 57.15, TE = 58.35;
 
@@ -93,19 +93,19 @@ float zigzag(vec2 b, float bh, float per) {
 // a mourner in profile, walking to the right: tall and thin, a long robe to the ankles, the head bowed, the near hand
 // raised to the head, the far arm hanging at the side (units of its height, feet at the origin)
 float mourner(vec2 p) {
-  vec2 hc = vec2(0.05, 0.9);
+  vec2 hc = vec2(0.068, 0.885);
   float d = length((p - hc) * vec2(0.92, 1.0)) - 0.05;                                 // the head, bowed forward
-  d = min(d, sdSegment(p, vec2(0.0, 0.79), vec2(0.03, 0.87)) - 0.02);                 // the neck
+  d = min(d, sdSegment(p, vec2(0.0, 0.79), vec2(0.048, 0.86)) - 0.02);                // the neck
   float y = p.y;
   float hw = y > 0.6 ? mix(0.04, 0.055, sat((y - 0.6) / 0.19)) : mix(0.072, 0.04, sat((y - 0.035) / 0.565));
-  float robe = max(abs(p.x - 0.015 * (y - 0.4)) - hw, max(y - 0.8, 0.035 - y));       // the robe, a touch forward
+  float robe = max(abs(p.x - 0.015 * (y - 0.4)) - hw, max(y - 0.8, 0.022 - y));       // the robe, a touch forward
   d = min(d, robe * 0.95);
   d = min(d, sdSegment(p, vec2(-0.02, 0.785), vec2(0.03, 0.785)) - 0.024);            // the shoulders
   d = min(d, sdSegment(p, vec2(0.03, 0.014), vec2(0.105, 0.014)) - 0.013);            // the feet, one a step ahead
   d = min(d, sdSegment(p, vec2(-0.075, 0.014), vec2(-0.02, 0.014)) - 0.012);
-  d = min(d, sdSegment(p, vec2(0.03, 0.775), vec2(0.135, 0.835)) - 0.015);             // the near arm raised,
-  d = min(d, sdSegment(p, vec2(0.135, 0.835), vec2(0.075, 0.95)) - 0.013);             // the hand laid on the head
-  d = min(d, length(p - vec2(0.06, 0.955)) - 0.019);
+  d = min(d, sdSegment(p, vec2(0.03, 0.775), vec2(0.15, 0.82)) - 0.015);                // the near arm raised,
+  d = min(d, sdSegment(p, vec2(0.15, 0.82), vec2(0.09, 0.935)) - 0.013);               // the hand laid on the head
+  d = min(d, length(p - vec2(0.075, 0.94)) - 0.019);
   d = min(d, sdSegment(p, vec2(-0.04, 0.77), vec2(-0.1, 0.47)) - 0.014);               // the far arm hanging
   d = min(d, length(p - vec2(-0.103, 0.455)) - 0.017);
   return d;
@@ -133,7 +133,7 @@ float polites(vec2 X) {
   float d = sdBox(X - vec2(0.0, 0.37), vec2(0.58, 0.026));                            // the bier
   d = min(d, sdBox(vec2(abs(X.x) - 0.5, X.y - 0.18), vec2(0.022, 0.18)));
   d = min(d, sdBox(vec2(abs(X.x) - 0.5, X.y - 0.025), vec2(0.045, 0.025)));
-  vec2 p = X - vec2(0.0, 0.47);                                                        // the body's axis
+  vec2 p = X - vec2(0.0, 0.5);                                                         // the body's axis
   d = min(d, length(p - vec2(-0.48, 0.0)) - 0.062);                                   // head
   d = min(d, sdSegment(p, vec2(-0.43, 0.0), vec2(-0.37, 0.0)) - 0.022);
   float tw = mix(0.075, 0.03, sat((p.x + 0.37) / 0.3));                               // torso
@@ -142,10 +142,11 @@ float polites(vec2 X) {
   d = min(d, sdSegment(p, vec2(0.2, -0.005), vec2(0.44, -0.015)) - 0.021);
   d = min(d, sdSegment(p, vec2(0.44, -0.015), vec2(0.455, 0.05)) - 0.015);
   for (int k = 0; k < 2; k++) {
-    // the far arm a little open above the body, the near one lower: both laid out towards the feet, palms up
-    float a = k == 0 ? 0.42 : 0.2;
-    vec2 sh = vec2(-0.34, 0.04), dir = vec2(cos(a), sin(a)), ha = sh + dir * 0.3;
-    d = min(d, sdSegment(p, sh, ha) - 0.019);
+    // the arms open low at either side (the far one drawn above the body, the near one below), laid out towards the
+    // feet a little apart from the body, the hands by the hips, palms up
+    float sy = k == 0 ? 1.0 : -1.0;
+    vec2 sh = vec2(-0.33, 0.035 * sy), ha = vec2(-0.05, 0.085 * sy);
+    d = min(d, sdSegment(p, sh, ha) - 0.017);
     d = min(d, sdSegment(p, ha, ha + vec2(0.05, 0.0)) - 0.014);                        // the open palm, flat
     d = min(d, sdSegment(p, ha + vec2(0.05, 0.0), ha + vec2(0.068, 0.03)) - 0.009);   // the fingers turned up
     d = min(d, sdSegment(p, ha, ha + vec2(0.0, 0.026)) - 0.009);                       // the thumb
@@ -156,12 +157,12 @@ float polites(vec2 X) {
 // Polites; the other dead on their biers at regular intervals along it (each bier takes two of the procession's
 // steps); beyond Polites the mourners face back to him. Returns (distance in frieze units, shroud ink).
 vec2 prothesis(vec2 X, float s) {
-  float P0 = ${POL_X.toFixed(4)}, S = ${MSTEP.toFixed(3)}, MH = ${MH.toFixed(3)}, LEAD = ${LEAD.toFixed(3)};
+  float P0 = ${POL_X.toFixed(4)}, S = ${MSTEP.toFixed(3)}, MH = ${MH.toFixed(3)}, LEAD = ${LEAD.toFixed(3)}, PS = ${PS.toFixed(2)};
   float d = 1e9, sh = 0.0;
   float x = X.x - P0;
-  if (abs(x) < 0.7) {
-    d = polites(X - vec2(P0, 0.0));
-    sh = shroud(vec2(x, X.y - 0.79), vec2(0.5, 0.075), s);
+  if (abs(x) < 0.85) {
+    d = polites((X - vec2(P0, 0.0)) / PS) * PS;
+    sh = shroud(vec2(x, X.y - 0.865), vec2(0.6, 0.075), s);
   }
   if (x < 0.0) {
     float nc = (-x - LEAD) / S;                         // the step, counted back from the leader
@@ -302,7 +303,7 @@ export default class SketchC1Vase extends Scene {
       uniforms: {
         Lc: { value: new THREE.Vector3() }, camP: { value: new THREE.Vector3() }, LI: { value: 1 }, reach: { value: 30 },
         phi: { value: 0 }, inner0: { value: (LIP_I + 0.5) / (PROFILE.length - 1) }, handle: { value: 0 },
-        keyK: { value: 0.5 }, poolP: { value: poolP }, poolC: { value: poolC }, poolI: { value: 0.75 }, poolR: { value: 2.3 },
+        keyK: { value: 0.17 }, poolP: { value: poolP }, poolC: { value: poolC }, poolI: { value: 1.3 }, poolR: { value: 2.0 },
       },
     });
     this.vase = new THREE.Mesh(geo, this.mat);
@@ -347,7 +348,7 @@ export default class SketchC1Vase extends Scene {
     // the camera: a steady height and distance, pulled back and raised to hold the band and the rim above it; only
     // its angle round the vase moves, then it rests on Polites
     const phi = camU(t) / R_BAND;
-    const rc = 17.2, cy = 9.9, ly = 8.75;
+    const rc = 15.0, cy = 9.6, ly = 8.85;
     const pos = new THREE.Vector3(rc * Math.sin(phi), cy, rc * Math.cos(phi));
     const at = new THREE.Vector3(R_BAND * Math.sin(phi), ly, R_BAND * Math.cos(phi));
     this.st.cam.set(pos, at, FOV);
