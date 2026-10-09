@@ -15,7 +15,7 @@ import { F } from '../../engine/type';
 import type { Line, Word } from '../../engine/lyrics';
 import { clamp, ease, keys, lerp, noise1, prog, pulse } from '../../engine/util';
 import { GLSL_FIGURES } from '../figures';
-import { POP, Stage, Word3D, keyLight, popHinge, popWords, type Letter } from '../stage';
+import { POP, Stage, Word3D, keyLight, popHinge, popHingeBy, popWords, type Letter } from '../stage';
 import { CUP, CupStage, FULL } from './circe-cup';
 
 // ---------------------------------------------------------------- the open: her shadow at the cup (the opening's)
@@ -44,7 +44,7 @@ const SMALL = 0.26;
 /** A world direction on the potion for an angle a (0: -z, screen-up when the camera's roll is 0; +pi/2: +x). */
 const dir = (a: number) => ({ x: Math.sin(a), z: -Math.cos(a) });
 
-type Pop = { exit?: number; exitDur?: number; ripple?: number; sink?: boolean };
+type Pop = { exit?: number; exitDur?: number; ripple?: number; sink?: boolean; upBy?: (number | undefined)[] };
 
 export default class Circe extends Scene {
   private open = new Stage({
@@ -220,7 +220,9 @@ export default class Circe extends Scene {
         const k = kIn.get(l.word) ?? 0;
         kIn.set(l.word, k + 1);
         const on = onsets[Math.min(l.word, onsets.length - 1)]!;
-        const uu = 1 - popHinge(t, on, k) / (Math.PI / 2);
+        const by = o.upBy?.[Math.min(l.word, o.upBy.length - 1)];
+        const ph = by !== undefined ? popHingeBy(t, on, k, by) : popHinge(t, on, k);
+        const uu = 1 - ph / (Math.PI / 2);
         const gone = prog(t, exit + k * rip, exit + k * rip + dur, o.sink ? ease.linear : ease.inOutQuad);
         const capW = w.cap * l.s;
         const ln = lean(l.x, l.z, lv);
@@ -228,7 +230,7 @@ export default class Circe extends Scene {
         l.hinge = h + (Math.PI / 2 + 0.05 - h) * gone * (o.sink ? 0.5 : 1);
         const bob = 0.02 * Math.sin(t * 2.3 + l.x * 1.7 + l.z);
         l.y = lv + bob * (stopped ? 0.2 : 1) * (1 - gone) - capW * 0.55 * (1 - Math.min(uu, 1)) - capW * (o.sink ? 1.05 * Math.max(0.3, Math.cos(h)) * gone : 0.7 * Math.max(0, (gone - 0.55) / 0.45));
-        l.on = t >= on - POP.lead + k * POP.ripple && t < exit + k * rip + dur && popHinge(t, on, k) <= 0.75 ? 1 : 0;   // (hideFlat)
+        l.on = t >= on - POP.lead + k * POP.ripple && t < exit + k * rip + dur && ph <= 0.75 ? 1 : 0;   // (hideFlat)
         l.mat.uniforms.glow!.value = 0.3 * Math.pow(0.5, Math.max(0, t - on) / 0.08) * (t >= on - 0.02 ? 1 : 0) * l.on;
       }
       w.update();
@@ -253,7 +255,9 @@ export default class Circe extends Scene {
       }, { exit: Math.min(tipT, or.start - 0.15), exitDur: 0.14 });
     }
     // line 3: "Or did she learn" | "to be" COLDER | "when she got" | OLDER (the C drops away)
-    cupPop(this.sD, W3.slice(0, 4).map((x) => x.start), rowAt(this.sD, pS.x, pS.z, SMALL), { exit: W3[4]!.start - POP.lead - 0.06, exitDur: 0.12 });
+    // ("learn" is short: its pop is up within min(0.12 s, its sung length), the frame checker's SLOW-RISE)
+    cupPop(this.sD, W3.slice(0, 4).map((x) => x.start), rowAt(this.sD, pS.x, pS.z, SMALL), { exit: W3[4]!.start - POP.lead - 0.06, exitDur: 0.12,
+      upBy: W3.slice(0, 4).map((x) => (x === this.w(this.l3, 'learn') ? Math.min(0.12, x.end - x.start) : undefined)) });
     cupPop(this.sE, W3.slice(4, 6).map((x) => x.start), rowAt(this.sE, pS.x, pS.z, SMALL), { exit: W3[7]!.start - POP.lead - 0.06, exitDur: 0.12 });
     cupPop(this.sF, W3.slice(7, 10).map((x) => x.start), rowAt(this.sF, pS.x, pS.z, SMALL), { exit: older.start - 0.02, exitDur: 0.12 });
     {

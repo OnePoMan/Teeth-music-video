@@ -919,7 +919,7 @@ function springStepFast(x: number) {
  * `upBy` (per word, s after onset) switches a word to the quick pop (see popHingeBy).
  */
 export function popWords(w: Word3D, onsets: number[], t: number, place: (l: Letter, i: number) => void,
-  o: { exit?: number; exitDur?: number; exitRipple?: number; glow?: number; amb?: number; upBy?: number[] } = {}) {
+  o: { exit?: number; exitDur?: number; exitRipple?: number; glow?: number; amb?: number; upBy?: (number | undefined)[] } = {}) {
   const exit = o.exit ?? 1e9, dur = o.exitDur ?? 0.22, rip = o.exitRipple ?? 0.01;
   const kInWord = new Map<number, number>();
   w.letters.forEach((l, i) => {
