@@ -53,14 +53,17 @@ vec3 surfaceTint(vec3 P, bool wall, float b, vec3 col) {
   return col + C_BONE * 0.8 * lineG;
 }`;
 
-/** Dispatches on ?opt: wrong (sketch-c1-wrong.ts), vase (sketch-c1-vase.ts), or (default) monster. Chorus 1 is being
+/** Dispatches on ?opt: wrong (sketch-c1-wrong.ts), vase (sketch-c1-vase.ts), scylla (sketch-c1-scylla.ts), shield
+ *  (sketch-c1-shield.ts), or (default) monster. Chorus 1 is being
  *  rebuilt one plate per line. */
 export default class SketchMirror extends Scene {
   private d!: Scene;
   override async init() {
     const opt = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('opt') : null;
     const C: SceneClass = opt === 'wrong' ? (await import('./sketch-c1-wrong')).default
-      : opt === 'vase' ? (await import('./sketch-c1-vase')).default : MirrorMonster;
+      : opt === 'vase' ? (await import('./sketch-c1-vase')).default
+      : opt === 'scylla' ? (await import('./sketch-c1-scylla')).default
+      : opt === 'shield' ? (await import('./sketch-c1-shield')).default : MirrorMonster;
     this.d = new C(this.ctx);
     await this.d.init();
   }
