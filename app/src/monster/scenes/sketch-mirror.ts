@@ -94,7 +94,7 @@ export default class SketchMirror extends Scene {
     small(sl(l9, 'what', 'wrong'), T.l10 - 0.1, () => ({ x: X.A - 2.3, z: -0.7, cap: 0.15, yaw: 0.25 }));
     small(sl(l10, 'all'), T.l11 - 0.1, () => ({ x: X.B + 2.2, z: -6, cap: 0.3, yaw: 0 }));
     small(sl(l11, 'caved', 'guilt'), T.l12 - 0.1, () => ({ x: X.C - 5.2, z: -6, cap: 0.3, yaw: 0 }));
-    small(sl(l13, 'but', 'ourselves'), T.l14 - 0.1, () => ({ x: X.D - 3.9, z: -12.5, cap: 0.2, yaw: 0 }));
+    small(sl(l13, 'but', 'ourselves'), T.slam! - 0.05, () => ({ x: X.D - 3.9, z: -12.5, cap: 0.2, yaw: 0 }));
   }
 
   /** The camera at time t: one move per line (crude between the key frames). */
@@ -113,7 +113,7 @@ export default class SketchMirror extends Scene {
       const roll = keys(t, [[T.foes!, 0], [T.foes! + 0.5, 0.07, (u) => ease.outBack(u, 1.8)], [T.small!, 0.07],
         [T.small! + 0.3, 0.1, (u) => ease.outBack(u, 2.2)], [T.ours!, 0.1], [T.ours! + 0.35, 0.14, ease.outCubic],
         [T.slam!, 0.14], [T.slam! + 0.25, 0.21, (u) => ease.outBack(u, 2.2)]]);
-      return { x: X.D, y: 0.55, z: -6.5, pitch: -0.05, roll };
+      return { x: X.D, y: 0.55, z: -7.6, pitch: -0.05, roll };
     }
     // levelled out, hook 1's dip to the waterline and its slow push
     const u = ease.inOutCubic(prog(t, T.m2! - 0.12, T.m2! + 0.45));
@@ -147,8 +147,8 @@ export default class SketchMirror extends Scene {
       { h: H.wrong, x: X.A, z: -4.6, width: 6.0, sink: 0 },
       { h: H.problem, x: X.B, z: -6, width: 3.6, sink: 0 },
       { h: H.guilt, x: X.C, z: -6, width: 6.4, sink: 0 },
-      { h: H.foes, x: X.D - 4.1, z: WORD_Z, width: 2.7, sink: 0 },
-      { h: H.ours, x: X.D + 1.9, z: WORD_Z, width: 7.0, sink: 0 },
+      { h: H.foes, x: X.D - 3.84, z: WORD_Z, width: 1.62, sink: 0 },
+      { h: H.ours, x: X.D + 1.12, z: WORD_Z, width: 7.0, sink: 0 },
       { h: H.monster, x: X.E, z: WORD_Z, width: BIG_W * fw(WORD_Z), sink: 0 },
     ];
     const cap = (p: Pose) => p.h.w.cap * sW(p.h, p.width);
@@ -170,8 +170,8 @@ export default class SketchMirror extends Scene {
     const pl = this.post.letters[0]!;
     const pW = 0.3 / Math.max(1, pl.box[2] - pl.box[0]);
     const rise = ease.outCubic(prog(t, T.foes! - 0.3, T.foes! + 0.4));
-    this.run(this.post, X.D - 2.1, WORD_Z + 0.1, pW, -0.4, () => 0, postOn);
-    pl.x = X.D - 2.1 - (pl.box[0] + pl.box[2]) / 2 * pW;
+    this.run(this.post, X.D - 2.68, WORD_Z + 0.1, pW, -0.4, () => 0, postOn);
+    pl.x = X.D - 2.68 - (pl.box[0] + pl.box[2]) / 2 * pW;
     this.post.update();
     const pk = (1.6 * rise + 0.4) / (this.post.cap * pW);
     pl.mesh.scale.y = pW * pk; pl.mesh.updateMatrixWorld(true);
@@ -205,7 +205,7 @@ export default class SketchMirror extends Scene {
     for (const v of fB) v.set(0, 0, 0, -1);
     (u.frz!.value as THREE.Vector4).set(0, 0, 0, 0);
     (u.pan!.value as THREE.Vector4).set(0, 0, 0, 0);
-    const a = proj(c.x - 1, 0, -6), b = proj(c.x + 1, 0, -6);
+    const a = proj(c.x - 1, 0, c.z - 6), b = proj(c.x + 1, 0, c.z - 6);
     u.fR!.value = Math.atan2(b.y - a.y, b.x - a.x);
     const develop = (on: number) => ease.outCubic(prog(t, on, on + 0.35));
     if (t < T.l10!) {
