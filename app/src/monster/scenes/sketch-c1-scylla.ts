@@ -47,19 +47,33 @@ float sdTaper(vec2 p, vec2 a, vec2 b, float r0, float r1) {
 }
 // The six heads' fan, right side (the left mirrors it): pair 0 the outer (high), pair 1 the middle (out to the side),
 // pair 2 the inner (hooked back in beside HIDING). Base in the cave's dark (B), struck head (E, facing F, neck control C),
-// and where each waits coiled at the lip with its jaws shut (E0, facing F0).
+// and where each waits at the lip with its jaws shut (E0, facing F0; the inner pair lies low, looking out along the rock).
 const vec2 HB[3] = vec2[3](vec2(1.5, 20.6), vec2(2.8, 19.3), vec2(3.1, 18.45));
-const vec2 HE[3] = vec2[3](vec2(4.2, 21.9), vec2(5.9, 19.7), vec2(5.6, 16.6));
+const vec2 HE[3] = vec2[3](vec2(4.1, 21.6), vec2(5.9, 19.7), vec2(5.6, 16.6));
 const vec2 HF[3] = vec2[3](vec2(0.922, 0.387), vec2(0.995, 0.0995), vec2(-0.989, -0.148));
 const vec2 HC[3] = vec2[3](vec2(2.72, 21.28), vec2(4.31, 19.54), vec2(7.38, 16.87));
-const vec2 HE0[3] = vec2[3](vec2(2.6, 21.7), vec2(4.4, 19.5), vec2(3.9, 17.2));
-const vec2 HF0[3] = vec2[3](vec2(0.819, 0.573), vec2(0.981, 0.196), vec2(-0.287, -0.958));
+const vec2 HE0[3] = vec2[3](vec2(2.6, 21.7), vec2(4.4, 19.5), vec2(4.0, 16.7));
+const vec2 HF0[3] = vec2[3](vec2(0.819, 0.573), vec2(0.981, 0.196), vec2(0.970, -0.243));
+// a convex quad (iq's polygon distance; sd, <0 inside)
+float sdQuad(vec2 p, vec2 v0, vec2 v1, vec2 v2, vec2 v3) {
+  vec2 v[4] = vec2[4](v0, v1, v2, v3);
+  float d = dot(p - v0, p - v0), s = 1.0;
+  for (int i = 0; i < 4; i++) {
+    vec2 vi = v[i], vj = v[(i + 3) % 4];
+    vec2 e = vj - vi, w = p - vi;
+    vec2 bq = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
+    d = min(d, dot(bq, bq));
+    bvec3 cc = bvec3(p.y >= vi.y, p.y < vj.y, e.x * w.y > e.y * w.x);
+    if (all(cc) || all(not(cc))) s = -s;
+  }
+  return s * sqrt(d);
+}
 // one fang off the upper jaw's mouth line at x0, long and curved slightly back (upper-jaw frame; sd, <0 inside)
 float fang(vec2 q, float x0, float L) {
   vec2 a = vec2(x0, 0.04), b = vec2(x0 - 0.03, -0.24 * L), c = vec2(x0 - 0.14, -0.48 * L);
   return min(sdTaper(q, a, b, 0.06, 0.038), sdTaper(q, b, c, 0.038, 0.004));
 }
-// Scylla: six thick necks out of the cave's dark, each ending in a serpent's head: a long flat wedge, the jaws
+// Scylla: six thick necks out of the cave's dark, each ending in a viper's head: a broad flat wedge, the jaws
 // snapping wide, two long fangs. strike[j] 0: pair j coiled at the lip, jaws shut; 1: struck out over the rock
 // (a little past 1 in the lunge's overshoot); jaw[j] the jaws' opening. Returns the ink (x), the incision back to
 // clay (y), added white (z).
@@ -69,45 +83,49 @@ vec3 scylla(vec2 p) {
   for (int i = 0; i < 6; i++) {
     int j = i / 2;
     vec2 m = vec2((i - j * 2) == 0 ? -1.0 : 1.0, 1.0);
-    float sk = strike[j], op = jaw[j], skc = clamp(sk, 0.0, 1.0), HS = 0.85 + 0.5 * sk;
+    float sk = strike[j], op = jaw[j], skc = clamp(sk, 0.0, 1.0), HS = 1.0 + 0.5 * sk;
     vec2 b = HB[j] * m, E0 = HE0[j] * m, e = mix(E0, HE[j] * m, sk);
-    vec2 c = mix(mix(b, E0, 0.5), HC[j] * m, sk);
-    vec2 f = normalize(mix(HF0[j] * m, HF[j] * m, skc));
+    vec2 F0 = HF0[j] * m, F1 = HF[j] * m;
+    vec2 c = mix(E0 - F0 * 0.5 * length(E0 - b), HC[j] * m, sk);
+    // the head turns from its waiting heading to its strike heading the short way round (the angle, not a mix)
+    float a0 = atan(F0.y, F0.x), dA = atan(F1.y, F1.x) - a0;
+    dA -= 6.2832 * floor((dA + 3.1416) / 6.2832);
+    vec2 f = vec2(cos(a0 + dA * skc), sin(a0 + dA * skc));
     // the neck: a quadratic sweep, thick and tapering
     float dmin = 1e9; vec2 q = b, dn = normalize(e - b), wv = vec2(-dn.y, dn.x) * 0.32 * skc * m.x;
     for (int k = 1; k <= 14; k++) {
       float s = float(k) / 14.0;
       vec2 q1 = mix(mix(b, c, s), mix(c, e, s), s) + wv * sin(6.2832 * s) * (1.0 - 0.5 * s);
-      dmin = min(dmin, sdTaper(p, q, q1, mix(0.42, 0.26, s - 1.0 / 14.0), mix(0.42, 0.26, s)));
+      dmin = min(dmin, sdTaper(p, q, q1, mix(0.42, 0.2, s - 1.0 / 14.0), mix(0.42, 0.2, s)));
       q = q1;
     }
     // the head, in its own frame: forward along f, "up" (the upper jaw's side) skyward, hinged at the origin
-    float sg = (HF[j].x * m.x) < 0.0 ? -1.0 : 1.0;
+    float sg = f.x < 0.0 ? -1.0 : 1.0;
     vec2 nrm = vec2(-f.y, f.x) * sg, hp = p - e;
     vec2 h = vec2(dot(hp, f), dot(hp, nrm)) / HS;
     float aU = mix(0.04, 0.6, op), aL = mix(0.03, 0.64, op);
     float cu = cos(aU), su = sin(aU), cl = cos(aL), sl = sin(aL);
     vec2 hu = vec2(cu * h.x + su * h.y, -su * h.x + cu * h.y);   // the upper jaw's frame (it turns up by aU)
     vec2 hl = vec2(cl * h.x - sl * h.y, sl * h.x + cl * h.y);    // the lower jaw's (it drops by aL)
-    // the upper jaw: a long flat wedge to the snout, its mouth line straight; the lower a thinner blade
-    float uj = max(sdTaper(hu, vec2(-0.25, 0.14), vec2(1.15, 0.05), 0.34, 0.09), -(hu.y + 0.02));
-    float lj = max(sdTaper(hl, vec2(-0.2, -0.08), vec2(1.0, -0.03), 0.22, 0.06), hl.y - 0.02);
-    float bk = sdTaper(h, vec2(-0.6, 0.02), vec2(-0.05, 0.05), 0.28, 0.33);   // the back of the head, over the hinge
+    // a viper's head: the upper jaw is the wedge's top plane, deep at the hinge corner and tapering to a blunt snout,
+    // its back edge slanting into the neck; the lower jaw a thinner tapered blade; a diamond fills behind the hinge
+    float uj = sdQuad(hu, vec2(-0.5, -0.02), vec2(-0.25, 0.48), vec2(1.1, 0.14), vec2(1.2, -0.02)) - 0.06;
+    float lj = sdQuad(hl, vec2(-0.5, 0.02), vec2(1.08, 0.02), vec2(1.02, -0.08), vec2(-0.22, -0.34)) - 0.04;
+    float bk = sdQuad(h, vec2(-0.55, 0.0), vec2(-0.25, 0.36), vec2(0.05, 0.0), vec2(-0.22, -0.3)) - 0.03;
     float ga = atan(h.y, h.x);
-    float gul = (ga > -aL && ga < aU && length(h) < 0.3) ? -0.01 : 1.0;      // the gape dark to the gullet
-    float fg = min(fang(hu, 0.95, 1.1), fang(hu, 0.72, 0.95));
+    float gul = (ga > -aL && ga < aU && length(h) < 0.26) ? -0.01 : 1.0;     // the gape dark to the gullet
+    float fg = min(fang(hu, 1.0, 1.15), fang(hu, 0.84, 1.0));               // at the front, behind the snout
     float fv = smoothstep(0.25, 0.6, op);
     float hd = min(min(uj, lj), min(bk, gul)) * HS;
     float d = min(min(dmin, hd), fv > 0.0 ? (fg - 0.035) * HS : 1e9);       // the fangs' ink outline
     float fi = 1.0 - smoothstep(-px, px, d);
     ink = max(ink, fi);
-    // incision: the neck's line; the eye (an almond), the jaw line, the seam where head meets neck
+    // incision: the neck's line; the eye (an almond over the hinge), the jaw line
     float l1 = 1.0 - smoothstep(lw - px, lw, abs(dmin + 0.1));
-    float eye = 1.0 - smoothstep(lw - px, lw, abs(length((hu - vec2(0.15, 0.25)) / vec2(1.0, 0.6)) - 0.09) * HS);
-    float jl = (1.0 - smoothstep(lw - px, lw, abs(hl.y + 0.12) * HS)) * step(-0.1, hl.x) * step(hl.x, 0.8);
-    float sm = (1.0 - smoothstep(lw - px, lw, abs(length(h - vec2(-0.1, 0.03)) - 0.5) * HS)) * step(h.x, -0.3);
+    float eye = 1.0 - smoothstep(lw - px, lw, abs(length((hu - vec2(-0.02, 0.27)) / vec2(1.0, 0.6)) - 0.075) * HS);
+    float jl = (1.0 - smoothstep(lw - px, lw, abs(hl.y + 0.1) * HS)) * step(-0.1, hl.x) * step(hl.x, 0.6);
     float headZone = step(hd, dmin + 0.05);
-    inc = max(inc, fi * max(l1 * (1.0 - headZone), headZone * max(max(eye, sm), jl * step(lj, 0.0))));
+    inc = max(inc, fi * max(l1 * (1.0 - headZone), headZone * max(eye, jl * step(lj, 0.0))));
     // the fangs: added white
     float tw = 1.0 - smoothstep(-px, px, fg * HS);
     wht = max(wht, tw * fv);
