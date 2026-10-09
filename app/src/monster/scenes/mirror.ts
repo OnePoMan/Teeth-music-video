@@ -161,7 +161,7 @@ export default class Mirror extends Scene {
     small(sl(l11, 'every', 'i'), before(w(l11, 'i')), cBC, cCD, onC);
     small(sl(l11, 'i', 'guilt'), 1e9, cBC, cCD, (wd) => ({ x: wC.x - wC.width / 2 - 0.25 - wd(0.4), z: wC.z, cap: 0.4, yaw: 0 }));
     // D: the phrases stand on the water near us, below the beam and clear of its words
-    const nearD = centred(X.D - 0.6, -11, 0.16);
+    const nearD = centred(X.D + 0.2, -11, 0.15);
     small(sl(l12, 'what', 'far'), before(w(l12, 'far')), cCD, cDE, nearD);
     small(sl(l12, 'far', 'foes'), before(w(l13, 'but')), cCD, cDE, nearD);
     small(sl(l13, 'but', 'ourselves'), T.ours! - 0.1, cCD, cDE, nearD);
@@ -251,9 +251,9 @@ export default class Mirror extends Scene {
 
     // ---- the bronze beam (D): it rises from the water just before FOES lands in its pan
     const beamUp = setup === 3 ? ease.outCubic(prog(t, T.foes! - 0.6, T.foes! - 0.1)) : 0;
-    const by = -0.34 * (1 - beamUp);
-    this.bar(this.beam, BEAM.x0, BEAM.x1, by, BEAM.z, BEAM.h, BEAM.knob, BEAM.knobW, (BEAM.knob - BEAM.h) / 2, BEAM.depth, setup === 3);
-    this.bar(this.pan, PAN.x0, PAN.x1, by + BEAM.h, BEAM.z, PAN.h, PAN.lip, PAN.lipW, 0, BEAM.depth, setup === 3);
+    const by = -0.6 * (1 - beamUp), beamOn = setup === 3 && t >= T.foes! - 0.6;
+    this.bar(this.beam, BEAM.x0, BEAM.x1, by, BEAM.z, BEAM.h, BEAM.knob, BEAM.knobW, (BEAM.knob - BEAM.h) / 2, BEAM.depth, beamOn);
+    this.bar(this.pan, PAN.x0, PAN.x1, by + BEAM.h, BEAM.z, PAN.h, PAN.lip, PAN.lipW, 0, BEAM.depth, beamOn);
     u.beamX!.value.set(BEAM.x0, BEAM.x1, beamUp);
 
     // ---- the heroes: where each stands, its scale, how far it is sunk (world), and its twin under the surface
@@ -284,7 +284,7 @@ export default class Mirror extends Scene {
     const pW = 0.3 / Math.max(1, pl.box[2] - pl.box[0]);
     const rise = ease.outCubic(prog(t, T.foes! - 0.3, T.foes! + 0.4));
     const px = (BEAM.x0 + BEAM.x1) / 2;
-    this.run(this.post, px, WORD_Z + 0.25, pW, -0.4, () => 0, setup === 3);
+    this.run(this.post, px, WORD_Z + 0.25, pW, -0.4, () => 0, setup === 3 && t >= T.foes! - 0.3);
     pl.x = px - (pl.box[0] + pl.box[2]) / 2 * pW;
     this.post.update();
     const pk = (1.6 * rise + 0.4) / (this.post.cap * pW);
