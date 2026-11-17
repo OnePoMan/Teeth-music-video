@@ -4,8 +4,8 @@ Read this first in every new session ("Continue Teeth v2 from the handoff"), the
 
 ## Where we are
 
-- **Gate 1 (treatment and plate list): in review by the client.** `docs/TEETH2.md` draft 4: two gauntlet rounds on paper, then the client's taste-call answers (T.F., apple, stakes guards, the splice as a clue). Awaiting final approval.
-- Next: **gate 2, the stills** (six real-engine 1080p renders listed at the end of the treatment). No plate is built until the client approves them.
+- **Gate 1 (treatment and plate list): approved by the client 2026-11-17.** `docs/TEETH2.md` draft 4 (two gauntlet rounds on paper, then the client's taste-call answers). PR #9 holds it; the client merges.
+- **Next, start here: gate 2, the stills** (six real-engine 1080p renders listed at the end of the treatment). No plate is built until the client approves them.
 - Later gates: 3 contact sheet of every plate, 4 1080p rough cut, 5 4K60 final (rendered overnight in segments).
 - **After the client approves a gate:** update this file, commit, push, open the gate's PR (`teeth-v2` → `main`; the client merges), and remind the client to start a new session.
 
