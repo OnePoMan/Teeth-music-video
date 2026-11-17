@@ -12,6 +12,7 @@ Read first: `docs/TEETH2.md` (the treatment: binding rules, palette, type, karao
 ## Files
 
 - Song: `app/src/song.ts` (`teeth`), edit: `app/src/teeth2/timeline.ts` (plate windows; `?board=<id>` for review boards). Do not edit either; ask the lead.
+- Post: every entry already gets the Teeth look from `app/src/teeth2/timeline.ts` (no HUD, bloom only above 1.0, cold halation tint, grain, vignette, CA). Return only the overrides your moment needs (flash, shake, exposure); never set `halationTint` warm.
 - Palette: `app/src/teeth2/palette.ts` (`T_HEX`, `T_LIN`, `trgba()`, `GLSL_TEETH_PALETTE` with `T_FILM` … `T_MATCH`). Use only these colours (plus tints and shades of them). Do not edit it; ask the lead.
 - Kit (shared, owned by the kit builder): `app/src/teeth2/teeth.ts` (the tooth set), `app/src/teeth2/monogram.ts` (the T.F. monogram). Read-only for plate builders.
 - Your plate: `app/src/teeth2/scenes/<id>.ts` plus your own helpers `app/src/teeth2/scenes/<id>-*.ts`. Touch nothing else. Never edit `app/src/engine/`; if you need an engine change, say so in your report.
