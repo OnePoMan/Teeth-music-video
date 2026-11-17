@@ -11,7 +11,9 @@ Every reviewer reads this before reviewing. Settled items are not re-raised. Tas
 - No "push me away" image shoves anything (plate 3 racks focus, plate 7 empties the chart).
 - Violet only in plate 6; luminol blue only in plate 11; red only from 165.16 to the folder closing (~186 s).
 - No flash before 48.73 (the first stomp).
-- The case is a bite mark, not a killing.
+- The case is a bite mark, not a killing. Stakes guards (rule 5): no body shapes, stains, spatter or tears; the only blood is one bloom over the heart of his shirt; nothing of hers is damaged or found.
+- The monogram is T.F.; the bitten object is the apple; the red stays on the lines (client, 2026-11-17).
+- The voicemail splice is a clue: the gloved hand makes the cut itself (plate 8). Client decision.
 
 ## Treatment reviews
 
@@ -21,3 +23,6 @@ Fixed: the twist made legible by a signed monogram (plates 2, 7, 11 → 13); `ma
 ### Round 2 (Opus high): draft 2 → draft 3
 Fixed: the hands-per-word trick kept in plate 6 only (9: relief words harden under a raking light; 10: the incisal pin clicks; 13: the red outline closes per tooth group); "let go" no longer a release three times (6: the glow decays; 9: the trimmer stops dead; 10 keeps the release); the polygraph SUBJECT left blank; plate 11 reordered (NAME blank with the bag open; seal and monogram on the 143.69 downbeat; lyric on the bag's clear face, lit by the glow; no prop rose, *rose* in wax Cormorant); v1 echoes removed (the wing fold, the shoves on "push me away", STAY as the clip); articulating paper marks the cusps, words engraved in the chrome and revealed by reflection; acetate on a dark desk over a print, the lyric uncovered by the pen's path; lyric placement specified for 11, 13 and 14; riff flicks one per real note with the gaps, the outro mirror 4 bars (193.76–200.66); no lift toward the lens; one readable label in 13; the plate 9 demould on a hard cut.
 Remaining items are taste calls (treatment, "Taste calls" 7–9 added). The gauntlet on paper stops here.
+
+### Client taste calls: draft 3 → draft 4
+The client answered taste calls 1–9 (treatment, end). Applied: T.F. monogram; stakes guards in rule 5, plate 3 (the bed reads as left) and plate 11 (one bloom over his heart); plate 8 rebuilt around a razor splice on tape that the glove makes; a warm-lamp variant added to the gate 2 colour sheet. Not reviewed again on paper; the plate 8 change gets its first review at the contact sheet.
