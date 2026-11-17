@@ -20,3 +20,6 @@ app/dist-bench/
 
 # git worktrees made for parallel agent work (Claude Code)
 .claude/worktrees/
+
+# Teeth: the commercial recording is not redistributed; place your copy at audio/teeth.mp3
+audio/teeth.mp3
