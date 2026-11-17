@@ -9,7 +9,7 @@
 //            frame checker (scripts/lint.ts): steps the scenes without drawing and checks every 3D letter against the
 //            sung timings (early/late pops, pops before a cut, overlaps, leftovers, crops, edge-on, two lines at once);
 //            --strict exits 1 on errors, --draw keeps the draw calls (slow; the checks are the same)
-//   --song monster|pdoom (all modes, default monster): which video (src/song.ts). `plates` is P(doom)-only.
+//   --song monster|pdoom|teeth (all modes, default monster): which video (src/song.ts). `plates` is P(doom)-only.
 //   --browser <path> / $CHROME_PATH: a Chromium binary instead of Google Chrome; --swiftshader: WebGL on the CPU (no GPU)
 //            --samples N averages N sub-frames per frame over shutter×(1/fps): motion blur + temporal AA;
 //            --samples auto picks the count per frame (4, 12, 36, 108 or 324, see Engine.render)
@@ -39,7 +39,7 @@ const hist = (h: Record<string, number>) => Object.entries(h).sort((a, b) => +a[
 const ROOT = path.resolve(APP, '..');
 // --song monster (default) | pdoom: which song's timeline, data and audio the app loads (see src/song.ts)
 const SONG = opt('song', 'monster')!;
-const SONG_AUDIO: Record<string, string> = { monster: 'audio/monster.mp3', pdoom: 'audio/pdoom.mp3' };
+const SONG_AUDIO: Record<string, string> = { monster: 'audio/monster.mp3', pdoom: 'audio/pdoom.mp3', teeth: 'audio/teeth.mp3' };
 
 async function reachable(url: string) {
   try { const r = await fetch(url, { signal: AbortSignal.timeout(1500) }); return r.ok; } catch { return false; }
