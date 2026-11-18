@@ -97,9 +97,9 @@ export default class Pour extends Scene {
       mk(L1, [6, 7], [R([0], 2.6), R([1], 6.4, wax, true)], 'A'),
       mk(L2, [0, 1, 2], [R([0, 1], 3.0), R([2], 6.0, wax, true)], 'A'),
       mk(L2, [3, 4], [R([0, 1], 6.5)], 'A'),
-      mk(L2, [5, 6], [R([0, 1], 8.0)], 'A'),
+      mk(L2, [5, 6], [R([0, 1], 8.0, hero)], 'A'),
       // the cast: on the poured base's front (about 13 mm high); TEETH alone ("heart got" stayed with the pour)
-      mk(L2, [7], [R([0], 8.0, hero)], 'B'),
+      mk(L2, [7], [R([0], 5.6, hero)], 'B'),
       mk(L3, [0, 1, 2], [R([0, 1, 2], 4.4)], 'B'),
       mk(L3, [3, 4, 5], [R([0, 1], 2.6), R([2], 6.8, hero)], 'B'),
       mk(L3, [6, 7], [R([0, 1], 5.0)], 'B'),
@@ -199,7 +199,7 @@ export default class Pour extends Scene {
       // "heart got": high and close over the words, the set front crossing
       { t0: 109.16, pos0: [24, 108, -98], pos1: [20, 102, -90], at0: [-2, 6, 12], at1: [-2, 6, 12], fov: 30, aper: 8, focus: [0, 12, 2] },
       // THE CAST: macro, low three-quarter from the patient's right, the lamp raking from the left
-      { t0: T_CUT, pos0: [-64, -13, -92], pos1: [-57, -15, -83], at0: [-5, -15, 5], at1: [-5, -15.5, 5], fov: 24, aper: 22, focus: [-4, -12, -8] },
+      { t0: T_CUT, pos0: [-6, -2.5, -112], pos1: [-5, -3.0, -102], at0: [-3, -13, 4], at1: [-3, -13.5, 4], fov: 26, aper: 14, focus: [-4, 0, -2] },
       { t0: 110.88, pos0: [70, 6, -110], pos1: [56, 2, -112], at0: [0, -15, 10], at1: [0, -15, 10], fov: 26, aper: 14, focus: [0, -14, -6] },
       { t0: 112.61, pos0: [-58, 24, -100], pos1: [-44, 18, -106], at0: [0, -16, 8], at1: [0, -16, 8], fov: 26, aper: 14, focus: [0, -14, -6] },
       { t0: 114.33, pos0: [8, 36, -118], pos1: [0, 28, -112], at0: [0, -15, 10], at1: [0, -15, 10], fov: 26, aper: 14, focus: [0, -14, -6] },
@@ -253,8 +253,9 @@ export default class Pour extends Scene {
       const r = POUR.RECT_A;
       (u.wordRect!.value as THREE.Vector4).set(r[0], r[1], r[2], r[3]);
     }
-    u.wordDepth!.value = castMode ? 0.5 : 0.7;
-    u.skirtK!.value = castMode ? 0.0 : 1.0;
+    // one relief for every word in the plate: Archivo risen out of the stone, a soft shoulder and a meniscus foot
+    u.wordDepth!.value = castMode ? 0.6 : 0.7;
+    u.skirtK!.value = 1.0;
     const rise = u.wRise!.value as number[], wet = u.wWet!.value as number[];
     rise.fill(0); wet.fill(0);
     if (p) {
@@ -282,23 +283,24 @@ export default class Pour extends Scene {
     let exposure = 1;
     if (!castMode) {
       // a work lamp up on the right of the bench (frame left), the overhead tube behind for the wet reflections
-      lp.set(num(qs, 'lax', -380), 190, -40);
+      // one low raking key (frame right), so the shiver, the bubbles and the relief read
+      lp.set(num(qs, 'lax', -400), num(qs, 'lay', 92), -70);
       aim = new THREE.Vector3(0, 10, 15);
       (u.tubeP!.value as THREE.Vector3).set(0, 520, 470);
-      u.lampI!.value = 1.0; u.tubeI!.value = 1.0; u.fillK!.value = 0.04; u.topK!.value = 0.05; u.keyK!.value = num(qs, 'kk', 2.4);
+      u.lampI!.value = 1.0; u.tubeI!.value = 0.35; u.fillK!.value = 0.018; u.topK!.value = 0.0; u.keyK!.value = num(qs, 'kk', 3.4);
       u.lampCone!.value = 0.8;
     } else {
       // the light event on the cut: the lamp swings onto the cast from the front and flares, settling low and raking
       const ev = t - T_CUT;
-      let az = lerp(1.55, num(qs, 'lang', 0.78), ease.outCubic(clamp(ev / 0.2)));
+      let az = lerp(1.55, num(qs, 'lang', 0.35), ease.outCubic(clamp(ev / 0.2)));
       // stub: a swing across the cast on each word of "Late night devil, put your hands on me"
       const L3 = this.phrases[7]!.words[0]!.line;
       this.ctx.lyrics.lines[L3]!.words.forEach((w, i) => { az += 0.5 * ease.inOutCubic(clamp((t - w.start + 0.05) / 0.3)) * (i % 2 ? -1 : 1); });
-      lp.set(300 * Math.cos(az), POUR.PB + num(qs, 'ly', 50), -300 * Math.sin(az));
+      lp.set(300 * Math.cos(az), POUR.PB + num(qs, 'ly', 38), -300 * Math.sin(az));
       aim = new THREE.Vector3(0, -15, 12);
       (u.tubeP!.value as THREE.Vector3).set(0, 600, 300);
       u.lampI!.value = num(qs, 'li', 1.0) + 0.9 * Math.exp(-ev / 0.05);
-      u.tubeI!.value = 0.3; u.fillK!.value = 0.012; u.topK!.value = num(qs, 'top', 0.05); u.keyK!.value = num(qs, 'kk', 2.6);
+      u.tubeI!.value = 0.3; u.fillK!.value = 0.012; u.topK!.value = num(qs, 'top', 0.05); u.keyK!.value = num(qs, 'kk', 1.2);
       u.lampCone!.value = 0.72;
       exposure = 1 + 0.3 * Math.exp(-ev / 0.06);
     }
@@ -313,9 +315,10 @@ export default class Pour extends Scene {
     const d = this.dof.u;
     d.src!.value = this.rt.texture;
     d.focusD!.value = fp.clone().sub(C.pos).dot(fw);
-    d.aper!.value = C.aper;
+    d.aper!.value = num(qs, 'aper', C.aper);
     d.maxCoc!.value = 16;
     this.dof.render(renderer, out);
-    return { exposure };
+    // nothing in this plate glows: no bloom (its soft knee haloed the lit stone against black), a trace of halation
+    return { exposure, bloom: 0, halation: 0.05 };
   }
 }

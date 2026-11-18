@@ -77,11 +77,11 @@ vec2 svB(vec3 p) { return vec2(-atan(p.x, CEN - p.z) * RB, p.y); }
 // bubbles: one per 4.6 mm cell at most; rise as a dome, burst, leave a crater that flows back
 float bubbles(vec2 xz, float wet) {
   if (wet < 0.02) return 0.0;
-  const float CS = 4.6;
+  const float CS = 7.0;
   vec2 c = floor(xz / CS);
-  if (hash12(c * 1.37 + 4.1) > 0.14) return 0.0;
+  if (hash12(c * 1.37 + 4.1) > 0.22) return 0.0;
   vec2 o = (c + 0.3 + 0.4 * hash22(c + 9.3)) * CS;
-  float r0 = 0.3 + 0.45 * hash12(c + 2.7);
+  float r0 = 0.45 + 0.6 * hash12(c + 2.7);
   float per = 1.3 + 1.6 * hash12(c + 7.9);
   float a = fract(time / per + hash12(c + 5.5));
   float d = length(xz - o);
@@ -90,11 +90,15 @@ float bubbles(vec2 xz, float wet) {
     float g = smoothstep(0.0, 0.75, a);
     float r = r0 * (0.4 + 0.6 * g);
     float q = d / r;
-    h = q < 1.0 ? r * 0.7 * g * sqrt(1.0 - q * q) : 0.0;
+    // the dome, and the slurry drawn up around its foot (a rim)
+    h = q < 1.0 ? r * 0.75 * g * sqrt(1.0 - q * q) : 0.0;
+    h += r * 0.12 * g * exp(-pow((q - 1.08) / 0.18, 2.0));
   } else {
+    // popped: a crater with a raised lip, flowing back level
     float b = (a - 0.75) / 0.25;
-    float q = d / (r0 * (1.0 + 0.5 * b));
-    h = -r0 * 0.45 * (1.0 - b) * (1.0 - b) * exp(-q * q * 2.2);
+    float q = d / (r0 * (1.0 + 0.4 * b));
+    float k = (1.0 - b) * (1.0 - b);
+    h = -r0 * 0.5 * k * exp(-q * q * 2.5) + r0 * 0.18 * k * exp(-pow((q - 1.0) / 0.22, 2.0));
   }
   return h * wet;
 }
@@ -111,20 +115,20 @@ float shiver(vec2 xz) {
 }
 // the alginate's surface (head of the tray frame): the rim inside the wall, the palate's dome; low in the trough
 float algH(float al) {
-  float rim = smoothstep(6.6, 8.6, al) * 2.9;
+  float rim = 0.0;
   float dome = (1.0 - smoothstep(-19.0, -7.2, al)) * (2.9 + 3.2 * (1.0 - smoothstep(-26.0, -12.0, al)));
   return SURF - 2.2 + rim + dome;
 }
 // the stone's surface height above SURF at xz; the wetness and the word sample
-float surfH(vec2 xz, float al, out float wet, out vec4 wd) {
+float surfH(vec2 xz, float al, float t2, out float wet, out vec4 wd) {
   float sm = setMask(xz);
   wet = wetAll * (1.0 - sm);
   wd = wordAt(svA(xz));
-  float wall = 7.6 - abs(al);
+  float wall = min(al + 7.6, -t2);   // distance to the palate's dome or to the tray wall
   float h = shiver(xz) * (1.0 - sm) * smoothstep(0.0, 2.0, wall) * (1.0 - smoothstep(0.02, 0.35, wd.w));
   h += bubbles(xz, wet) * (1.0 - wd.w) * smoothstep(1.0, 2.5, wall);
   h += wordDepth * wd.x;
-  h += 0.5 * exp(-max(wall, 0.0) / 0.7);   // the meniscus up the alginate
+  h += 0.7 * exp(-max(wall, 0.0) / 0.55);   // the meniscus, up the steel and the alginate
   return h;
 }
 // the stainless tray: walls, floor and the handle out of its front (tray frame: bottom on y = PAD)
@@ -170,11 +174,11 @@ float mapA(vec3 p, out int mat) {
   float alg = max(t2, (q.y - algH(al.x)) * 0.7);
   if (alg < d) { d = alg; mat = 6; }
   if (SHM) return d;
-  if (abs(al.x) < 8.6 && q.y > SURF - 3.0) {
+  if (al.x > -8.6 && q.y > SURF - 3.0) {
     float wet = 0.0; vec4 wd = vec4(0.0);
-    float h = surfH(q.xz, al.x, wet, wd);
+    float h = surfH(q.xz, al.x, t2, wet, wd);
     float g = wd.w > 0.0 ? wordDepth * wordSlope(svA(q.xz)) : 0.0;
-    float st = max(max(abs(al.x) - 8.2, t2), (q.y - SURF - h) / sqrt(1.0 + g * g) * 0.75);
+    float st = max(max(-al.x - 8.2, t2), (q.y - SURF - h) / sqrt(1.0 + g * g) * 0.75);
     if (st < d) { d = st; mat = 4; }
   }
   return d;
@@ -197,7 +201,7 @@ float voids(vec3 p) {
   vec3 c = floor(p / 1.1);
   vec3 h = hash33(c + 3.1);
   float d = 1e3;
-  if (h.x < 0.3) { vec3 o = (c + 0.3 + 0.4 * hash33(c + 7.7)) * 1.1; d = length(p - o) - (0.04 + 0.09 * h.y); }
+  if (h.x < 0.1) { vec3 o = (c + 0.3 + 0.4 * hash33(c + 7.7)) * 1.1; d = length(p - o) - (0.04 + 0.08 * h.y); }
   vec3 c2 = floor(p / 4.0);
   vec3 h2 = hash33(c2 + 11.3);
   if (h2.x < 0.07) { vec3 o = (c2 + 0.3 + 0.4 * hash33(c2 + 5.1)) * 4.0; d = min(d, length(p - o) - (0.15 + 0.25 * h2.y)); }
@@ -215,14 +219,17 @@ float crumbs(vec3 p) {
   vec3 h = hash33(vec3(c, 4.2));
   vec2 o = (c + 0.4 + 0.2 * hash22(c + 1.7)) * CS;
   float rr = length((o - vec2(0.0, 20.0)) / vec2(1.0, 1.25));
-  if (h.x > 0.3 * smoothstep(44.0, 50.0, rr) * (1.0 - smoothstep(62.0, 90.0, rr))) return min(bound, 1e3);
-  float r = 0.3 + 0.9 * h.y * h.y;
-  vec3 e = vec3(r * (0.8 + 0.5 * h.z), r * 0.6, r);
-  vec3 q = p - vec3(o.x, PB + e.y * 0.7, o.y);
+  if (h.x > 0.14 * smoothstep(44.0, 50.0, rr) * (1.0 - smoothstep(58.0, 78.0, rr))) return min(bound, 1e3);
+  float r = 0.35 + 0.85 * h.y * h.y;
+  vec3 q = p - vec3(o.x, PB + r * 0.45, o.y);
   q.xz = rot2(h.z * 6.28) * q.xz;
-  float dd = (length(q / e) - 1.0) * min(e.x, min(e.y, e.z));
-  dd += 0.14 * r * snoise(p * 2.6 / r + h * 9.0);
-  return min(dd * 0.8, bound);
+  // a chip of set stone: a few random cutting planes around a squat core, flat on the bench
+  float dd = max(abs(q.y) - r * 0.5, length(q.xz) - r * 1.3);
+  for (int k = 0; k < 5; k++) {
+    vec3 n = normalize(hash33(vec3(c, float(k) + 9.1)) * 2.0 - 1.0 + vec3(0.0, 0.25, 0.0));
+    dd = max(dd, dot(q, n) - r * (0.55 + 0.35 * hash12(c + float(k) * 3.3)));
+  }
+  return min(dd * 0.9, bound);
 }
 float mapB(vec3 p, out int id, out int mat) {
   p -= castOff;
@@ -314,8 +321,8 @@ vec3 envAt(vec3 P, vec3 R, float gain) {
   }
   vec3 lv = lampPos - P;
   float ld = length(lv);
-  float ar = 28.0 / ld;
-  c += T_LIGHTBOX * smoothstep(1.0 - ar * ar * 0.5, 1.0 - ar * ar * 0.3, dot(R, lv / ld)) * 0.9 * min(lampI, 1.0);
+  float ar = 55.0 / ld, cs = dot(R, lv / ld);
+  c += T_LIGHTBOX * (1.0 - smoothstep(ar * ar * 0.5 - 0.0003, ar * ar * 0.5, 1.0 - cs)) * 0.8 * min(lampI, 1.0);
   return c;
 }
 // the lamp: a spot (point + cone), its fall-off normalised to 1 at the subject (lampRef mm away)
@@ -382,7 +389,7 @@ vec4 shadePx(vec2 px) {
     if (mode == 1) {
       float rr = length((P.xz - castOff.xz - vec2(0.0, 20.0)) / vec2(1.0, 1.25));
       float dust = smoothstep(0.55, 0.9, snoise(P.xz * 0.9) * 0.5 + 0.5 + 0.25 * snoise(P.xz * 5.0)) * (1.0 - smoothstep(48.0, 85.0, rr));
-      alb = mix(alb, T_STONE * 0.3, dust * 0.6);
+      alb = mix(alb, T_STONE * 0.12, dust * 0.0);
     }
     float ca = clamp(0.3 + mapD(P + vec3(0.0, 3.0, 0.0)) / 4.0, 0.2, 1.0);
     col = alb * (keyK * max(ndl, 0.0) * att * sh + sky * 0.6) * ca;
@@ -411,10 +418,10 @@ vec4 shadePx(vec2 px) {
     col *= a;
   } else if (mat == 6) {
     // alginate: cool grey, moist, a soft sheen
-    vec3 alb = mix(T_FILM2 * 2.2, T_HALIDE * 0.5, 0.65) * (0.93 + 0.07 * snoise(P * 1.3));
+    // a matt slate (blue alginate): film2 lifted toward halide, distinct from the bright steel
+    vec3 alb = mix(T_FILM2 * 3.2, T_HALIDE * 0.3, 0.35) * (0.94 + 0.06 * snoise(P * 1.3) + 0.03 * snoise(P * 9.0));
     col = alb * softL(keyK * 0.85 * max(ndl, 0.0) * att * sh + sky + top);
-    col += T_LIGHTBOX * 0.06 * pow(max(dot(N, Hh), 0.0), 40.0) * att * sh;
-    col += envAt(P, reflect(rd, N), 2.5) * 0.02;
+    col += T_LIGHTBOX * 0.012 * pow(max(dot(N, Hh), 0.0), 8.0) * att * sh;
   } else {
     // dental stone: wet (darker, a mirror for the lab) or set (matt, powdery, porous)
     float wet = 0.0; vec4 wd = vec4(0.0);
@@ -422,7 +429,7 @@ vec4 shadePx(vec2 px) {
     if (mode == 0) {
       vec3 q = P - trayOff;
       vec2 al = tArchLine(q.xz, 0);
-      surfH(q.xz, al.x, wet, wd);
+      surfH(q.xz, al.x, smax(al.x - 10.5, q.z - 49.0, 3.0), wet, wd);
       wet = mix(wet, min(wet, wd.z), smoothstep(0.02, 0.3, wd.w));
       wax = wd.y * smoothstep(0.3, 0.6, wd.x);
       wet *= smoothstep(-1.0, 0.5, q.y - SURF);
@@ -443,8 +450,9 @@ vec4 shadePx(vec2 px) {
     if (wet > 0.0) {
       vec3 R = reflect(rd, N);
       float fr = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
-      col += min(envAt(P, R, 14.0) * fr * wet, vec3(0.85));
-      col += T_LIGHTBOX * 0.3 * pow(max(dot(N, Hh), 0.0), 300.0) * att * sh * wet;
+      col += min(envAt(P, R, 3.0) * fr * wet, vec3(0.8));
+      // the wet sheen: a broad, soft lobe of the key across the surface
+      col += T_LIGHTBOX * 0.2 * pow(max(dot(N, Hh), 0.0), 24.0) * att * sh * wet;
     }
   }
   return vec4(col, depth);
@@ -467,18 +475,21 @@ uniform sampler2D src; uniform float focusD, aper, maxCoc;
 const int NT = 144;
 float coc(float d) { return min(aper * abs(d - focusD) / max(d, 1e-3), maxCoc); }
 void main() {
-  vec4 c0 = texture(src, vUv);
+  // texelFetch, never filtered taps: a bilinear tap across a silhouette mixes the near and far depths into a fake
+  // mid depth with a large circle of confusion, which leaked the foreground's colour into the background as a halo
+  ivec2 P0 = ivec2(gl_FragCoord.xy), SZ = textureSize(src, 0);
+  vec4 c0 = texelFetch(src, P0, 0);
   float d0 = c0.a, r0 = coc(d0);
   float w0 = 1.0 / max(r0 * r0, 1.0);
   vec3 acc = c0.rgb * w0; float ws = w0;
   float R = max(min(maxCoc, r0 + 8.0), 1.0);
-  float rot = hash12(FRAG_PX) * 6.2831853;
+  float rot = 0.0;
   for (int i = 0; i < NT; i++) {
     float fi = float(i) + 0.5;
     float r = sqrt(fi / float(NT)) * R;
     float th = fi * 2.39996323 + rot;
     vec2 off = r * vec2(cos(th), sin(th));
-    vec4 s = texture(src, vUv + off / vec2(${W.toFixed(1)}, ${H.toFixed(1)}));
+    vec4 s = texelFetch(src, clamp(P0 + ivec2(floor(off * PX_SCALE + 0.5)), ivec2(0), SZ - 1), 0);
     float rs = coc(s.a);
     if (s.a > d0) rs = min(rs, r0 + 0.5);
     float w = sat(rs - r + 0.75) / max(rs * rs, 1.0);
