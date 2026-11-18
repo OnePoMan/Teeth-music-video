@@ -26,3 +26,18 @@ Remaining items are taste calls (treatment, "Taste calls" 7–9 added). The gaun
 
 ### Client taste calls: draft 3 → draft 4
 The client answered taste calls 1–9 (treatment, end). Applied: T.F. monogram; stakes guards in rule 5, plate 3 (the bed reads as left) and plate 11 (one bloom over his heart); plate 8 rebuilt around a razor splice on tape that the glove makes; a warm-lamp variant added to the gate 2 colour sheet. Not reviewed again on paper; the plate 8 change gets its first review at the contact sheet.
+
+## Gate 2 stills
+
+### Review 1 (fresh reviewer, Opus high): first renders → fix round 1
+Verdicts: drawer FIX, lightbox FIX/REWORK (shader), scale REWORK, pour REWORK (109.40) / FIX (110.20), match FIX (+ suspect rework), type sheet FIX (small). Top threats: the apple fails at a glance; the casts read as CG/toy and the pour vessel makes no forensic sense; the match logic (suspect = his cast, chip lock illegible, mannequin hand, monogram reads "JJ"); the radiograph reads as vector art; flat mid-grey light, lifted blacks, no light event on the money moments.
+
+Lead rulings from review 1 (settled):
+- **One tooth set**: every plate builds teeth from `app/src/teeth2/teeth.ts` (no private copies of the anatomy; fixes go into the kit).
+- **The acetate traces the bite, not the whole arch**: the bite records the anterior teeth (canine to canine, upper and lower), so plates 12–13 trace those incisal edges and cusp tips (as plate 5's bite shows). Plate 13's red outline closes per anterior tooth group, one per word. (Corrects "front teeth to molars" in the treatment.)
+- **Suspects never share his anatomy**: each suspect is a visibly different `archVariant`, never with the chip.
+- **Plate 13 labels**: NAME (with the monogram) is the readable label at the lock; MATCH is readable only from GO; never both in one frame.
+- **One pen hand** for everything a pen writes (polygraph, acetate, match): a technical single-stroke hand, not cursive.
+- **The apple reads as an apple**: true apple silhouette, stem well and stem; skin a deep, desaturated shade of wax over a stone-yellow ground (shades of palette tokens), so the wax-pink tender word (SWEET) still separates.
+- **Lighting**: real blacks (film), a hard source per plate, and a light event on each money moment (the first flash, the cut to the cast, the lock).
+- Repetition watch (rule 1): plates 5, 9 and 10 all carry words in a material (bitten, set in relief, engraved); each plate's motion idiom (flash, set wave, reflection flare) must dominate.
