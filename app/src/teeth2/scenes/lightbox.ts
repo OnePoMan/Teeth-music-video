@@ -14,7 +14,8 @@ import { FSPass, SS_TAP, SS_TAP_GLSL, SCALE } from '../../engine/gl';
 import { F, font } from '../../engine/type';
 import { clamp, ease, smoothstep, lerp } from '../../engine/util';
 import type { Line, Word } from '../../engine/lyrics';
-import { GLSL_TEETH_PALETTE } from '../palette';
+import { GLSL_TEETH_PALETTE, T_HEX, trgba } from '../palette';
+import { drawMonogram, monoWritten, MONO_H } from '../monogram';
 import { HIS, tooth, panoramic } from '../teeth';
 import { buildFilm, FILM, FILM_W, FILM_H, type FilmInfo } from './lightbox-film';
 
@@ -31,6 +32,7 @@ uniform vec4 filmRect;      // x0, y0, w, h (mm)
 uniform vec4 wordRect;      // x0, y0, w, h (mm) of the word layer
 uniform float focusT, aperture, box, boxCool, overex, texPpm;
 uniform vec2 loupe; uniform float loupeR;   // the loupe's lens on screen (logical px), radius (0: none)
+uniform sampler2D tagTex; uniform vec4 tagRect; uniform float tagRot, tagOn;   // the film's tag (centre, size mm)
 
 // the developed film at film point P (mm): density -> clearness b (0 black film .. 1 clear film)
 float bright(vec3 dn, vec2 P, float trabK) {
@@ -44,10 +46,10 @@ float bright(vec3 dn, vec2 P, float trabK) {
     float fib = 1.0 - abs(snoise(Q * 1.3));
     fib = fib * fib;
     float fib2 = 1.0 - abs(snoise(Q * 2.9 + 5.0));
-    float pores = smoothstep(0.35, 0.8, snoise(P * 2.4 + 17.0)) + 0.6 * smoothstep(0.5, 0.9, snoise(P * 5.1 + 3.0));
-    float fine = snoise(P * 7.5);
+    float pores = smoothstep(0.35, 0.8, snoise(P * 4.2 + 17.0)) + 0.6 * smoothstep(0.5, 0.9, snoise(P * 8.5 + 3.0));
+    float fine = snoise(P * 13.0);
     float web = 0.55 * fib + 0.3 * fib2 * fib2 - 0.45 * pores + 0.2 * fine - 0.35;
-    g *= 1.0 + trabK * boneish * 0.2 * web;
+    g *= 1.0 + trabK * boneish * 0.17 * web;
   }
   float mu = 1.3 * dn.r + 1.12 * g + 0.38 * dn.b;
   return 1.0 - exp(-mu * 1.2);
@@ -90,6 +92,9 @@ vec3 shade(vec2 px) {
   float bB = bright(dB, P, 0.0);
   b += 0.38 * (b - bB);
   b = clamp(b, 0.0, 1.0);
+  // the film's characteristic: the base and the air (soft tissue only) go to film black, bone a dark grey, the teeth
+  // and the metal up the scale
+  b = clamp((b - 0.17) / 0.83, 0.0, 1.0);
   // the sung words: radiopaque, a density in the film like the metal of a filling; it multiplies the film's
   // transmission, so the anatomy under a letter still shows a little through it; soft-edged like the rest of the image
   vec2 wuv = (P - wordRect.xy) / wordRect.zw;
@@ -151,17 +156,34 @@ vec3 shade(vec2 px) {
   // off the film: the bare lightbox, the brightest thing in frame (the diffuser's faint texture)
   vec3 bare = boxCol * box * 1.09 * (0.992 + 0.008 * snoise(P * 1.6));
   col = mix(bare, col, onFilm);
-  // a lightbox clip at the film's top edge: opaque, so a silhouette against the light, its metal edges catching a
-  // little of the room
-  vec2 cq = P - vec2(filmRect.x + filmRect.z - 34.0, filmRect.y + filmRect.w + 4.5);
-  vec2 cb = abs(cq) - vec2(8.0, 8.0) + 1.5;
-  float dClip = length(max(cb, 0.0)) + min(max(cb.x, cb.y), 0.0) - 1.5;
-  vec2 jq = cq - vec2(0.0, -8.6); vec2 jb = abs(jq) - vec2(6.4, 1.1) + 0.6;
-  dClip = min(dClip, length(max(jb, 0.0)) + min(max(jb.x, jb.y), 0.0) - 0.6);
+  // the film's tag, clipped to its corner: paper lit by the room, the type and his signature in ink
+  if (tagOn > 0.5) {
+    vec2 tq = rot2(-tagRot) * (P - tagRect.xy) / tagRect.zw + 0.5;
+    if (all(greaterThan(tq, vec2(0.0))) && all(lessThan(tq, vec2(1.0)))) {
+      vec4 tc = texture(tagTex, tq);
+      float room = 0.62 + 0.08 * tq.y - 0.05 * tq.x;
+      col = mix(col, tc.rgb * room, tc.a);
+    }
+  }
+  // a spring (bulldog) clip at the film's top edge, holding film and tag: front-lit steel; nothing casts a shadow onto
+  // backlit film
+  vec2 cq = (P - vec2(filmRect.x + filmRect.z - 22.0, filmRect.y + filmRect.w + 4.3)) / 0.68;   // (clip units: 0.68 mm)
+  float hwB = mix(10.0, 8.0, clamp((cq.y + 8.0) / 13.0, 0.0, 1.0));
+  float dBody = max(abs(cq.x) - hwB, max(-8.0 - cq.y, cq.y - 5.0)) ;
+  vec2 bq = abs(cq - vec2(0.0, 6.2)) - vec2(8.4, 1.5) + 1.4;
+  float dBar = length(max(bq, 0.0)) + min(max(bq.x, bq.y), 0.0) - 1.4;
+  vec2 wq = (cq - vec2(0.0, 6.5)) / vec2(7.2, 11.0);
+  float dWire = cq.y > 6.5 ? abs(length(wq) - 1.0) * 7.2 - 0.38 : 1e3;
+  float dClip = min(min(dBody, dBar), dWire);
   float aaC = max(fwidth(dClip) * 1.2, coc * 0.5);
   float onClip = 1.0 - smoothstep(-aaC, aaC, dClip);
-  float rim = 1.0 - smoothstep(0.0, 0.5, -dClip);
-  vec3 clipCol = T_FILM2 * (0.5 + 0.2 * smoothstep(-9.0, 9.0, cq.y)) + T_SILVER * 0.012 * rim;
+  float brushed = 0.94 + 0.06 * snoise(vec2(cq.x * 6.0, cq.y * 0.4));
+  vec3 steel = mix(T_SILVER * 0.32, T_HALIDE * 0.52, smoothstep(-8.0, 5.0, cq.y)) * brushed;
+  steel *= 1.0 + 0.35 * (1.0 - smoothstep(0.0, 0.8, -dBody)) * step(dBody, dBar);   // the bevelled edge catches light
+  float roll = clamp((cq.y - 6.2) / 1.5, -1.0, 1.0);
+  vec3 barCol = T_HALIDE * (0.28 + 0.5 * pow(max(1.0 - abs(roll - 0.35), 0.0), 3.0));
+  vec3 wireCol = T_SILVER * 0.45;
+  vec3 clipCol = dWire < min(dBody, dBar) ? wireCol : dBar < dBody ? barCol : steel;
   col = mix(col, clipCol, onClip);
   // the loupe: a lens's dark rim and the falloff at its edge
   if (loupeR > 0.0) {
@@ -187,6 +209,9 @@ export default class Lightbox extends Scene {
   private wcv!: HTMLCanvasElement;
   private wctx!: CanvasRenderingContext2D;
   private wordTex!: THREE.CanvasTexture;
+  private tagCv!: HTMLCanvasElement;
+  private tagTex!: THREE.CanvasTexture;
+  private tagLen = -1;
   private cam = new THREE.PerspectiveCamera(VFOV, 16 / 9, 1, 5000);
   private phrases: Phrase[] = [];
   private downbeats: number[] = [];
@@ -214,8 +239,16 @@ export default class Lightbox extends Scene {
       wordRect: { value: new THREE.Vector4(0, 0, 1, 1) },
       focusT: { value: 160 }, aperture: { value: 12 }, box: { value: 1 }, boxCool: { value: 0 }, overex: { value: 0 }, texPpm: { value: FILM.ppm },
       loupe: { value: new THREE.Vector2() }, loupeR: { value: 0 }, ssTap: SS_TAP,
+      tagTex: { value: null }, tagRect: { value: new THREE.Vector4(FILM.x1 - 34, FILM.y1 - 7.6, 44, 18.5) }, tagRot: { value: -0.025 }, tagOn: { value: 0 },
     });
     this.downbeats = this.ctx.audio.downbeats.filter((d) => d > this.ctx.start - 0.5 && d < this.ctx.end + 0.5);
+    this.tagCv = document.createElement('canvas');
+    this.tagCv.width = 1200 * SCALE; this.tagCv.height = 504 * SCALE;
+    this.tagTex = new THREE.CanvasTexture(this.tagCv);
+    this.tagTex.colorSpace = THREE.SRGBColorSpace;
+    this.tagTex.generateMipmaps = true;
+    this.tagTex.minFilter = THREE.LinearMipmapLinearFilter;
+    this.pass.u.tagTex!.value = this.tagTex;
     this.buildPhrases();
   }
 
@@ -248,6 +281,46 @@ export default class Lightbox extends Scene {
     this.phrases = list;
   }
 
+  // ------------------------------------------------------------------ the film's tag (the type sheet's design)
+  /** The tag in its own px (600 x 252, drawn at 2x): 08-32, RADIOGRAPH · PANORAMIC, EXAMINED BY and his signature,
+   *  written over 9.9 - 10.45 s with the pen's speed profile. Redrawn only while the ink moves. */
+  private drawTag(t: number) {
+    const len = monoWritten(t, 9.9, 10.45);
+    if (len === this.tagLen) return;
+    this.tagLen = len;
+    const c = this.tagCv.getContext('2d')!;
+    const w = 600, h = 252;
+    c.setTransform(2 * SCALE, 0, 0, 2 * SCALE, 0, 0);
+    c.clearRect(0, 0, w, h);
+    // the card: cold white stock, a faint tooth to it
+    c.fillStyle = T_HEX.lightbox;
+    c.beginPath(); c.roundRect(0, 0, w, h, 5); c.fill();
+    let sd = 7;
+    const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+    for (let i = 0; i < 900; i++) { c.fillStyle = trgba('halide', 0.05 + 0.08 * rnd()); c.fillRect(rnd() * w, rnd() * h, 1 + rnd() * 5, 0.6); }
+    c.strokeStyle = trgba('film', 0.22); c.lineWidth = 1;
+    c.strokeRect(12.5, 12.5, w - 25, h - 25);
+    // the punched hole and its reinforcement ring
+    c.fillStyle = trgba('halide', 0.9);
+    c.beginPath(); c.arc(44, h / 2, 17, 0, Math.PI * 2); c.fill();
+    c.globalCompositeOperation = 'destination-out';
+    c.beginPath(); c.arc(44, h / 2, 8, 0, Math.PI * 2); c.fill();
+    c.globalCompositeOperation = 'source-over';
+    const lab = (s: string, x: number, y: number, size: number, wt: number, col: string, track: number) => {
+      c.font = font(F.mono(wt), size); (c as unknown as { letterSpacing: string }).letterSpacing = `px`;
+      c.fillStyle = col; c.fillText(s, x, y);
+    };
+    lab('08-32', 86, 50, 22, 600, T_HEX.film, 3);
+    lab('RADIOGRAPH · PANORAMIC', 86, 72, 11, 500, trgba('film', 0.6), 2);
+    lab('EXAMINED BY', 86, h - 30, 10, 500, trgba('film', 0.6), 2);
+    (c as unknown as { letterSpacing: string }).letterSpacing = '0px';
+    c.fillStyle = trgba('film', 0.45);
+    c.fillRect(190, h - 34, w - 230, 1);
+    const sz = 296;
+    if (len > 0) drawMonogram(c, len, { x: 288, y: h - 34 - sz * MONO_H * 0.84, size: sz, width: 4.6, pressure: 0.9, color: T_HEX.film2 });
+    this.tagTex.needsUpdate = true;
+  }
+
   // ------------------------------------------------------------------ the camera
   /** Film point at the centre of view, visible width (mm) and tilt, as a function of time. */
   private camState(t: number): { cx: number; cy: number; w: number; yaw: number; pitch: number; loupe: number } {
@@ -272,7 +345,7 @@ export default class Lightbox extends Scene {
       const k = ease.inOutCubic(clamp((t - tc0) / 0.5));
       const drift = (t - tc0) * 1.2;
       cx = lerp(2 + 9 * (tc0 - 9.05), FILM.x1 - 33 + drift, k);
-      cy = lerp(0.5, FILM.y1 - 16.5, k);
+      cy = lerp(0.5, FILM.y1 - 10.5, k);
       w = lerp(120, 74, k);
     }
     // "Can't look away" x2: the loupe pushes in to #8 in two steps
@@ -332,13 +405,13 @@ export default class Lightbox extends Scene {
     if (p.layout) return p.layout;
     const ref = p.hero >= 0 ? p.words[p.hero]!.start + 0.12 : p.words[0]!.start + 0.1;
     this.placeCamera(ref);
-    const [x0, y0] = this.toFilm(960, 200);
-    const [x1] = this.toFilm(1060, 200);
+    const [x0, y0] = this.toFilm(960, 232);
+    const [x1] = this.toFilm(1060, 232);
     const mmPerPx = (x1 - x0) / 100;
     const c = this.wctx;
     const heroFam = F.archivo(125, 900), supFam = F.archivo(112, 500);
     // sizes in mm (font px at 1 mm = 1 unit)
-    const heroCapPx = 250, supCapPx = p.hero >= 0 ? 66 : 92;
+    const heroCapPx = 236, supCapPx = p.hero >= 0 ? 66 : 92;
     const sizes: number[] = [], fams: string[] = [], widths: number[] = [];
     const capK = 0.715; // Archivo cap height / em
     p.words.forEach((w, i) => {
@@ -440,6 +513,9 @@ export default class Lightbox extends Scene {
     // the loupe
     (u.loupe!.value as THREE.Vector2).set(960, 540);
     u.loupeR!.value = s.loupe > 0.01 ? lerp(1400, 470, s.loupe) : 0;
+    // the tag, clipped to the film's corner and signed (the monogram's first sighting): from 9.5 on
+    u.tagOn!.value = t >= 9.5 ? 1 : 0;
+    if (t >= 9.5) this.drawTag(t);
     // the words
     const r = this.drawWords(t);
     if (r) {

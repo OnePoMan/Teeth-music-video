@@ -635,8 +635,11 @@ function crownCtl(t: Tooth): [number, number, boolean][] {
 }
 
 /** Root control points, distal CEJ -> apex(es) -> mesial CEJ (exclusive of the CEJ points); [s, h]. */
+/** Root length drawn in the buccal profile: the lower anteriors' roots a little shorter than the table (their crowns
+ *  read short on a pano; the crown : root ratio stays ~1 : 1.2 - 1.4). */
+function profileRootL(t: Tooth) { return t.rootL * (t.jaw === 'lower' && t.pos <= 2 ? 0.82 : 1); }
 function rootCtl(t: Tooth): { pts: V2[]; apices: V2[]; trunk: number; extra: V2[][] } {
-  const C = t.cervMD / 2, R = t.rootL;
+  const C = t.cervMD / 2, R = profileRootL(t);
   const curve = t.cls === 'molar' ? 1.6 : t.cls === 'canine' ? 0.9 : 0.6; // apices bend distally
   const bend = (s: number, h: number): V2 => [s + curve * Math.pow(Math.max(0, -h) / R, 2), h];
   if (t.cls !== 'molar' || t.type === 'molar3') {
@@ -685,7 +688,7 @@ const profileCache = new WeakMap<Tooth, Profile>();
 export function buccalProfile(t: Tooth): Profile {
   const hit = profileCache.get(t);
   if (hit) return hit;
-  const H = t.crownH, R = t.rootL, C = t.cervMD / 2, M = t.md / 2;
+  const H = t.crownH, R = profileRootL(t), C = t.cervMD / 2, M = t.md / 2;
   const cc = crownCtl(t);
   const rr = rootCtl(t);
   // whole outline
@@ -997,7 +1000,8 @@ float tCrownPost(int i, vec3 q, vec4 D) {
  *  with rounded corners (incisors) or a cusp (canines, pegs); the chip off the mesial-incisal corner. */
 float tCrownAnt(int i, vec3 q, vec4 D, bool pointed) {
   vec4 cer = tth(i, 3), shp = tth(i, 4), E = tth(i, 5), ch = tth(i, 6);
-  float A = D.x, B = D.y, H = D.z;
+  // (a touch wider than the nominal crown, so neighbours meet at their contact points: a tight arch, no gaps)
+  float A = D.x * 1.05, B = D.y, H = D.z;
   float a = q.x, b = q.y, c = q.z;
   float t = clamp(c / H, -0.5, 1.2);
   float u = a / A, u2 = min(u * u, 1.6);
@@ -1012,7 +1016,7 @@ float tCrownAnt(int i, vec3 q, vec4 D, bool pointed) {
   } else {
     // incisors: three labial lobes, two shallow developmental depressions between them in the incisal two thirds
     float au = abs(u);
-    lab -= 0.14 * exp(-((au - 0.36) * (au - 0.36)) / 0.012) * smoothstep(0.3, 0.85, t);
+    lab -= 0.05 * exp(-((au - 0.36) * (au - 0.36)) / 0.03) * smoothstep(0.35, 0.85, t);
   }
   // the lingual face: the cingulum near the cervix, the fossa between marginal ridges
   float rs = 1.0 - smoothstep(0.04, 0.9, t);
@@ -1044,13 +1048,15 @@ float tCrownAnt(int i, vec3 q, vec4 D, bool pointed) {
     d = smax(d2, length(max(w, 0.0)) + min(max(w.x, w.y), 0.0) - r, 0.25);
   }
   if (ch.x > 0.5) {
-    // the chip: a clean fracture facet off the mesial-incisal corner (a plane, slightly conchoidal), crisp edges
-    vec2 P0 = vec2(-A + ch.y, H + 0.2), P1 = vec2(-A - 0.2, H - ch.z);
-    vec2 e = normalize(P1 - P0), n = vec2(-e.y, e.x);
-    if (dot(vec2(-A, H) - P0, n) < 0.0) n = -n;
-    float along = dot(vec2(a, c) - P0, e);
-    float conch = 0.025 * sin(along * 1.7);
-    d = max(d, dot(vec2(a, c) - P0, n) + conch);
+    // the chip: material missing off the mesial-incisal corner; a shallow concave (conchoidal) fracture scooped
+    // straight through the edge, meeting the incisal edge "along" mm from the corner and the mesial side "down" mm
+    // below it, with crisp edges (a sphere subtracted, no blending)
+    float al = ch.y, dn = ch.z, yy = 1.0;
+    float xx = (dn * dn - al * al + 2.0 * dn * yy) / (2.0 * al);
+    vec2 cc = vec2(-A - xx, H + yy);
+    float R = length(vec2(al + xx, yy));
+    float ds = length(vec3(a - cc.x, (b - eB) * 0.45, c - cc.y));
+    d = max(d, R - ds);
   }
   return d;
 }
@@ -1073,7 +1079,7 @@ float tSocket(int i, vec3 p) {
   float s2 = tSuper(q.xy + vec2(0.0, 0.3), hw, 2.4, 2.4).x;
   float ua = abs(q.x) / hw.x;
   // the margin follows the cervical line; the papillae fill the embrasures as low, rounded cones (not spikes)
-  float gc = 0.75 + 0.62 * ch.w * smoothstep(0.5, 1.15, ua);
+  float gc = 0.75 + ch.w * smoothstep(0.4, 1.05, ua);   // the papillae fill the embrasures up to the contacts
   float d = smax(s2, (q.z - gc) * 0.8, 1.3);
   return max(d, -9.0 - q.z);
 }
