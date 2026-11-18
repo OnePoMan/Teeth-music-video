@@ -17,11 +17,11 @@ import { Scene, type Frame } from '../../engine/scene';
 import { FSPass, SS_TAP, SCALE } from '../../engine/gl';
 import { clamp, ease, lerp, pulse, mulberry32 } from '../../engine/util';
 import type { Line } from '../../engine/lyrics';
-import { HIS, archVariant, TeethTex, type Arch } from '../teeth';
+import { HIS, archVariant, TeethTex, tooth, cuspTips, type Arch, type V2 } from '../teeth';
 import { monoPenAt, monoWritten, MONOGRAM } from '../monogram';
 import { PHOTO_FRAG, MAIN_FRAG } from './match-glsl';
 import {
-  PHOTO, LABEL, buildTracing, buildStamp, buildLabelBase, drawLabel, labelCanvas, drawLyric, lyricCanvas,
+  PHOTO, PHOTO_SCALE, LABEL, buildTracing, buildStamp, buildLabelBase, drawLabel, labelCanvas, drawLyric, lyricCanvas,
   layoutPhrase, monoToLabel, chipPoint, type Phrase,
 } from './match-ink';
 
@@ -32,12 +32,35 @@ const SLIDE = 0.09;
 /** Photo resolution: px per arch mm (the photo is printed 2:1). */
 const PHOTO_PPM = 15;
 /** The suspects, one per beat (archVariant seeds), chosen for features that show in the upper front teeth from above
- *  (a missing or peg lateral, a gap between the centrals, crowding, flaring); 163.0 gets #7 missing with crowding. */
-const SUSPECTS = [5, 25, 13, 4, 33, 17, 2, 29, 12, 1, 37, 35];
+ *  (a missing or peg lateral, a gap between the centrals, crowding, flaring); 163.0 gets a gap between the centrals
+ *  and #10 missing (seed 11). */
+const SUSPECTS = [12, 1, 37, 29, 5, 10, 34, 25, 11, 33, 17, 15];
 
 interface Pose { x: number; y: number; th: number }
 interface Ev { t: number; seed: number; pose: Pose; from: [number, number] }
 interface Cam { cx: number; cy: number; w: number; roll: number; tilt: number; yaw: number }
+
+/** Register a suspect's print on the tracing the way an examiner would: a rigid fit (no scale: the photographs are
+ *  at the tracing's scale) of the suspect's midline point and canine tips onto his. The failure then shows in the
+ *  teeth themselves (a gap under a bar, a canine tip on a lateral, a rotated tooth across a bar), not as an offset. */
+function register(arch: Arch): Pose {
+  const pts = (a: Arch): V2[] => {
+    const c6 = cuspTips(tooth(a, 6))[0]!.p, c11 = cuspTips(tooth(a, 11))[0]!.p;
+    const mid: V2 = [(tooth(a, 8).contactM[0] + tooth(a, 9).contactM[0]) / 2, (tooth(a, 8).contactM[1] + tooth(a, 9).contactM[1]) / 2];
+    return [mid, mid, c6, c11].map(([x, y]) => [x * PHOTO_SCALE, y * PHOTO_SCALE] as V2); // the midline counts twice
+  };
+  const S = pts(arch), H = pts(HIS);
+  const cen = (P: V2[]) => P.reduce((m, p) => [m[0] + p[0] / P.length, m[1] + p[1] / P.length] as V2, [0, 0] as V2);
+  const cs = cen(S), ch = cen(H);
+  let sn = 0, cn = 0;
+  S.forEach((p, i) => {
+    const a = [p[0] - cs[0], p[1] - cs[1]], b = [H[i]![0] - ch[0], H[i]![1] - ch[1]];
+    cn += a[0]! * b[0]! + a[1]! * b[1]!; sn += a[0]! * b[1]! - a[1]! * b[0]!;
+  });
+  const th = Math.atan2(sn, cn), c = Math.cos(th), s = Math.sin(th);
+  // table = R(th) q + o, R = [c -s; s c]
+  return { x: ch[0] - (c * cs[0] - s * cs[1]), y: ch[1] - (s * cs[0] + c * cs[1]), th };
+}
 
 const dataTex = (cv: HTMLCanvasElement) => {
   const t = new THREE.CanvasTexture(cv);
@@ -82,7 +105,7 @@ export default class Match extends Scene {
       labTex: { value: this.labTex }, labBlank: { value: labBlank }, stampTex: { value: stamp },
       prA: { value: new THREE.Vector4() }, prB: { value: new THREE.Vector4() },
       flush: { value: 0 }, redGlow: { value: 0 }, stamp: { value: new THREE.Vector4() },
-      keyPos: { value: new THREE.Vector3(329, 318, 560) }, lampK: { value: 1 }, ring: { value: new THREE.Vector4() },
+      keyPos: { value: new THREE.Vector3(329, 318, 560) }, lampK: { value: 1 }, cone: { value: new THREE.Vector2() }, ring: { value: new THREE.Vector4() },
       hTip: { value: new THREE.Vector3() }, hE1: { value: new THREE.Vector3() }, hE2: { value: new THREE.Vector3() }, hE3: { value: new THREE.Vector3() },
       handOn: { value: 0 }, ssTap: SS_TAP,
     });
@@ -94,7 +117,8 @@ export default class Match extends Scene {
     const dirs: [number, number][] = [[1, 0.15], [-0.2, -1], [-1, 0.2], [0.25, 1], [1, -0.3], [-1, -0.25], [0.1, -1], [-0.3, 1]];
     sb.forEach((b, i) => {
       const seed = SUSPECTS[i % SUSPECTS.length]!;
-      this.evs.push({ t: b, seed, pose: { x: (R() - 0.5) * 9, y: (R() - 0.5) * 7 - 2, th: (R() - 0.5) * 0.07 }, from: dirs[i % dirs.length]! });
+      const reg = register(archVariant(seed));
+      this.evs.push({ t: b, seed, pose: { x: reg.x + (R() - 0.5) * 1.2, y: reg.y + (R() - 0.5) * 1.2, th: reg.th + (R() - 0.5) * 0.012 }, from: dirs[i % dirs.length]! });
     });
     this.evs.push({ t: 164.41, seed: 0, pose: { x: 0, y: 0, th: 0 }, from: [1, 0.35] });
     this.buildPhrases();
@@ -154,9 +178,9 @@ export default class Match extends Scene {
     let { x, y, th } = e.pose;
     x += e.from[0] * D; y += e.from[1] * D; th += (1 - k) * 0.12 * Math.sign(e.from[0] || 1);
     if (e.seed !== 0) {
-      // the examiner nudges a suspect's print toward the tracing during its beat (it never fits)
+      // registered on the midline and the canines, the examiner rocks it a hair (it still fails on the teeth)
       const n = clamp((t - e.t - 0.1) / 0.3);
-      x -= e.pose.x * 0.25 * ease.inOutCubic(n); th -= e.pose.th * 0.4 * ease.inOutCubic(n);
+      x += 0.8 * Math.sin(n * 3.1); th += 0.004 * Math.sin(n * 3.1);
     } else {
       // his: lands off the mark, slides into place on "got", locks on "teeth"
       const off = { x: 13, y: 8.5, th: 0.075 };
@@ -298,8 +322,14 @@ export default class Match extends Scene {
     // the red: the tracing tooth by tooth from the molars, the chip on #8 last; a lift that settles
     u.flush!.value = t < T_LOCK ? -0.1 : clamp((t - T_LOCK) / 0.24) * 1.04;
     u.redGlow!.value = t < T_LOCK ? 0 : 0.85 * pulse(t, T_LOCK, 0.4) + 0.22;
-    // the light event: the copy-stand lamp kicks on the lock (a surge as the print snaps home) and settles
-    u.lampK!.value = 1 + (t < T_LOCK ? 0 : 0.6 * pulse(t, T_LOCK, 0.09) + 0.08 * pulse(t, T_LOCK, 0.6));
+    // the light event: on the lock the examiner snaps the lamp down onto the sheet: a surge, then an exposure step that
+    // holds, the beam tighter and harder (the pool closes on the bite, the label and the hand; the edges go to film black)
+    const lockK = t < T_LOCK ? 0 : ease.outCubic(clamp((t - T_LOCK) / 0.05));
+    u.lampK!.value = 0.86 + 0.28 * lockK + (t < T_LOCK ? 0 : 0.35 * pulse(t, T_LOCK, 0.08));
+    const deg = Math.PI / 180;
+    (u.cone!.value as THREE.Vector2).set(Math.cos(lerp(4, 5, lockK) * deg), Math.cos(lerp(9, 10.5, lockK) * deg));
+    // ...and pulled lower and closer: every shadow (the hand, the prints, the acetate edge) snaps harder and longer
+    (u.keyPos!.value as THREE.Vector3).set(lerp(329, 310, lockK), lerp(318, 305, lockK), lerp(560, 520, lockK));
     // the examiner's ring round the chip, drawn as the red reaches #8 (it stays until the end of the plate)
     const [rx, ry] = chipPoint();
     (u.ring!.value as THREE.Vector4).set(rx - 1.0, ry - 1.5, 8.0, clamp((t - 165.31) / 0.16) * 1.06);

@@ -105,6 +105,8 @@ void main() {
     col = alb * (0.72 * wrap * mix(0.45, 1.0, sh) + 0.36 * wrap2 * mix(0.5, 1.0, sh2) + 0.26 * mix(o, 1.0, 0.35) * (0.6 + 0.4 * N.y) + 0.05);
     vec3 V = -rd, Hh = normalize(L + V);
     col += T_LIGHTBOX * 0.025 * pow(max(dot(N, Hh), 0.0), 16.0) * sh;
+    // a floor of light from the copy stand's diffusers: no crease in the stone goes to black (it would read as a drawn line)
+    col = max(col, alb * 0.13);
   }
   // the print: exposure, a gentle toe and shoulder, a touch of the lens's falloff
   vec2 c = uv - 0.5;
@@ -205,24 +207,25 @@ uniform float flush, redGlow;   // the tracing's red sweep (0..1), the red's lif
 uniform vec4 ring;              // the examiner's ring round the chip: x, y (table mm), radius, drawn 0..1
 uniform vec4 stamp;             // MATCH: x, y (table mm, centre), angle, ink 0..1
 uniform vec3 keyPos;            // the copy-stand lamp (world)
-uniform float lampK;            // its brightness (kicks on the lock)
+uniform float lampK;            // its brightness (steps up on the lock)
+uniform vec2 cone;              // its beam: cos of the inner and outer half-angles (snaps tighter on the lock)
 uniform vec3 hTip, hE1, hE2, hE3; uniform float handOn;
 
 const float Z_PAPER = 0.4, Z_AC = 1.3;
-const vec3 AIM = vec3(30.0, 20.0, 0.0);   // where the lamp points (world)
+const vec3 AIM = vec3(24.0, 28.0, 0.0);   // where the lamp points (world)
 vec2 TB(vec3 p) { return vec2(p.x, -p.y); }   // world -> table (y down)
 float sdBox2(vec2 p, vec2 c, vec2 h, float r) { vec2 q = abs(p - c) - h + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
 vec2 toPrint(vec2 tp, vec4 pr) { vec2 d = tp - pr.xy; float c = cos(pr.z), s = sin(pr.z); return vec2(c * d.x + s * d.y, -s * d.x + c * d.y); }
 float printSd(vec2 q) { return sdBox2(q, vec2(${f((PRINT.x0 + PRINT.x1) / 2)}, ${f((PRINT.y0 + PRINT.y1) / 2)}), vec2(${f((PRINT.x1 - PRINT.x0) / 2)}, ${f((PRINT.y1 - PRINT.y0) / 2)}), 1.2); }
 float acSd(vec2 p) { return sdBox2(p, vec2(${f((ACETATE.x0 + ACETATE.x1) / 2)}, ${f((ACETATE.y0 + ACETATE.y1) / 2)}), vec2(${f((ACETATE.x1 - ACETATE.x0) / 2)}, ${f((ACETATE.y1 - ACETATE.y0) / 2)}), 2.0); }
 
-// the lamp: a hard spot (1.0 on its aim point), a tight pool falling off to black
+// the lamp: a hard spot with a beam edge (1.0 on its aim point), the pool falling off to film black
 float lamp(vec3 p, vec3 n) {
   vec3 d = keyPos - p; float r2 = dot(d, d); vec3 l = d * inversesqrt(r2);
   vec3 axis = normalize(AIM - keyPos);
-  float spot = pow(max(dot(-l, axis), 0.0), 34.0);
+  float spot = smoothstep(cone.y, cone.x, dot(-l, axis));
   vec3 d0 = keyPos - AIM;
-  return lampK * max(dot(n, l), 0.0) / r2 * dot(d0, d0) / max(normalize(d0).z, 1e-3) * spot;
+  return min(lampK * max(dot(n, l), 0.0) / r2 * dot(d0, d0) / max(normalize(d0).z, 1e-3) * spot, 1.08);   // white paper never blooms
 }
 // the lamp seen in a glossy surface: a round reflector, its frosted bulb, the dish's rings and dark rim
 float lampRefl(vec3 p, vec3 rd, vec3 n) {
@@ -230,9 +233,12 @@ float lampRefl(vec3 p, vec3 rd, vec3 n) {
   if (R.z <= 0.0) return 0.0;
   float t = (keyPos.z - p.z) / R.z;
   float r = length((p + R * t).xy - keyPos.xy);
-  float bulb = 1.0 - smoothstep(14.0, 34.0, r);
-  float dish = (smoothstep(20.0, 36.0, r) - smoothstep(52.0, 70.0, r)) * (0.6 - 0.35 * smoothstep(30.0, 66.0, r));
-  return (bulb * 6.5 + dish * 2.6) * lampK;
+  // crisp shapes (no orb): the frosted bulb, a dark socket ring, the polished dish with two pressed ribs, the rim
+  float aa = 0.6;
+  float bulb = 1.0 - smoothstep(18.0 - aa, 18.0 + aa, r);
+  float sock = smoothstep(18.0 - aa, 18.0 + aa, r) - smoothstep(23.0 - aa, 23.0 + aa, r);
+  float dish = (smoothstep(23.0 - aa, 23.0 + aa, r) - smoothstep(58.0 - aa, 58.0 + aa, r)) * (0.75 - 0.4 * (r - 23.0) / 35.0) * (1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.9, abs(r - 36.0))) - 0.35 * (1.0 - smoothstep(0.0, 0.9, abs(r - 47.0))));
+  return (bulb * 6.0 + sock * 0.2 + dish * 2.4) * lampK;
 }
 
 // ---- the hand (ray-marched in its own frame)
@@ -317,8 +323,13 @@ vec3 shadeHand(vec3 P, vec3 rd, int m) {
   if (m == 0) {
     // black nitrile: almost no diffuse, a satin clear sheen, the lamp's highlight smeared along the fingers
     vec3 alb = T_FILM * 0.9;
-    float spec = ggx(N, Hh, 0.26) * fres * 0.3 + ggx(N, Hh, 0.5) * fres * 0.18;
-    col = alb * (E + 0.02) + T_LIGHTBOX * (spec * E * 2.2 + fres * (env + lr * 0.06) + 0.004 * o);
+    // satin nitrile: a broad soft lobe over a faint tighter one (no glossy blobs)
+    float spec = ggx(N, Hh, 0.4) * fres * 0.15 + ggx(N, Hh, 0.68) * fres * 0.08;
+    // a cool rim on the silhouette: the grazing edge picks up the lit print and the pale card around it, so the glove
+    // separates from its own black shadow
+    float rim = pow(1.0 - nv, 3.2);
+    col = alb * (E + 0.02) + T_LIGHTBOX * (spec * E * 2.0 + fres * (env + lr * 0.03) + 0.004 * o)
+        + T_HALIDE * vec3(0.85, 0.95, 1.1) * rim * 0.26 * mix(o, 1.0, 0.5);
   } else if (m == 2) {
     vec3 alb = T_HALIDE * 0.8;
     col = alb * (ggx(N, Hh, 0.2) * 0.5 * E + env * 1.4 + lr * 0.05 + 0.06 * E);
@@ -417,7 +428,7 @@ vec2 inkAt(vec2 tp) {
     float rr = ring.z * (1.0 + 0.06 * sin(ang * 6.28318 + 0.6) + 0.05 * ang);
     float dd = abs(length(d * vec2(1.0, 1.18)) - rr);
     float s = (1.0 - smoothstep(0.16, 0.34, dd)) * step(ang, ring.w) * step(0.001, ring.w);
-    r = mix(r, 1.0, s); a = max(a, s);
+    r = mix(r, 0.0, s); a = max(a, s);   // film ink: the red stays on the outline, TEETH, the monogram and the stamp
   }
   // MATCH, stamped on the acetate
   {

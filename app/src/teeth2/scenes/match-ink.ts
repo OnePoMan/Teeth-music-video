@@ -139,7 +139,7 @@ export function buildLabelBase(): HTMLCanvasElement {
   c.font = font(F.mono(500), 1.25);
   c.textBaseline = 'alphabetic';
   c.globalAlpha = 0.5;
-  c.fillText('08-32 · STONE CAST · MAX · PHOTO 2.2:1', 2.6, 4.6);
+  c.fillText('08-32 · STONE CAST · MAX · PHOTO 1:1', 2.6, 4.6);
   c.font = font(F.mono(400), 1.0);
   c.globalAlpha = 0.42; c.fillText('EXHIBIT 9 · TYPE IV STONE · TRIMMED · BAGGED', 2.6, 37.0);
   c.globalAlpha = 1;
@@ -181,7 +181,7 @@ export interface Phrase {
 }
 
 const HERO_EM = 40, SUP_EM = 12.5, SOLO_EM = 14;
-const HERO_BASE = -37, SUP_BASE = -80, SOLO_BASE = -50;
+const HERO_BASE = -37, SUP_BASE = -76, SOLO_BASE = -50;
 
 /** Lay a phrase out on the acetate (table mm): supporting words on a row above the hero, both centred on the arch. */
 export function layoutPhrase(p: Phrase) {
