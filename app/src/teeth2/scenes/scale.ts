@@ -71,7 +71,7 @@ function flank(az: number, h: number) {
 const BITE = flank(LAY.BAZ, LAY.BH);
 const WORDF = flank(LAY.WAZ, LAY.WH);
 /** The copy camera's azimuth for the exhibit: the bite seen at 3/4 on the apple's right, its crescent in the outline. */
-const CAZ = LAY.BAZ - 1.42;
+const CAZ = LAY.BAZ - 1.08;
 const DC = V(Math.sin(CAZ), 0, Math.cos(CAZ)), RC = V(Math.cos(CAZ), 0, -Math.sin(CAZ));
 /** The scale: standing on the cloth to the right of the apple (beside the bite), its face to the copy camera. */
 const SO = AC.clone().addScaledVector(RC, 47).addScaledVector(DC, -6).setY(0);
@@ -276,10 +276,10 @@ export default class ScalePlate extends Scene {
       default: {
         // the hero frame: a 3/4 macro on the flank where the word is bitten out, the skin curving away to the left, a
         // hard flash a little above and left of the lens so each cavity's walls take light on one side
-        const at = onF(WORDF, 2.5, 0.5, -1.0);
-        const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.48 + 0.08 * (h1 - 0.5), 0.12 + 0.05 * h2), 66);
+        const at = onF(WORDF, 1.2, 0.2, -1.0);
+        const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.42 + 0.06 * (h1 - 0.5), 0.1 + 0.04 * h2), 50);
         P = { pos, at, fov: 24, roll: -0.02 + (h3 - 0.5) * 0.05, aper: 22, focus: onF(WORDF, 0, 0, -0.6) };
-        L = { pos: pos.clone().addScaledVector(UP, 26).addScaledVector(WORDF.T, -18), I: 0.95, rad: 6, ...fill(pos.clone().sub(at), 0.05), coat: 0.35 };
+        L = { pos: pos.clone().addScaledVector(UP, 24).addScaledVector(WORDF.T, 18), I: 1.15, rad: 9, ...fill(pos.clone().sub(at), 0.05), coat: 0.25 };
         break;
       }
     }

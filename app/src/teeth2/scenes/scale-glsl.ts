@@ -17,7 +17,7 @@ export const LAY = {
   AC: [0, 39, 0] as const, AR: 39, AH: 38, AROT: 0.07,
   /** the bite: its azimuth about the apple's axis (from +Z toward +X), its centre's height above the apple's centre;
    *  the scoop: an ellipsoid (half sizes along the bite's tangent, up, normal), its centre out along the normal */
-  BAZ: 0.5, BH: 4, SCR: [21, 15, 15] as const, SCZ: -1.5, SCY: 1.5,
+  BAZ: 0.5, BH: 4, SCR: [26, 19, 18] as const, SCZ: -4.5, SCY: 1.5,
   /** the word: its azimuth and height on the apple */
   WAZ: -0.62, WH: 2,
   /** the scale: arm length, width, thickness */
@@ -93,8 +93,8 @@ float scoop(vec3 p) {
   // the incisors' edges: deeper scallops along the rim, their grooves dragged down the upper wall into the scoop; the
   // lowers' shorter scrapes on the lower wall
   float up = smoothstep(1.0, 8.0, Y), lo = smoothstep(-1.0, -7.0, Y);
-  if (up > 0.0) s -= 1.1 * teethCut(X, true) * up;
-  if (lo > 0.0) s -= 0.7 * teethCut(X, false) * lo * smoothstep(-12.5, -6.0, Y);
+  if (up > 0.0) s -= 1.7 * teethCut(X, true) * up;
+  if (lo > 0.0) s -= 0.9 * teethCut(X, false) * lo;
   // fine drag striations along the bite's direction, and torn flesh
   s += 0.06 * snoise(vec2(X * 2.6, Y * 0.35)) + 0.03 * snoise(vec3(p * 1.4));
   return s;
@@ -115,7 +115,7 @@ float apple(vec3 p) {
     vec2 X = vec2(dot(p - WC, WT), p.y - WC.y);
     if (abs(X.x) < 27.0 && abs(X.y) < 18.0 && d < 4.0) d += wordDepth(X);
   }
-  if (dot(p - AC, BN) > 10.0) {
+  if (dot(p - AC, BN) > 4.0) {
     float s = scoop(p);
     gCut = s;
     d = smax(d, -s, 0.35);
@@ -193,7 +193,7 @@ vec3 calcN(vec3 p, float e) {
 float stepK(vec3 p) {
   vec3 q = p - AC;
   if (dot(q, WN) > 14.0 && abs(q.y) < 26.0) return 0.32;
-  if (dot(q, BN) > 8.0 && abs(q.y - ${f(LAY.BH)}) < 22.0) return 0.6;
+  if (dot(q, BN) > 2.0 && abs(q.y - ${f(LAY.BH)}) < 26.0) return 0.6;
   if (q.y > 20.0 && length(q.xz) < 16.0) return 0.55;
   return 0.85;
 }
@@ -318,17 +318,21 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     float hN = q.y / AH, phi = sPhi(q);
     // the skin (in the photograph's greys): a dark blush, broken by fine lighter striations stem to calyx, the
     // lighter ground toward the stem; lenticels as pale speckles; a waxy coat that takes the flash
-    float stri = snoise(vec2(phi * 22.0, hN * 0.9)) * 0.45 + snoise(vec2(phi * 64.0, hN * 1.3)) * 0.35 + snoise(vec2(phi * 150.0, hN * 2.6)) * 0.2;
+    float stri = snoise(vec2(phi * 18.0, hN * 0.8)) * 0.6 + snoise(vec2(phi * 48.0, hN * 1.2)) * 0.4;
     float blush = sat(0.75 + 0.45 * fbm(vec2(phi * 1.6, hN * 1.8) + 4.0, 3) - 0.6 * smoothstep(0.55, 0.95, hN));
-    float lum = mix(0.13, 0.045, blush);
-    lum *= 1.0 + 0.45 * stri * blush;
+    float lum = mix(0.06, 0.026, blush);
+    lum *= 1.0 + 0.12 * stri * blush + 0.12 * snoise(vec2(phi * 3.0, hN * 2.5));
     alb = vec3(lum);
-    vec2 sc = vec2(phi * AR, q.y) / 1.05;
+    vec2 sc = vec2(phi * AR, q.y) / 1.9;
     vec2 ci = floor(sc), cf = fract(sc) - 0.5;
-    vec2 jo = (hash22(ci) - 0.5) * 0.7;
-    float lr = 0.07 + 0.07 * hash12(ci + 7.0);
-    float len = 1.0 - smoothstep(lr * 0.5, lr, length(cf - jo));
-    alb = mix(alb, vec3(0.16), len * 0.6 * step(0.45, hash12(ci + 3.0)));
+    vec2 jo = (hash22(ci) - 0.5) * 0.6;
+    float ang = hash12(ci + 11.0) * 6.2832;
+    vec2 dl = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * (cf - jo);
+    dl.x *= 0.45 + 0.4 * hash12(ci + 5.0);
+    float lr = 0.035 + 0.05 * hash12(ci + 7.0);
+    float len = 1.0 - smoothstep(lr * 0.4, lr, length(dl));
+    float dens = mix(0.82, 0.45, smoothstep(-0.2, -0.85, hN));
+    alb = mix(alb, vec3(0.065), len * 0.55 * step(dens, hash12(ci + 3.0)));
     rough = 0.4 + 0.05 * snoise(P * 0.4); f0 = 0.035; wrap = 0.2; coat = 1.0;
     // the flesh: inside the bite (below the original skin) and in the word's cavities
     float inBite = smoothstep(-0.05, -0.35, body0) * step(cut, 1.0);
@@ -400,12 +404,12 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   vec3 col = alb * difL * fall * sh * T_LIGHTBOX;
   col += T_LIGHTBOX * spec * fall * sh;
   if (coat > 0.0) {
-    float ac = 0.018;
+    float ac = 0.075;
     col += T_LIGHTBOX * coat * F_Sch(0.03, max(dot(V, Hh), 0.0)) * D_GGX(NoH, ac) * V_SmithJ(NoV, max(NoL, 0.0), ac) * max(NoL, 0.0) * fall * sh * 0.6 * coatK;
   }
   col += T_SILVER * sheen * pow(1.0 - NoV, 4.0) * fall * (0.3 + 0.7 * sh) * sat(NoL + 0.6);
   // apple flesh is translucent: the cut carries some of the light that reaches the fruit around it
-  if (fleshK > 0.0) col += fleshK * fleshC * T_LIGHTBOX * fall * 0.22 * sat(dot(normalize(P - AC), L) + 0.3);
+  if (fleshK > 0.0) col += fleshK * fleshC * T_LIGHTBOX * fall * 0.45 * sat(dot(normalize(P - AC), L) + 0.4);
   col += alb * T_LIGHTBOX * fillI * sat(0.35 + 0.65 * dot(N, fillDir)) * mix(0.3, 1.0, ao);
   col += alb * T_FILM2 * 0.4 * ao;
   // the photograph is black and white, graded cold (silver toward film blue-black); only SWEET's wax keeps its colour
