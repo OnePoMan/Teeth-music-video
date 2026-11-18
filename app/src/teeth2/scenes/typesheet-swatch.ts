@@ -6,6 +6,7 @@ import { strokeText, drawStrokeText } from '../../engine/stroke';
 import { T_HEX, T_LIN, trgba, type TKey } from '../palette';
 import { MONOGRAM, drawMonogram } from '../monogram';
 import { LT } from './typesheet-gl';
+import { HIS, tooth, occlusalOutline, incisalEdge, grooves, type V2 as V2T } from '../teeth';
 import { type Ctx2, cap, shade } from './typesheet-kit';
 
 /** A colour chip + token + hex (three to a row), then a line saying where it lives. */
@@ -84,43 +85,68 @@ export function paletteInContext(C: Ctx2, x0: number, y0: number, w: number) {
   });
   chips(C, vx(1), vy(1) + vh + 22, vw, ['lightbox', 'wax'], 'LIGHT PLATES: PAPER, FILM INK, THE WAX HEADER');
 
-  // 3 under the UV lamp (plate 6): the pillowcase on the dark bench, the beam, the dried trace fluorescing in it
+  // 3 under the UV lamp (plate 6): the pillowcase on the dark bench, the beam's edge crossing it; the dried trace
+  // fluoresces in the cotton's threads inside the beam only, never brighter than white (no halo)
   scene(2, (x, y) => {
-    c.fillStyle = shade('lightbox', 0.8); c.fillRect(x, y, vw, vh);
-    // the hem: a fold and its stitching
-    c.fillStyle = shade('lightbox', 0.55); c.fillRect(x, y + 30, vw, 2);
-    for (let k = 0; k < vw; k += 9) c.fillRect(x + k, y + 40, 5, 1.4);
-    C.regions.push({ rect: [x, y, vw, vh], type: LT.UV, a: [x + vw * 0.5, y + vh * 0.52, vw * 0.5, vh * 0.66], b: [-0.25, 1.0, 0] });
+    c.fillStyle = T_HEX.film; c.fillRect(x, y, vw, vh);
+    // the pillowcase, its open end hemmed (a doubled band, a line of stitches) near the bench's edge
+    const ex = x + vw * 0.86;
+    c.fillStyle = shade('lightbox', 0.82);
+    c.beginPath(); c.moveTo(x, y); c.lineTo(ex + 10, y); c.lineTo(ex - 6, y + vh); c.lineTo(x, y + vh); c.closePath(); c.fill();
+    c.fillStyle = shade('lightbox', 0.62);
+    c.beginPath(); c.moveTo(ex - 26, y); c.lineTo(ex - 24, y); c.lineTo(ex - 40, y + vh); c.lineTo(ex - 42, y + vh); c.closePath(); c.fill();
+    for (let k = 0; k < vh; k += 8) c.fillRect(ex - 14 - (k / vh) * 16, y + k, 1.4, 4.5);
+    C.regions.push({ rect: [x, y, vw, vh], type: LT.UV, a: [x + vw * 0.4, y + vh * 0.52, vw * 0.41, vh * 0.66], b: [-0.2, 0.42, 0] });
     const g = C.g;
-    g.save();
-    g.font = font(F.archivo(112, 500), 64);
+    g.font = font(F.archivo(112, 500), 62);
     g.fillStyle = T_HEX.fluor;
-    g.filter = 'blur(0.8px)';
-    g.fillText('never', x + 44, y + 112);
-    g.restore();
+    g.fillText('never', x + 34, y + 108);
   });
-  chips(C, vx(2), vy(2) + vh + 22, vw, ['uv', 'fluor'], 'PLATE 6 ONLY, IN THE BEAM: THE WORD GLOWS');
+  chips(C, vx(2), vy(2) + vh + 22, vw, ['uv', 'fluor'], 'PLATE 6 ONLY: IN THE THREADS, INSIDE THE BEAM');
 
-  // 4 under luminol (plate 11): his shirt behind the evidence bag; one bloom over the heart, the print against it
+  // 4 under luminol (plate 11): his shirt on a hanger in the dark, the evidence bag's clear face in front; the glow
+  // only in the shirt's weave, one bloom over the heart (his left), SHIRT printed on the bag, dark against it
   scene(3, (x, y) => {
-    c.fillStyle = shade('film2', 1.7); c.fillRect(x, y, vw, vh);
-    c.fillStyle = shade('silver', 0.45);
-    const pk = x + vw * 0.34;
-    c.fillRect(pk, y, 2, vh); c.fillRect(pk + 20, y, 1, vh);
-    for (const by of [30, 98, 166]) { c.beginPath(); c.arc(pk + 10, y + by, 5, 0, Math.PI * 2); c.fill(); }
-    C.regions.push({ rect: [x, y, vw, vh], type: LT.LUMINOL, a: [x + vw * 0.68, y + vh * 0.42, 62, 1.0] });
-    C.h.fillStyle = 'rgb(0,0,255)'; C.h.fillRect(x, y, vw, vh);
-    c.fillStyle = trgba('halide', 0.16); c.fillRect(x, y + 8, vw, 6); // the bag's heat seal
-    const fam = F.archivo(62, 900), sz = 84, tw = measure('SHIRT', fam, sz);
-    c.font = font(fam, sz); c.fillStyle = T_HEX.film;
-    c.fillText('SHIRT', x + vw - tw - 22, y + vh - 26);
-    C.h.save();
-    C.h.globalCompositeOperation = 'destination-out';
-    C.h.font = font(fam, sz);
-    C.h.fillText('SHIRT', x + vw - tw - 22, y + vh - 26);
-    C.h.restore();
+    c.fillStyle = T_HEX.film; c.fillRect(x, y, vw, vh);
+    const cx = x + vw * 0.42;
+    const shirt = (k: CanvasRenderingContext2D) => {
+      k.beginPath();
+      k.moveTo(cx - 18, y + 20); k.quadraticCurveTo(cx, y + 26, cx + 18, y + 20);
+      k.lineTo(cx + 104, y + 44); k.quadraticCurveTo(cx + 132, y + 54, cx + 140, y + 80); k.lineTo(cx + 150, y + vh + 2);
+      k.lineTo(cx - 150, y + vh + 2); k.lineTo(cx - 140, y + 80); k.quadraticCurveTo(cx - 132, y + 54, cx - 104, y + 44);
+      k.closePath();
+    };
+    // the hanger's hook above the collar
+    c.strokeStyle = shade('silver', 0.7); c.lineWidth = 2;
+    c.beginPath(); c.moveTo(cx, y + 22); c.lineTo(cx, y + 12); c.arc(cx + 6, y + 10, 6, Math.PI, Math.PI * 1.85); c.stroke();
+    shirt(c); c.fillStyle = shade('film2', 2.1); c.fill();
+    // the seams: the sleeves, the placket and its buttons, the pocket on his left (the viewer's right), the collar
+    c.strokeStyle = shade('film2', 1.2); c.lineWidth = 1.5;
+    c.beginPath();
+    c.moveTo(cx - 104, y + 44); c.quadraticCurveTo(cx - 112, y + 110, cx - 104, y + vh);
+    c.moveTo(cx + 104, y + 44); c.quadraticCurveTo(cx + 112, y + 110, cx + 104, y + vh);
+    c.moveTo(cx - 6, y + 44); c.lineTo(cx - 6, y + vh); c.moveTo(cx + 8, y + 44); c.lineTo(cx + 8, y + vh);
+    c.rect(cx + 38, y + 66, 44, 48);
+    c.stroke();
+    c.fillStyle = shade('film2', 2.6);
+    c.beginPath(); c.moveTo(cx - 18, y + 20); c.lineTo(cx - 2, y + 48); c.lineTo(cx - 34, y + 38); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(cx + 18, y + 20); c.lineTo(cx + 2, y + 48); c.lineTo(cx + 34, y + 38); c.closePath(); c.fill();
+    c.fillStyle = shade('silver', 0.5);
+    for (const by of [62, 100, 138]) { c.beginPath(); c.arc(cx + 1, y + by, 3, 0, Math.PI * 2); c.fill(); }
+    const h = C.h;
+    shirt(h); h.fillStyle = 'rgb(0,0,255)'; h.fill();
+    C.regions.push({ rect: [x, y, vw, vh], type: LT.LUMINOL, a: [cx + 58, y + 84, 44, 1.0] });
+    // the bag's clear face: its heat seal across the top, a sheen, and the print
+    c.fillStyle = trgba('halide', 0.2); c.fillRect(x, y + 4, vw, 5);
+    const sh = c.createLinearGradient(x, y, x + vw, y + vh);
+    sh.addColorStop(0.3, 'rgba(241,243,238,0)'); sh.addColorStop(0.45, trgba('lightbox', 0.1)); sh.addColorStop(0.6, 'rgba(241,243,238,0)');
+    c.fillStyle = sh; c.fillRect(x, y, vw, vh);
+    const fam = F.archivo(62, 900), sz = 62, tw = measure('SHIRT', fam, sz);
+    const tx = cx + 58 - tw / 2, ty = y + 106;
+    c.font = font(fam, sz); c.fillStyle = T_HEX.film; c.fillText('SHIRT', tx, ty);
+    h.save(); h.globalCompositeOperation = 'destination-out'; h.font = font(fam, sz); h.fillText('SHIRT', tx, ty); h.restore();
   });
-  chips(C, vx(3), vy(3) + vh + 22, vw, ['luminol'], 'PLATE 11 ONLY: ONE BLOOM, THE PRINT AGAINST IT');
+  chips(C, vx(3), vy(3) + vh + 22, vw, ['luminol'], 'PLATE 11 ONLY: ONE BLOOM, OVER HIS HEART');
 
   // 5 the stone (plates 9, 10, 13): matt dental stone under a raking light; TEETH in relief, sweet set in wax
   scene(4, (x, y) => {
@@ -145,63 +171,74 @@ export function paletteInContext(C: Ctx2, x0: number, y0: number, w: number) {
   });
   chips(C, vx(4), vy(4) + vh + 22, vw, ['stone', 'wax'], 'THE CASTS: RELIEF IN STONE, TENDER WORDS IN WAX');
 
-  // 6 the match red (165.16 to ~186 s): the tracing on the acetate over the matched cast's photograph
+  // 6 the match red (165.16 to ~186 s), in the match plate's idiom: the photograph of the matched cast (his upper
+  // arch, from the kit's tooth set) on the grey card under the acetate, the bite traced in red over the anterior
+  // teeth (canine to canine) with the chip on #8 ringed, TEETH in the pen's hand
   scene(5, (x, y) => {
-    c.fillStyle = shade('film2', 1.2); c.fillRect(x, y, vw, vh);
-    C.regions.push({ rect: [x, y, vw, vh], type: LT.LAMP, a: [x + vw * 0.55, y + vh * 0.4, vw * 0.9, vh * 1.1], b: [0.3, 0.14, 1.2], col: T_LIN.lightbox });
-    const ax = x + vw * 0.64, by = y + vh + 4, R = 96, Rv = vh - 34;
-    const arch = (u: number, r: number) => {
-      const a = Math.PI * (0.02 + 0.96 * u);
-      return { x: ax - Math.cos(a) * r, y: by - Math.sin(a) * Rv * (r / R) };
-    };
-    // the teeth along the arch, back molar to back molar: relative widths and depths (molars wide, incisors slim)
-    const TW = [1.45, 1.55, 1.0, 1.0, 1.0, 0.8, 1.05, 1.05, 0.8, 1.0, 1.0, 1.0, 1.55, 1.45];
-    const TD = [1.4, 1.45, 1.15, 1.1, 1.0, 0.72, 0.7, 0.7, 0.72, 1.0, 1.1, 1.15, 1.45, 1.4];
-    const tot = TW.reduce((s, v) => s + v, 0);
-    const u0: number[] = [];
-    TW.reduce((s, v) => (u0.push(s / tot), s + v), 0);
-    // the cast's base under the crowns: a horseshoe of stone, the palate falling away inside it
-    c.save();
-    c.filter = 'blur(3px)';
-    c.strokeStyle = shade('stone', 0.42); c.lineWidth = 40; c.lineCap = 'butt';
-    c.beginPath();
-    for (let k = 0; k <= 40; k++) { const p = arch(k / 40, R - 14); if (k) c.lineTo(p.x, p.y); else c.moveTo(p.x, p.y); }
-    c.stroke();
-    c.restore();
-    // the photograph: the stone cast seen from above, one crown per tooth, a little soft
-    c.save();
-    c.filter = 'blur(0.9px)';
-    TW.forEach((tw, j) => {
-      const um = u0[j]! + tw / tot / 2;
-      const d = 15 * TD[j]!;
-      const m = arch(um, R - d / 2 - 2), m2 = arch(um + 0.002, R - d / 2 - 2);
-      const ang = Math.atan2(m2.y - m.y, m2.x - m.x);
-      const len = ((Math.PI * 0.96 * (R + Rv) / 2) * tw) / tot * 0.47;
-      const g = c.createRadialGradient(m.x - 3, m.y - 3, 1, m.x, m.y, Math.max(len, d / 2) * 1.2);
-      g.addColorStop(0, shade('stone', 1.0)); g.addColorStop(1, shade('stone', 0.5));
-      c.fillStyle = g;
-      c.beginPath(); c.ellipse(m.x, m.y, len, d / 2, ang, 0, Math.PI * 2); c.fill();
-    });
-    c.restore();
-    // the traced outline: one arc per tooth along the arch's outer edge
-    for (const [ctx, col] of [[c, T_HEX.match], [C.g, trgba('match', 0.6)]] as const) {
-      ctx.save();
-      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    c.fillStyle = shade('silver', 0.62); c.fillRect(x, y, vw, vh);
+    C.regions.push({ rect: [x, y, vw, vh], type: LT.STONE, a: [-0.5, -0.85, 0, 7], col: [1, 1, 1] });
+    const s = 5.6, ox = x + vw * 0.62, oy = y + 46;
+    const P = (v: V2T): [number, number] => [ox + v[0] * s, oy + v[1] * s];
+    const path = (ctx: CanvasRenderingContext2D, pts: V2T[], close = true) => {
       ctx.beginPath();
-      TW.forEach((tw, j) => {
-        const ua = u0[j]!, ub = ua + tw / tot, um = (ua + ub) / 2;
-        const p0 = arch(ua, R), p1 = arch(ub, R), pm = arch(um, R);
-        const nx = pm.x - ax, ny = pm.y - by, d = Math.hypot(nx, ny);
-        if (j === 0) ctx.moveTo(p0.x, p0.y);
-        ctx.quadraticCurveTo(pm.x + (nx / d) * 6 * tw, pm.y + (ny / d) * 6 * tw, p1.x, p1.y);
-      });
-      ctx.stroke();
-      const st = strokeText('TEETH', 'tech', 40);
-      ctx.translate(x + 22, y + 58);
-      ctx.lineWidth = 2.4;
+      pts.forEach((v, i) => { const [px, py] = P(v); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
+      if (close) ctx.closePath();
+    };
+    const up = Array.from({ length: 16 }, (_, i) => tooth(HIS, i + 1));
+    // the base and palate (stone), then the crowns; the relief in hgt.r (base low, crowns high, fissures cut in)
+    const base = (ctx: CanvasRenderingContext2D, col: string, wmm: number) => {
+      ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineJoin = 'round'; ctx.lineWidth = wmm * s;
+      path(ctx, up.map((t) => t.center)); ctx.fill(); ctx.stroke();
+      for (const t of up) { path(ctx, occlusalOutline(t)); ctx.fill(); ctx.stroke(); }
+    };
+    base(c, shade('stone', 0.92), 6);
+    for (const t of up) { path(c, occlusalOutline(t)); c.fillStyle = T_HEX.stone; c.fill(); }
+    const h = C.h;
+    h.save(); h.filter = 'blur(4px)'; base(h, 'rgb(120,0,0)', 6); h.restore();
+    h.save(); h.filter = 'blur(1.3px)';
+    for (const t of up) { path(h, occlusalOutline(t)); h.fillStyle = 'rgb(255,0,0)'; h.fill(); }
+    h.restore();
+    h.save(); h.strokeStyle = 'rgb(150,0,0)'; h.lineWidth = 1.2; h.filter = 'blur(0.6px)';
+    for (const t of up) for (const g of grooves(t)) { path(h, g, false); h.stroke(); }
+    h.restore();
+    // the tracing on the acetate: each anterior's incisal edge outlined, the chip ringed, TEETH above
+    for (const [ctx, col] of [[c, T_HEX.match], [C.g, trgba('match', 0.5)]] as const) {
+      ctx.save();
+      ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      for (let n = 6; n <= 11; n++) {
+        const e = incisalEdge(tooth(HIS, n));
+        if (e) capsule(ctx, e.map(P), n === 6 || n === 11 ? 3.2 : 4);
+      }
+      const e8 = incisalEdge(tooth(HIS, 8))!;
+      const [cx8, cy8] = P(e8[0]!);
+      ctx.beginPath(); ctx.arc(cx8, cy8, 13, 0, Math.PI * 2); ctx.stroke();
+      const st = strokeText('TEETH', 'sans', 38, 38 * 0.04);
+      ctx.translate(x + 16, y + 48);
+      ctx.lineWidth = 2.2;
       drawStrokeText(ctx, st, st.total);
       ctx.restore();
     }
   });
   chips(C, vx(5), vy(5) + vh + 22, vw, ['match'], 'FROM 165.16: THE OUTLINE, THE MONOGRAM, THE STAMP');
+}
+
+/** Stroke the outline of a round-ended band of half-width r around an open polyline (px). */
+function capsule(c: CanvasRenderingContext2D, pts: [number, number][], r: number) {
+  const n = pts.length;
+  const nrm = (i: number) => {
+    const a = pts[Math.max(0, i - 1)]!, b = pts[Math.min(n - 1, i + 1)]!;
+    const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy) || 1;
+    return [-dy / d, dx / d] as const;
+  };
+  c.beginPath();
+  for (let i = 0; i < n; i++) { const [nx, ny] = nrm(i); const p = pts[i]!; if (i) c.lineTo(p[0] + nx * r, p[1] + ny * r); else c.moveTo(p[0] + nx * r, p[1] + ny * r); }
+  const [ex, ey] = nrm(n - 1), pe = pts[n - 1]!;
+  const ae = Math.atan2(ey, ex);
+  c.arc(pe[0], pe[1], r, ae, ae - Math.PI, true);
+  for (let i = n - 1; i >= 0; i--) { const [nx, ny] = nrm(i); const p = pts[i]!; c.lineTo(p[0] - nx * r, p[1] - ny * r); }
+  const [sx, sy] = nrm(0), ps = pts[0]!;
+  const as = Math.atan2(-sy, -sx);
+  c.arc(ps[0], ps[1], r, as, as - Math.PI, true);
+  c.closePath();
+  c.stroke();
 }

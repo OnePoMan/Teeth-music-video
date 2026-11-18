@@ -56,21 +56,18 @@ export function page1(C: Ctx2, ly: Lyrics, t: number) {
   cap(c, 'WIDTH STEPS 62–125 · WEIGHTS 300–900', lx, 568, { size: 10 });
 
   // ------------------------------------------------------------------ 02 karaoke states
-  head(c, '02', 'KARAOKE STATES · ONE LINE', X0, 628, L1 - X0);
+  head(c, '02', 'KARAOKE STATES · THE PHRASE ON SCREEN', X0, 628, L1 - X0);
   const line = ly.get('Late night devil');
-  const ws = line.words;
-  const your = ws[4]!;
+  const your = line.words[4]!;
   const tk = your.start - 0.045 + 0.625 * (your.end - your.start); // "your" mid-word: "yo" lit, "u" springing
-  const o = { treat: 'A' as const, ground: 'film' as const, size: 40, hero: 104, heroIdx: 2 };
-  const placed = drawLine(c, ws, tk, o, X0, 742);
-  const by = 768;
-  const pr = (i: number) => placed[i]!;
-  bracket(c, pr(0).x, pr(1).x + pr(1).width, by, 'SUNG');
-  bracket(c, pr(2).x, pr(2).x + pr(2).width, by, 'HERO · SUNG');
-  bracket(c, pr(3).x, pr(3).x + pr(3).width, by, 'SUNG');
-  bracket(c, pr(4).x, pr(4).x + pr(4).width, by, 'SINGING');
-  bracket(c, pr(5).x, pr(7).x + pr(7).width, by, 'UNSUNG · HALIDE 35%');
-  cap(c, `CHORUS 1 AT ${tk.toFixed(2)} S: “YOUR” MID-WORD · TREATMENT A`, X0, 656, { size: 10 });
+  // the phrase on screen at tk: 1-4 words from the hero on, nothing more than 0.4 s ahead of its onset
+  const ws = line.words.slice(2, 6).filter((w) => w.start - tk <= 0.4);
+  const o = { treat: 'A' as const, ground: 'film' as const, size: 54, hero: 118, heroIdx: 0 };
+  const placed = drawLine(c, ws, tk, o, X0, 758);
+  const by = 780;
+  const names = ['HERO · SUNG', 'SUNG', 'SINGING', 'UNSUNG'];
+  placed.forEach((p, i) => bracket(c, p.x, p.x + p.width, by, names[i]!));
+  cap(c, `CHORUS 1, “LATE NIGHT DEVIL, PUT YOUR HANDS ON ME”, AT ${tk.toFixed(2)} S: “YOUR” MID-WORD · UNSUNG HALIDE 35% · TREATMENT A`, X0, 656, { size: 10 });
 
   // ------------------------------------------------------------------ 06 the monogram
   const MX = 1196, MW = X1 - MX;
@@ -103,32 +100,32 @@ export function page1(C: Ctx2, ly: Lyrics, t: number) {
   c.save();
   c.shadowColor = 'rgba(0,0,0,0.8)'; c.shadowBlur = 16; c.shadowOffsetY = 6;
   c.fillStyle = shade('stone', 0.9);
-  c.fillRect(MX + 4, cy, MW - 4, 150);
+  c.fillRect(MX + 4, cy, MW - 4, 170);
   c.restore();
   // the cast's trimmed base: a band of stone, its ground edge catching the light
   c.fillStyle = T_HEX.stone;
   c.fillRect(MX + 4, cy, MW - 4, 6);
-  C.regions.push({ rect: [MX + 4, cy, MW - 4, 150], type: LT.STONE, a: [-0.7, -0.6, 0, 6], col: [1, 1, 1] });
-  const lb = { x: MX + 58, y: cy + 26, w: 520, h: 100, rot: 0.012 };
+  C.regions.push({ rect: [MX + 4, cy, MW - 4, 170], type: LT.STONE, a: [-0.7, -0.6, 0, 6], col: [1, 1, 1] });
+  const lb = { x: MX + 58, y: cy + 22, w: 520, h: 128, rot: 0.012 };
   paper(c, lb.x, lb.y, lb.w, lb.h, { rot: lb.rot });
   // the label is flat (no stone relief under it)
   inRect(C.h, lb.x, lb.y, lb.w, lb.h, lb.rot, () => { C.h.fillStyle = 'rgb(0,255,0)'; C.h.fillRect(0, 0, lb.w, lb.h); });
   inRect(c, lb.x, lb.y, lb.w, lb.h, lb.rot, () => {
     cap(c, '08-32 · CAST', 16, 22, { col: trgba('film', 0.6), size: 10, track: 2 });
-    cap(c, 'NAME:', 16, 76, { col: T_HEX.film, size: 20, track: 2, fam: F.mono(600) });
+    cap(c, 'NAME:', 16, 98, { col: T_HEX.film, size: 20, track: 2, fam: F.mono(600) });
     c.fillStyle = trgba('film', 0.45);
-    c.fillRect(100, 79, lb.w - 120, 1);
+    c.fillRect(100, 101, lb.w - 120, 1);
   });
-  const ms = 236;
-  const mpl = { x: 0, y: 0, size: ms, width: 4.4, rot: lb.rot };
+  const ms = 184;
+  const mpl = { x: 0, y: 0, size: ms, width: 3.6 };
   for (const [ctx, col] of [[c, T_HEX.match], [C.g, trgba('match', 0.55)]] as const)
-    inRect(ctx, lb.x, lb.y, lb.w, lb.h, lb.rot, () => drawMonogram(ctx, MONOGRAM.length, { ...mpl, x: 150, y: 79 - ms * MONO_H * 0.84, color: col }));
-  cap(c, 'IN INK WHERE A SIGNATURE GOES · IN MATCH RED, ONCE, AT 165.16', MX, 664, { size: 10 });
+    inRect(ctx, lb.x, lb.y, lb.w, lb.h, lb.rot, () => drawMonogram(ctx, MONOGRAM.length, { ...mpl, x: 136, y: 101 - ms * MONO_H * 0.86, color: col }));
+  cap(c, 'IN INK WHERE A SIGNATURE GOES · IN MATCH RED, ONCE, AT 165.16', MX, 678, { size: 10 });
   // the signing, frame by frame (0.55 s from the beat)
   const fr = [0.12, 0.28, 0.44, 0.6, 0.78, 1.0];
   const fw = 92, fh = 60, fg = (MW - fr.length * fw) / (fr.length - 1);
   fr.forEach((u, i) => {
-    const x = MX + i * (fw + fg), y = 682;
+    const x = MX + i * (fw + fg), y = 692;
     c.fillStyle = T_HEX.film2;
     c.fillRect(x, y, fw, fh);
     const len = monoWritten(u, 0, 1);
@@ -198,17 +195,17 @@ export function page1(C: Ctx2, ly: Lyrics, t: number) {
 
   // ------------------------------------------------------------------ 05 the pen
   const px = cx[2]!, pw = cw[2]!;
-  head(c, '05', 'THE PEN · SINGLE-STROKE HAND', px, R3, pw);
-  cap(c, 'WRITTEN BY A PEN: THE POLYGRAPH, THE ACETATE', px, R3 + 26, { size: 10 });
+  head(c, '05', 'THE PEN · ONE TECHNICAL HAND', px, R3, pw);
+  cap(c, 'HERSHEY SANS CAPITALS, UPRIGHT · POLYGRAPH, ACETATE, MATCH', px, R3 + 26, { size: 10 });
   // polygraph chart paper, the cardio pen climbing out of its trace into the line
   const cy0 = R3 + 40, ch = 84;
   paper(c, px, cy0, pw, ch);
   for (let gx = 0; gx <= pw; gx += 10) { c.fillStyle = gx % 50 === 0 ? trgba('silver', 0.32) : trgba('halide', 0.28); c.fillRect(px + gx, cy0, 1, ch); }
   for (let gy = 0; gy <= ch; gy += 10) { c.fillStyle = gy % 50 === 0 ? trgba('silver', 0.32) : trgba('halide', 0.28); c.fillRect(px, cy0 + gy, pw, 1); }
   const pol = ly.get('Every little lie').text;
-  const st = strokeText(pol, 'script', 36);
-  const scale = Math.min(1, (pw - 120) / st.width);
-  const tx0 = px + 100, tb = cy0 + 56;
+  const st = strokeText(pol.toUpperCase(), 'sans', 26, 26 * 0.04);
+  const scale = Math.min(1, (pw - 86) / st.width);
+  const tx0 = px + 72, tb = cy0 + 54;
   c.save();
   c.strokeStyle = T_HEX.film;
   c.lineWidth = 1.7;
@@ -217,17 +214,17 @@ export function page1(C: Ctx2, ly: Lyrics, t: number) {
   c.beginPath();
   const y0 = cy0 + 64;
   c.moveTo(px + 4, y0);
-  for (let x = 4; x < 84; x += 1) {
+  for (let x = 4; x < 56; x += 1) {
     const ph = (x % 26) / 26;
     const beat = ph > 0.3 && ph < 0.42 ? -Math.sin(((ph - 0.3) / 0.12) * Math.PI) * 14 : ph > 0.42 && ph < 0.5 ? Math.sin(((ph - 0.42) / 0.08) * Math.PI) * 5 : 0;
     c.lineTo(px + x, y0 + beat);
   }
   const s0 = st.strokes[0]![0]!;
-  c.bezierCurveTo(px + 92, y0, tx0 + s0.x * scale - 12, tb + s0.y * scale + 6, tx0 + s0.x * scale, tb + s0.y * scale);
+  c.bezierCurveTo(px + 64, y0, tx0 + s0.x * scale - 8, tb + s0.y * scale + 4, tx0 + s0.x * scale, tb + s0.y * scale);
   c.stroke();
   c.translate(tx0, tb);
   c.scale(scale, scale);
-  c.lineWidth = 1.7 / scale;
+  c.lineWidth = 1.5 / scale;
   drawStrokeText(c, st, st.total);
   c.restore();
   // the acetate over a print (plate 12): a photographic print, clear acetate taped over it, the tracing pen's hand
@@ -243,7 +240,7 @@ export function page1(C: Ctx2, ly: Lyrics, t: number) {
   c.fillRect(px + 2, ay + 2, pw - 4, ah - 4);
   c.fillStyle = trgba('halide', 0.55);
   c.fillRect(px + 14, ay - 5, 40, 12); c.fillRect(px + pw - 54, ay - 5, 40, 12);
-  const ac = strokeText(ly.get('heart got teeth', 0).text.replace(/^.*?your/i, 'your'), 'tech', 30);
+  const ac = strokeText(ly.get('heart got teeth', 0).text.replace(/^.*?your/i, 'your').toUpperCase(), 'sans', 30, 30 * 0.04);
   c.save();
   c.strokeStyle = T_HEX.film;
   c.lineWidth = 1.7; c.lineJoin = 'round'; c.lineCap = 'round';

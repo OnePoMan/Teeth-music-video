@@ -12,7 +12,7 @@ import { X0, X1, frame } from './typesheet-p1';
 const TREATS: { id: TreatId; name: string; lines: string[] }[] = [
   { id: 'A', name: 'DEFAULT, AS WRITTEN', lines: ['UNSUNG HALIDE AT 35% · SUNG LIGHTBOX WHITE', 'HERO CONDENSED BLACK, IN ITS PLATE’S IDIOM', 'ON WHITE: UNSUNG FILM AT 30% · SUNG FILM INK'] },
   { id: 'B', name: 'HAIRLINE TO HEAVY', lines: ['UNSUNG A SILVER HAIRLINE (ARCHIVO 300)', 'SUNG TURNS HEAVY AND WHITE: THE WEIGHT IS', 'THE WIPE · ON WHITE: SILVER TO FILM INK'] },
-  { id: 'C', name: 'THE HERO IN ITS MATERIAL', lines: ['AS A, BUT THE HERO TAKES ITS PLATE’S MATERIAL:', 'STONE ON THE CAST CHORUSES (9, 10, 13), WAX ON', 'THE TENDER WORDS · ON WHITE, A SHADE OF IT'] },
+  { id: 'C', name: 'THE HERO IN ITS MATERIAL', lines: ['AS A, BUT THE HERO TAKES ITS PLATE’S MATERIAL:', 'STONE ON THE CAST CHORUSES (9, 10, 13), WAX ON', 'THE TENDER WORDS · ON WHITE, A DEEP SHADE OF IT'] },
 ];
 
 
@@ -71,11 +71,35 @@ export function page2(C: Ctx2, ly: Lyrics, t: number) {
   const stranger = ly.get('stranger in my bed').words.find((w) => /stranger/i.test(w.w))!;
   keys.forEach((k, i) => {
     const x = WX + i * (tw2 + 20);
-    // plate 3: the sheet under the raking work light, evidence marker 1
-    const by = 562, bh = 238;
-    c.fillStyle = shade('lightbox', 0.9); c.fillRect(x, by, tw2, bh);
+    // plate 3: the bed from above under the raking work light: the mattress's edge and the floor beyond it, the
+    // bare pillow, the cover thrown back on one side, the sheet's folds; evidence marker 1 on the sheet
+    const by = 562, bh = 238, me = x + 236;
+    for (const k2 of [c, C.h]) { k2.save(); k2.beginPath(); k2.rect(x, by, tw2, bh); k2.clip(); }
+    c.fillStyle = shade('film2', 1.3); c.fillRect(x, by, tw2, bh);
+    c.fillStyle = shade('lightbox', 0.86); c.fillRect(x, by, me - x, bh);
+    c.fillStyle = shade('lightbox', 0.62); c.fillRect(me, by, 9, bh); // the sheet falling over the mattress's edge
+    const pil = { x: x + 18, y: by + 12, w: 192, h: 62 };
+    const pillow = (k: CanvasRenderingContext2D) => {
+      k.save(); k.translate(pil.x + pil.w / 2, pil.y + pil.h / 2); k.rotate(-0.06);
+      k.beginPath(); k.roundRect(-pil.w / 2, -pil.h / 2, pil.w, pil.h, 24); k.restore();
+    };
+    c.fillStyle = shade('lightbox', 0.98);
+    pillow(c); c.fill();
+    const cover = (k: CanvasRenderingContext2D, w: number) => {
+      k.beginPath(); k.moveTo(x - 20, by + bh - 4); k.quadraticCurveTo(x + 120, by + bh - 30, me + 12, by + bh - 50);
+      k.lineWidth = w; k.lineCap = 'butt'; k.stroke();
+    };
+    c.strokeStyle = shade('lightbox', 0.84); cover(c, 44);
+    const h = C.h;
+    // relief (r): the mattress a plateau, the pillow standing on it, the cover's roll; folds (b) on the sheet only
+    h.save();
+    h.filter = 'blur(4px)'; h.fillStyle = 'rgb(110,0,255)'; h.fillRect(x - 10, by - 10, me - x + 14, bh + 20);
+    h.filter = 'blur(10px)'; h.fillStyle = 'rgb(225,0,0)'; pillow(h); h.fill();
+    h.globalCompositeOperation = 'lighter';
+    h.filter = 'blur(8px)'; h.strokeStyle = 'rgb(80,0,0)'; cover(h, 40);
+    h.restore();
     C.regions.push({ rect: [x, by, tw2, bh], type: LT.BED, a: [-0.85, -0.5, -0.5, 0.05], b: [x + tw2 * 0.3, by + bh * 0.3, tw2 * 1.15], col: k.col });
-    const mk = { x: x + 42, y: by + 96, w: 214, h: 92, rot: -0.08 };
+    const mk = { x: x + 44, y: by + 94, w: 164, h: 64, rot: -0.07 };
     // its shadow on the sheet (the light rakes from the upper left)
     c.save();
     c.translate(mk.x + mk.w / 2 + 16, mk.y + mk.h / 2 + 12); c.rotate(mk.rot);
@@ -85,15 +109,16 @@ export function page2(C: Ctx2, ly: Lyrics, t: number) {
     inRect(c, mk.x, mk.y, mk.w, mk.h, mk.rot, () => {
       // a tent placard seen from above: the near face lit, the far face falling away
       c.fillStyle = T_HEX.lightbox; c.fillRect(0, 0, mk.w, mk.h);
-      c.fillStyle = 'rgba(7,10,16,0.16)'; c.fillRect(0, 0, mk.w, 14);
-      c.fillStyle = 'rgba(7,10,16,0.35)'; c.fillRect(0, 13, mk.w, 1);
-      cap(c, '1', 12, 36, { col: T_HEX.film, size: 16, track: 0, fam: F.mono(600) });
+      c.fillStyle = 'rgba(7,10,16,0.16)'; c.fillRect(0, 0, mk.w, 11);
+      c.fillStyle = 'rgba(7,10,16,0.35)'; c.fillRect(0, 10, mk.w, 1);
+      cap(c, '1', 10, 24, { col: T_HEX.film, size: 12, track: 0, fam: F.mono(600) });
       const fam = F.archivo(62, 900);
-      const s = fitSize(stranger.w.toUpperCase(), fam, mk.w - 24, 64);
+      const s = fitSize(stranger.w.toUpperCase(), fam, mk.w - 20, 40);
       c.font = font(fam, s); c.fillStyle = T_HEX.film;
-      c.fillText(stranger.w.toUpperCase(), 12, mk.h - 12);
+      c.fillText(stranger.w.toUpperCase(), 10, mk.h - 9);
     });
-    inRect(C.h, mk.x, mk.y, mk.w, mk.h, mk.rot, () => { C.h.fillStyle = 'rgb(0,255,0)'; C.h.fillRect(0, 0, mk.w, mk.h); });
+    inRect(C.h, mk.x, mk.y, mk.w, mk.h, mk.rot, () => { C.h.fillStyle = 'rgb(110,255,0)'; C.h.fillRect(0, 0, mk.w, mk.h); });
+    for (const k2 of [c, C.h]) k2.restore();
     // plate 12: the print and its acetate on the dark desk, under the desk lamp
     const dy = by + bh + 12, dh = 152;
     c.fillStyle = shade('film2', 1.5); c.fillRect(x, dy, tw2, dh);

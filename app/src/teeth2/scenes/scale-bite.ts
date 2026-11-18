@@ -1,16 +1,11 @@
-// `scale` bite bake: distance fields of the bite in the apple, computed once on the CPU (init) and sampled by the
-// ray-march (scale-glsl.ts) as a height field. All in the bite's PHOTO frame (teeth.ts `biteMark`): mm, X right, Y up,
-// origin at the centre of the bite, the biter's right on the image's right, upper arc above.
-//
-//  - marks texture (RGBA): signed distance (mm, negative inside) to R: his upper incisor marks (#7–#10; #8's mesial
-//    end cut on the kit's diagonal facet: the chip), G: the four canine marks (#6, #11, #22, #27), B: his lower
-//    incisor marks (#23–#26). Straight from biteMark(HIS); the shader sinks them as impressions.
-//  - word textures (R): signed distance (mm) to a hero word bitten INSIDE the bite, between the two arcs: Archivo
-//    condensed black capitals, each stroke built as a chain of tooth-width scallop impressions (a union of
-//    overlapping bites along the stroke, each as wide as the stroke), so the letters' edges are scalloped like a bitten
-//    edge and their floors carry a ridge between neighbouring bites.
+// `scale` bite bake. (1) His bite's tooth spans (teeth.ts biteMark(HIS)): where along the bite each anterior tooth's
+// incisal edge cut the rim of the crescent scooped out of the apple (photo frame: mm, X right = the biter's right, Y up,
+// origin at the centre of the bite). #8's span starts late at its mesial end (the kit's diagonal facet): the chip's
+// notch in the scalloped rim. (2) Hero words bitten OUT of the apple's flank: a signed distance field of Archivo
+// condensed black capitals, each stroke built as a chain of tooth-width scallop bites (a union of overlapping bites
+// along the stroke, held to the letter's outline), the letter over #8's position carrying the same diagonal notch.
 import * as THREE from 'three';
-import { biteMark, HIS, tooth } from '../teeth';
+import { biteMark, HIS } from '../teeth';
 import { F, font } from '../../engine/type';
 
 /** The baked patch (photo mm) and its resolution (texels per mm). */
@@ -19,47 +14,15 @@ export const PATCH_W = Math.round((PATCH.x1 - PATCH.x0) * PATCH.ppm);
 export const PATCH_H = Math.round((PATCH.y1 - PATCH.y0) * PATCH.ppm);
 const FAR = 6;
 
-/** The word's arc (between the bite's arcs, gently concave like the upper arc), cap height, the scallop pitch. */
-export const WORD = { cy: -59, r: 59.8, cap: 9.0, span: 26.5, track: 0.75, pitch: 1.15 };
+/** The word's line (a near-straight arc), cap height, span, tracking, the scallop pitch. */
+export const WORD = { cy: -400, r: 400, cap: 9.0, span: 27, track: 0.8, pitch: 1.15 };
 
 type P2 = [number, number];
-
-function segD(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
-  const dx = bx - ax, dy = by - ay, qx = px - ax, qy = py - ay;
-  const l2 = dx * dx + dy * dy;
-  const h = l2 > 0 ? Math.max(0, Math.min(1, (qx * dx + qy * dy) / l2)) : 0;
-  const ex = qx - dx * h, ey = qy - dy * h;
-  return Math.sqrt(ex * ex + ey * ey);
-}
 
 const texX = (i: number) => PATCH.x0 + (i + 0.5) / PATCH.ppm;
 const texY = (j: number) => PATCH.y0 + (j + 0.5) / PATCH.ppm;
 function texRange(a: number, b: number, o: number, n: number) {
   return [Math.max(0, Math.floor((a - o) * PATCH.ppm)), Math.min(n - 1, Math.ceil((b - o) * PATCH.ppm))] as const;
-}
-
-/** Union of a polygon's signed distance into channel `ch` of a 4-channel field. */
-function polySDF(out: Float32Array, ch: number, poly: P2[], margin = 2.5) {
-  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-  for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-  const [i0, i1] = texRange(x0 - margin, x1 + margin, PATCH.x0, PATCH_W);
-  const [j0, j1] = texRange(y0 - margin, y1 + margin, PATCH.y0, PATCH_H);
-  const n = poly.length;
-  for (let j = j0; j <= j1; j++) {
-    const py = texY(j);
-    for (let i = i0; i <= i1; i++) {
-      const px = texX(i);
-      let d = Infinity, inside = false;
-      for (let k = 0, l = n - 1; k < n; l = k++) {
-        const [ax, ay] = poly[l]!, [bx, by] = poly[k]!;
-        d = Math.min(d, segD(px, py, ax, ay, bx, by));
-        if ((ay > py) !== (by > py) && px < ((bx - ax) * (py - ay)) / (by - ay) + ax) inside = !inside;
-      }
-      const s = inside ? -d : d;
-      const idx = (j * PATCH_W + i) * 4 + ch;
-      if (s < out[idx]!) out[idx] = s;
-    }
-  }
 }
 
 function halfTex(data: Float32Array, channels: 1 | 4) {
@@ -74,49 +37,19 @@ function halfTex(data: Float32Array, channels: 1 | 4) {
   return tex;
 }
 
-/** His bite (upper incisors, canines, lower incisors) as three signed distance channels; #8's centre and chip. */
-export function bakeMarks(): { tex: THREE.DataTexture; chip: P2; c8: P2 } {
-  const out = new Float32Array(PATCH_W * PATCH_H * 4).fill(FAR);
+/** His bite's anterior teeth as spans along the bite (photo X, mm): [x0, x1, depth (0..1), n], upper and lower. */
+export function toothSpans(): { upper: number[][]; lower: number[][] } {
   const bm = biteMark(HIS);
-  let chip: P2 = [1.7, 14.0], c8: P2 = [4.2, 14.3];
-  for (const m of [...bm.upper, ...bm.lower]) {
-    const t = tooth(HIS, m.n);
-    const ch = t.cls === 'canine' ? 1 : t.jaw === 'upper' ? 0 : 2;
-    polySDF(out, ch, m.poly);
-    if (m.n === 8) {
-      c8 = m.center;
-      // the facet: the mark's mesial-most point (smallest X)
-      let mi = m.poly[0]!;
-      for (const p of m.poly) if (p[0] < mi[0]) mi = p;
-      chip = mi;
-    }
-  }
-  // A: the skin between neighbouring incisal marks is bitten too (the bite's wall runs on from tooth to tooth), except
-  // across #9-#8, where #8's chipped mesial end leaves the notch: the one break in his upper arc
-  const ends = (n: number) => {
-    const m = [...bm.upper, ...bm.lower].find((k) => k.n === n)!;
-    let lo = m.poly[0]!, hi = m.poly[0]!;
-    for (const p of m.poly) { if (p[0] < lo[0]) lo = p; if (p[0] > hi[0]) hi = p; }
-    return { lo, hi, c: m.center };
+  const span = (m: (typeof bm.upper)[number]) => {
+    let x0 = Infinity, x1 = -Infinity;
+    for (const p of m.poly) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); }
+    return [x0, x1, m.depth, m.n];
   };
-  const pairs: [number, number][] = [[10, 9], [8, 7], [23, 24], [24, 25], [25, 26]];
-  for (const [a, b] of pairs) {
-    const A = ends(a), B = ends(b);
-    // from a's right end to b's left end, along the line of their centres' edge
-    const p0: P2 = [A.hi[0] - 0.4, (A.hi[1] + A.c[1]) / 2], p1: P2 = [B.lo[0] + 0.4, (B.lo[1] + B.c[1]) / 2];
-    const [i0, i1] = texRange(Math.min(p0[0], p1[0]) - 2, Math.max(p0[0], p1[0]) + 2, PATCH.x0, PATCH_W);
-    const [j0, j1] = texRange(Math.min(p0[1], p1[1]) - 2, Math.max(p0[1], p1[1]) + 2, PATCH.y0, PATCH_H);
-    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-      const s = segD(texX(i), texY(j), p0[0], p0[1], p1[0], p1[1]) - 0.5;
-      const idx = (j * PATCH_W + i) * 4 + 3;
-      if (s < out[idx]!) out[idx] = s;
-    }
-  }
-  return { tex: halfTex(out, 4), chip, c8 };
+  return { upper: bm.upper.map(span).sort((a, b) => a[0]! - b[0]!), lower: bm.lower.map(span).sort((a, b) => a[0]! - b[0]!) };
 }
 
 /** One hero word bitten between the arcs (see the header). `serif`: Cormorant italic (the tender register). */
-export function bakeWord(word: string, serif = false): THREE.DataTexture {
+export function bakeWord(word: string, serif = false): { tex: THREE.DataTexture; chip: P2 } {
   const text = word.toUpperCase();
   const chars = Array.from(serif ? word.toLowerCase() : text);
   // 1. the letters' mask, drawn into the patch (canvas y down: row 0 = PATCH.y1)
@@ -141,15 +74,39 @@ export function bakeWord(word: string, serif = false): THREE.DataTexture {
   c.textAlign = 'center';
   c.textBaseline = 'alphabetic';
   let acc = -total / 2;
+  // the letter over #8's position (its centre ~4.2 mm right of the bite's midline) carries his chip
+  const centres = chars.map((_, i) => { const s = acc + w.slice(0, i).reduce((a, b) => a + b, 0) + WORD.track * i + w[i]! / 2; return s; });
+  let chipI = 0;
+  centres.forEach((s, i) => { if (Math.abs(s - 4.22) < Math.abs(centres[chipI]! - 4.22)) chipI = i; });
+  let chip: P2 = [4.2, capMm / 2];
   chars.forEach((ch, i) => {
-    const s = acc + w[i]! / 2;
-    acc += w[i]! + WORD.track;
+    const s = centres[i]!;
     const th = s / WORD.r;
     const X = WORD.r * Math.sin(th), Y = WORD.cy + WORD.r * Math.cos(th);
     c.save();
     c.translate((X - PATCH.x0) * ppm, (PATCH.y1 - Y) * ppm);
     c.rotate(th);
     c.fillText(ch, 0, (capMm / 2) * ppm);
+    if (i === chipI && !serif) {
+      // the kit's chip (CHIP_8): a diagonal break off the mesial-incisal corner, a third along the top edge and a third
+      // down the side
+      const mt = c.measureText(ch);
+      const L = -mt.actualBoundingBoxLeft, R = mt.actualBoundingBoxRight, T = -(capMm / 2) * ppm, capPx = capMm * ppm;
+      const wpx = R - L;
+      c.globalCompositeOperation = 'destination-out';
+      c.beginPath();
+      c.moveTo(L - 4, T - 4);
+      c.lineTo(L + 0.36 * wpx, T - 4);
+      c.lineTo(L + 0.36 * wpx, T);
+      c.lineTo(L, T + 0.36 * capPx);
+      c.lineTo(L - 4, T + 0.36 * capPx);
+      c.closePath();
+      c.fill();
+      c.globalCompositeOperation = 'source-over';
+      const lx = L + 0.16 * wpx, ly = T + 0.14 * capPx;
+      const px = (X - PATCH.x0) * ppm + lx * Math.cos(th) - ly * Math.sin(th), py = (PATCH.y1 - Y) * ppm + lx * Math.sin(th) + ly * Math.cos(th);
+      chip = [PATCH.x0 + px / ppm, PATCH.y1 - py / ppm];
+    }
     c.restore();
   });
   const img = c.getImageData(0, 0, PATCH_W, PATCH_H).data;
@@ -202,7 +159,7 @@ export function bakeWord(word: string, serif = false): THREE.DataTexture {
       out[j * PATCH_W + i] = Math.max(sLetter - 0.08, Math.min(sd, sLetter + 0.22));
     }
   }
-  return halfTex(out, 1);
+  return { tex: halfTex(out, 1), chip };
 }
 
 /** Euclidean distance transform (Felzenszwalb–Huttenlocher), in pixels: distance from each pixel to the nearest pixel

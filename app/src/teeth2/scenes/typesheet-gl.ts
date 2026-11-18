@@ -31,12 +31,21 @@ float pool(vec2 p, vec4 e, float ang, float pw) {
   return pow(clamp(1.0 - r, 0.0, 1.0), pw) * (0.6 + 0.4 * smoothstep(1.0, 0.0, r));
 }
 float height(vec2 p) { return texture(hgt, toUv(p)).r; }
+// plain-woven cotton (logical px): over-under threads ~3.5 px apart, with slubs
+float weave(vec2 p) {
+  vec2 c = floor(p / 3.5);
+  float tx = pow(abs(sin(p.x * 0.8976)), 0.5), ty = pow(abs(sin(p.y * 0.8976)), 0.5);
+  float over = mod(c.x + c.y, 2.0);
+  float th = mix(tx, ty, over);
+  float slub = 0.9 + 0.1 * snoise(vec2(p.x * 0.02, p.y * 0.4)) + 0.06 * snoise(vec2(p.x * 0.5, p.y * 0.015));
+  return (0.55 + 0.45 * th) * slub;
+}
 // an unmade sheet (local px): smooth crests and sharp creases (abs of noise), stretched along two fold
 // directions and gently warped, over a slow swell
 float bedH(vec2 q) {
   vec2 w = vec2(fbm(q * 0.004 + 3.1, 2), fbm(q * 0.004 + 7.7, 2)) * 60.0;
-  vec2 a = rot2(0.45) * (q + w) * vec2(0.0032, 0.0105);
-  vec2 b = rot2(-0.6) * (q - w * 0.6) * vec2(0.004, 0.012) + 5.3;
+  vec2 a = rot2(0.45) * (q + w) * vec2(0.0022, 0.0068);
+  vec2 b = rot2(-0.6) * (q - w * 0.6) * vec2(0.0028, 0.0085) + 5.3;
   float na = snoise(a), nb = snoise(b);
   return 0.7 * sqrt(na * na + 0.006) + 0.35 * sqrt(nb * nb + 0.01) + 0.25 * snoise(q * 0.003 + 11.0);
 }
@@ -71,20 +80,25 @@ void main() {
       float m = ty == ${LT.FILM} ? (1.0 + fbm(p * 0.012, 4) * 0.22 * (1.0 - paper)) : 1.0;
       col = alb * kc * bump * diff * m;
     } else if (ty == ${LT.UV}) {
-      // the dark bench, a hand-held UV lamp's beam: the cloth reflects violet; what fluoresces glows only in the beam
-      float b = pool(p, A, Bq.x, 1.4);
-      float weave = 0.85 + 0.15 * sin(p.x * 1.9) * sin(p.y * 1.9) + fbm(p * 0.03, 3) * 0.2;
-      col = vec3(lum) * weave * (T_FILM2 * 0.5 + T_UV * b * Bq.y);
-      emi *= 0.04 + b * 2.6;
+      // the dark bench, a hand-held UV lamp's beam (a defined edge, brighter at its heart): the cotton's weave
+      // reflects violet; the dried trace fluoresces in the threads, only inside the beam, never above white (no halo)
+      vec2 d = rot2(-Bq.x) * (p - A.xy);
+      float r = length(d / A.zw);
+      float b = smoothstep(1.0, 0.82, r) * (0.4 + 0.6 * smoothstep(1.0, 0.15, r));
+      float wv = weave(p);
+      col = vec3(lum) * wv * (T_FILM2 * 0.35 + T_UV * (b + 0.1 * exp(-r * r * 1.5)) * Bq.y);
+      float blot = 0.75 + 0.25 * smoothstep(-0.4, 0.4, fbm(p * 0.05, 3));
+      emi *= smoothstep(0.0, 0.5, b) * wv * blot * 0.92;
       g = 1.0;
     } else if (ty == ${LT.LUMINOL}) {
-      // dark room; where luminol lands on the stain it glows blue, and the bag's print in front catches the glow
+      // a dark room; where the luminol lands on the stain it glows blue: only in the shirt's weave (hgt.b), one bloom
+      // over the heart; the bag's print in front stands dark against it, the rest of the room catches a little light
       vec2 d = (p - A.xy) / A.z;
-      float n = fbm(p * 0.018, 4);
-      float field = exp(-dot(d, d) * (1.6 + 0.9 * n)) * A.w;
+      float n = fbm(p * 0.02, 4);
+      float field = exp(-dot(d, d) * (1.4 + 0.8 * n)) * A.w;
       float shirt = texture(hgt, toUv(p)).b;
-      col = alb * (vec3(0.012) + T_LUMINOL * field * 0.55);
-      col += T_LUMINOL * field * shirt * (1.25 + 0.5 * n);
+      col = alb * (vec3(0.14) + T_LUMINOL * field * 0.3);
+      col += T_LUMINOL * field * shirt * weave(p * 0.8) * (0.85 + 0.35 * n);
       g = 1.0;
     } else if (ty == ${LT.LAMP}) {
       // a lamp's pool on a dark desk / bed (cold or tungsten key)
@@ -104,16 +118,21 @@ void main() {
       float lit = min(1.12, 0.2 + 0.85 * (ndl / Ld.z) * (0.75 + 0.3 * b));
       col = mix(alb * kc * pore * lit, col, rigid);
     } else if (ty == ${LT.BED}) {
-      // an unmade sheet under a raking work light: folds from noise, the rigid placard left flat
-      float rigid = texture(hgt, toUv(p)).g;
+      // the bed seen from above under a raking work light: the mattress, the pillow and the thrown-back cover as
+      // relief (hgt.r), the sheet's folds where it lies loose (hgt.b), the placard rigid and flat (hgt.g)
+      vec4 hm = texture(hgt, toUv(p));
+      float rigid = hm.g, fm = hm.b;
       vec2 lq = p - R.xy;
       float h0 = bedH(lq), hx = bedH(lq + vec2(1.0, 0.0)), hy = bedH(lq + vec2(0.0, 1.0));
-      vec3 n = normalize(vec3(-(hx - h0) * 34.0, -(hy - h0) * 34.0, 1.0));
+      float e = 1.5;
+      float rx = height(p + vec2(e, 0.0)) - height(p - vec2(e, 0.0));
+      float ry = height(p + vec2(0.0, e)) - height(p - vec2(0.0, e));
+      vec3 n = normalize(vec3(-(hx - h0) * 22.0 * fm - rx * 4.0, -(hy - h0) * 22.0 * fm - ry * 4.0, 1.0));
       n = normalize(mix(n, vec3(0.0, 0.0, 1.0), rigid));
       vec3 Ld = normalize(vec3(A.x, A.y, 0.55));
       float b = pool(p, Bq.xyzz * vec4(1.0, 1.0, 1.0, 0.75), A.z, 1.2);
       float ndl = max(dot(n, Ld), 0.0);
-      float cav = mix(0.8 + 0.2 * smoothstep(0.0, 0.6, h0), 1.0, rigid);
+      float cav = mix(1.0 - 0.2 * fm * (1.0 - smoothstep(0.0, 0.6, h0)), 1.0, rigid);
       col = alb * kc * cav * (A.w + b * (0.25 + 1.05 * ndl));
     }
   }

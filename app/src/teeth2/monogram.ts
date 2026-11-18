@@ -1,12 +1,14 @@
 // The T.F. monogram (docs/TEETH2.md, "The clue ledger"): his signature mark, the same every time it appears (the
 // film's tag ~9.9 s, the chart ~83 s, the bag seal ~143.7 s, and in red in the matched cast's NAME field at 165.16).
-// A signature-monogram, not a font: one long rising bar is the T's crossbar and runs on as the F's top arm; the F's
-// middle arm is its stem's foot looping back up across it. Slanted ~9°. Two pen strokes, written in this order:
-//   1. the T: the pen lands at the foot with a small hook and goes UP the stem (a quick upstroke), turns left at
-//      the head into a flat loop (the bar's left arm), comes back across the stem and sweeps right over both
-//      letters as one long rising bar, flicking out to a hair;
-//   2. the F: a landing tick on the bar, down the stem with a slight belly, the foot curling left into a loop that
-//      climbs back across the stem and runs out to the right as the middle arm, turning down where the pen lifts.
+// A signature-monogram, not a font: one long rising bar is the T's crossbar and runs on as the F's top arm; the F
+// has its own stem and a distinct middle bar crossing it. No loops anywhere (a loop at a head reads as a 9, a looped
+// descender as a J): the pen turns on the spot instead. Slanted ~9°. Two pen strokes, written in this order:
+//   1. the T: the pen lands at the foot and goes UP the stem (a quick upstroke), turns sharply at the head and runs
+//      out along the bar's left arm, turns back on itself and sweeps right across the stem and over both letters as
+//      one long rising bar, flicking out to a hair;
+//   2. the F: a landing tick on the bar, straight down the stem to the foot, a quick retrace back up the stem to
+//      mid-height, a short stub out to the left, and back across the stem as the middle bar, turning down as the pen
+//      lifts.
 // The client's letters are T.F.; the full stops are not drawn (they would be two more pen lifts, and the mark has to
 // read as one shape at a glance).
 //
@@ -38,21 +40,20 @@
 import type { V2 } from '../engine/util';
 
 // ---------------------------------------------------------------------------------------------- the design
-// Control points (before slant), roughly in a 1 x 0.6 box, y down. Smoothed with a centripetal Catmull-Rom spline.
-const T_STROKE: [number, number][] = [
-  [0.165, 0.635], [0.2, 0.605], // the landing hook at the foot
-  [0.218, 0.45], [0.23, 0.29], [0.238, 0.17], // up the T's stem (a quick upstroke)
-  [0.228, 0.11], [0.17, 0.097], [0.09, 0.1], [0.048, 0.118], [0.085, 0.137], [0.17, 0.141], // the head turns left: a flat loop, the bar's left arm
-  [0.25, 0.138], [0.42, 0.127], [0.6, 0.11], [0.78, 0.09], [0.93, 0.07], // back across the stem: one long rising bar
-  [1.0, 0.062], // the flick out (tapers to nothing)
+// Control points (before slant), roughly in a 1 x 0.6 box, y down. Each stroke is a list of pieces, each piece
+// smoothed with a centripetal Catmull-Rom spline; where two pieces meet the pen turns on the spot (a cusp: it
+// reverses or turns sharply without a loop).
+type Pts = [number, number][];
+const T_STROKE: Pts[] = [
+  [[0.206, 0.628], [0.211, 0.52], [0.22, 0.36], [0.23, 0.22], [0.236, 0.13]], // the pen lands at the foot: up the T's stem
+  [[0.236, 0.13], [0.16, 0.131], [0.09, 0.132], [0.045, 0.134]], // a sharp turn at the head: out along the bar's left arm
+  [[0.045, 0.134], [0.11, 0.138], [0.24, 0.137], [0.42, 0.126], [0.6, 0.11], [0.78, 0.09], [0.93, 0.071], [1.0, 0.063]], // back across the stem: one long rising bar, flicked out
 ];
-const F_STROKE: [number, number][] = [
-  [0.628, 0.098], [0.621, 0.14], // the landing tick on the bar
-  [0.612, 0.27], [0.6, 0.42], [0.585, 0.54], // down the F's stem, a slight belly
-  [0.56, 0.615], [0.515, 0.64], [0.47, 0.615], // the foot, curling left
-  [0.455, 0.555], [0.485, 0.48], [0.54, 0.43], // the loop climbing back
-  [0.61, 0.402], [0.69, 0.388], [0.77, 0.38], [0.83, 0.378], // across the stem: the F's middle arm
-  [0.865, 0.392], // a small turn-down where the pen comes off
+const F_STROKE: Pts[] = [
+  [[0.628, 0.105], [0.623, 0.2], [0.614, 0.33], [0.604, 0.47], [0.596, 0.598]], // a landing tick on the bar, down the F's stem
+  [[0.596, 0.598], [0.602, 0.5], [0.607, 0.41], [0.61, 0.368]], // back up the stem (a quick retrace) to mid-height
+  [[0.61, 0.368], [0.575, 0.369], [0.53, 0.372]], // out to the left of the stem
+  [[0.53, 0.372], [0.6, 0.377], [0.69, 0.374], [0.78, 0.366], [0.84, 0.374]], // across it: the F's middle bar, turning down as the pen lifts
 ];
 /** Signature slant: x += SLANT * (0.6 - y) (the foot stays, the head leans right). */
 const SLANT = 0.16;
@@ -78,7 +79,7 @@ function catmull(pts: V2[], per = 24): V2[] {
 }
 
 function build() {
-  const raw = [T_STROKE, F_STROKE].map((s) => catmull(s.map(([x, y]) => ({ x, y }))));
+  const raw = [T_STROKE, F_STROKE].map((pieces) => pieces.flatMap((pc, i) => catmull(pc.map(([x, y]) => ({ x, y }))).slice(i ? 1 : 0)));
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   const slanted = raw.map((s) => s.map((p) => ({ x: p.x + SLANT * (0.6 - p.y), y: p.y })));
   for (const s of slanted) for (const p of s) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
@@ -244,7 +245,7 @@ function written(len: number, pl: MonoPlace): Pt[][] {
     if (L <= c[0]!) return;
     const pts: Pt[] = [];
     for (let i = 0; i < s.length; i++) {
-      const wi = base * w[i]! * (1 + pr * (0.55 - v[i]!) * 0.8);
+      const wi = base * w[i]! * (1 + pr * (0.55 - v[i]!) * 0.45);
       if (c[i]! <= L) { pts.push({ ...map(s[i]!), w: wi }); continue; }
       const f = (L - c[i - 1]!) / Math.max(1e-9, c[i]! - c[i - 1]!);
       const a = s[i - 1]!, b = s[i]!;

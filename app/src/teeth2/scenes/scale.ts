@@ -1,26 +1,25 @@
-// Plate 5 `scale` — chorus 1, first half (48.73 – 62.54), docs/TEETH2.md. Bite-mark photography and the first stomp:
-// a bitten apple standing on film-black velvet, an L-shaped ABFO No. 2 scale standing on the cloth in the plane of the
-// bite beside it, one flash. The stomp is the shutter: every beat a flash, every flash a new photograph, a cut to a new
-// camera on every beat (the wide exhibit, the ruler's edge, the bite in profile, macro on the arc, the scale's corner,
-// the chip), never cycling. The apple is ray-marched (scale-glsl.ts); the bite is his (teeth.ts biteMark(HIS), the
-// chip on #8), baked to distance fields (scale-bite.ts) and sunk into the skin: cut walls, scallops dragged toward the
-// bite's centre, white flesh, torn skin edges, the canines as punctures.
+// Plate 5 `scale` — chorus 1, first half (48.73 – 62.54), docs/TEETH2.md. Bite-mark photography and the first stomp,
+// shot as a BLACK-AND-WHITE forensic photograph (cold silver and film greys, a hard flash, true blacks; the only
+// colour in the plate is SWEET's wax when it is bitten). An apple stands stem up, one leaf on the stem, on film-black
+// velvet, ONE BITE taken out of its flank (a crescent scooped into the white flesh, its rim scalloped by his incisal
+// edges with #8's chip a notch in the scallop, his incisors' grooves dragged down the scoop's wall, the lowers' short
+// scrapes below; teeth.ts biteMark(HIS)). An ABFO No. 2 scale stands on the cloth beside it, facing the copy camera,
+// its sticker the plate's one readable label (08-32 · EXHIBIT 4). The stomp is the shutter: every beat a flash, every
+// flash a new photograph, a new camera each time (the exhibit at 3/4, the bite in profile, macro on the bitten rim, the
+// ruler's edge, the scale's corner, the chip), never framing the bite frontally (two opposing arcs read as a mouth).
 //
-// The hero words are BITTEN INTO THE APPLE, between his two arcs: Archivo condensed black capitals built from
-// tooth-width scallop impressions, landing on a raking-flash macro so their relief reads (DIRTY, SWEET, PRETTY, TEETH;
-// DEVIL, HANDS, NEVER, GO; SWEET in Cormorant, its flesh blushing wax). His incisal arc with #8's diagonal notch
-// brackets the word in every bite. A hero shot cuts on the word's onset (45 ms ahead) when the beat lands just after
-// it, so the bite and its flash are one event; the word stays until the line leaves (the next beat after its end).
-// The flash: the scene's light overshoots as the shutter fires and exposure kicks (no grey veil: blacks stay black);
-// the first one in the video is on 48.725 (the plate's first frame), an on-axis flash on the wide exhibit.
-// One readable label: the case sticker on the scale, 08-32 · EXHIBIT 4.
+// The hero words are bitten OUT of the apple's other flank: letter-shaped cavities into the flesh, Archivo condensed
+// black built from tooth-width scallop bites, the letter over #8's position chipped; a 3/4 macro so the skin curves
+// away and the cavities show depth (scale-bite.ts). A hero shot cuts on the word's onset (45 ms ahead) when the beat
+// lands just after it; the word stays until the line leaves (the next beat after its end). The flash: the scene's
+// light overshoots as the shutter fires and exposure kicks (multiplicative: blacks stay black).
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { FSPass, SS_TAP, makeRT } from '../../engine/gl';
 import { F, font } from '../../engine/type';
 import { clamp, ease, hash, pulse } from '../../engine/util';
 import { DOF_FRAG, LAY, MARCH_FRAG } from './scale-glsl';
-import { bakeMarks, bakeWord } from './scale-bite';
+import { bakeWord, toothSpans } from './scale-bite';
 
 const LABEL = '08-32 · EXHIBIT 4';
 
@@ -41,7 +40,7 @@ const KINDS: Kind[] = [
   'rake', 'macro', 'oblique', 'chip', 'profile', 'wide', 'corner', 'rake',
 ];
 
-interface Hero { word: string; start: number; cut: number; leave: number; tex: THREE.DataTexture; wax: boolean }
+interface Hero { word: string; start: number; cut: number; leave: number; tex: THREE.DataTexture; wax: boolean; chip: [number, number] }
 interface Shot { i: number; t0: number; t1: number; kind: Kind; hero: number }
 type Pose = { pos: THREE.Vector3; at: THREE.Vector3; fov: number; roll: number; aper: number; focus: THREE.Vector3 };
 type Light = { pos: THREE.Vector3; I: number; rad: number; fillDir: THREE.Vector3; fill: number; cone?: number; coat?: number };
@@ -49,36 +48,39 @@ type Light = { pos: THREE.Vector3; I: number; rad: number; fillDir: THREE.Vector
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const UP = V(0, 1, 0);
 
-/** The bite's frame on the apple: its centre on the skin (BC), normal (BN), tangent (BT, photo X). */
-const BN = V(Math.sin(LAY.BAZ), 0, Math.cos(LAY.BAZ));
-const BT = V(Math.cos(LAY.BAZ), 0, -Math.sin(LAY.BAZ));
 const AC = V(...LAY.AC);
-const BC = (() => {
-  // the body without its noise and wells (scale-glsl.ts appleBody): bisect outward along BN at the bite's height
+/** A frame on the apple's flank at azimuth az (from +Z toward +X) and height h over its centre: the skin point C,
+ *  its outward normal N (horizontal), its tangent T (to the right, seen from outside). */
+function flank(az: number, h: number) {
+  const N = V(Math.sin(az), 0, Math.cos(az)), T = V(Math.cos(az), 0, -Math.sin(az));
+  // the body without its noise and wells (scale-glsl.ts appleBody): bisect outward along N
   const c = Math.cos(LAY.AROT), s = Math.sin(LAY.AROT);
   const body = (p: THREE.Vector3) => {
     const qx = p.x - AC.x, qy = p.y - AC.y, qz = p.z - AC.z;
     const lx = c * qx + s * qy, ly = -s * qx + c * qy;
-    const h = ly / LAY.AH;
-    const rad = LAY.AR * (1 + 0.08 * h - 0.06 * h * h) - 6.5 * Math.max(-h, 0) ** 2;
+    const hh = ly / LAY.AH;
+    const rad = LAY.AR * (1 + 0.08 * hh - 0.06 * hh * hh) - 6.5 * Math.max(-hh, 0) ** 2;
     return Math.hypot(Math.hypot(lx, qz), (ly * LAY.AR) / LAY.AH) - rad;
   };
-  const at = (k: number) => AC.clone().add(V(0, LAY.BH, 0)).addScaledVector(BN, k);
+  const at = (k: number) => AC.clone().add(V(0, h, 0)).addScaledVector(N, k);
   let lo = 0, hi = 60;
   for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (body(at(m)) > 0) hi = m; else lo = m; }
-  return at(lo);
-})();
-/** The scale's outer corner: on the cloth, SU0 along the bite's tangent from it, its face just behind the skin. */
-const SO = BC.clone().addScaledVector(BT, LAY.SU0).addScaledVector(BN, -LAY.SW0).setY(0);
-/** A point in the bite's photo frame (mm), `out` along the bite's normal; the skin curves away (sag) from its centre. */
-function bp(X: number, Y: number, out = 0) {
-  const sag = (X * X + Y * Y) / (2 * LAY.AR);
-  return BC.clone().addScaledVector(BT, X).addScaledVector(UP, Y).addScaledVector(BN, out - sag);
+  return { C: at(lo), N, T };
 }
-/** A point d from `at` in a direction given in the bite's frame (x along BT, y up, z along BN), normalised. */
-function from(at: THREE.Vector3, x: number, y: number, z: number, d: number) {
-  const v = BT.clone().multiplyScalar(x).addScaledVector(UP, y).addScaledVector(BN, z).normalize();
-  return at.clone().addScaledVector(v, d);
+/** The bite (its crescent faces right-front), the word (on the left-front flank). */
+const BITE = flank(LAY.BAZ, LAY.BH);
+const WORDF = flank(LAY.WAZ, LAY.WH);
+/** The copy camera's azimuth for the exhibit: the bite seen at 3/4 on the apple's right, its crescent in the outline. */
+const CAZ = LAY.BAZ - 1.42;
+const DC = V(Math.sin(CAZ), 0, Math.cos(CAZ)), RC = V(Math.cos(CAZ), 0, -Math.sin(CAZ));
+/** The scale: standing on the cloth to the right of the apple (beside the bite), its face to the copy camera. */
+const SO = AC.clone().addScaledVector(RC, 47).addScaledVector(DC, -6).setY(0);
+/** A direction at azimuth az (from +Z toward +X) and elevation el. */
+const dirAz = (az: number, el: number) => V(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+/** A point on a flank frame at (X right, Y up) mm, `out` along its normal, the skin's sag allowed for. */
+function onF(F: { C: THREE.Vector3; N: THREE.Vector3; T: THREE.Vector3 }, X: number, Y: number, out = 0) {
+  const sag = (X * X + Y * Y) / (2 * LAY.AR);
+  return F.C.clone().addScaledVector(F.T, X).addScaledVector(UP, Y).addScaledVector(F.N, out - sag);
 }
 
 /** Look-development overrides from the page URL (render.ts --query sc_cam=...): sc_<name>=v1,v2,... */
@@ -106,7 +108,7 @@ export default class ScalePlate extends Scene {
   private empty!: THREE.DataTexture;
   private heroes: Hero[] = [];
   private shots: Shot[] = [];
-  private c8: [number, number] = [4.2, 14.3];
+  private c8: [number, number] = [4.2, 12.5];
 
   override init() {
     const { lyrics, audio } = this.ctx;
@@ -131,8 +133,10 @@ export default class ScalePlate extends Scene {
       for (let k = 0; k < 10; k++) c.fillText(String(k), 32 + k * 64, 58, 60);
     }, true);
 
-    const marks = bakeMarks();
-    this.c8 = marks.c8;
+    const spans = toothSpans();
+    const s8 = spans.upper.find((s) => s[3] === 8)!;
+    this.c8 = [s8[0]!, LAY.SCY + 11];
+    const v4 = (a: number[][]) => a.map((s) => new THREE.Vector4(s[0], s[1], s[2], s[3]));
     const e = new THREE.DataTexture(new Uint16Array([THREE.DataUtils.toHalfFloat(6)]), 1, 1, THREE.RedFormat, THREE.HalfFloatType);
     e.needsUpdate = true;
     this.empty = e;
@@ -149,7 +153,8 @@ export default class ScalePlate extends Scene {
       const leave = beats.find((b) => b > l.end + 0.01) ?? this.ctx.end;
       const word = w.w.replace(/[^A-Za-z]/g, '');
       const wax = word.toLowerCase() === 'sweet';
-      this.heroes.push({ word, start: w.start, cut, leave, tex: bakeWord(word, wax), wax });
+      const bw = bakeWord(word, wax);
+      this.heroes.push({ word, start: w.start, cut, leave, tex: bw.tex, wax, chip: bw.chip });
     }
     for (let k = 0; k + 1 < this.heroes.length; k++) this.heroes[k]!.leave = Math.min(this.heroes[k]!.leave, this.heroes[k + 1]!.cut);
     this.shots = cuts.map((t0, i) => ({
@@ -164,9 +169,12 @@ export default class ScalePlate extends Scene {
       tanH: { value: 0.3 },
       keyPos: { value: V(0, 0, 0) }, keyDir: { value: V(0, -1, 0) }, keyI: { value: 1 }, keyRad: { value: 10 }, keyCone: { value: 0.8 },
       fillDir: { value: V(0, 1, 0) }, fillI: { value: 0.02 },
-      marksTex: { value: marks.tex }, wordTex: { value: this.empty }, labelTex: { value: label }, digitTex: { value: digits },
+      wordTex: { value: this.empty }, labelTex: { value: label }, digitTex: { value: digits },
       wordAmt: { value: 0 }, wordWax: { value: 0 }, coatK: { value: 1 },
-      BC: { value: BC }, BN: { value: BN }, BT: { value: BT }, SO: { value: SO },
+      BC: { value: BITE.C }, BN: { value: BITE.N }, BT: { value: BITE.T },
+      WC: { value: WORDF.C }, WN: { value: WORDF.N }, WT: { value: WORDF.T },
+      SO: { value: SO }, SN: { value: DC }, SU: { value: RC },
+      upT: { value: v4(spans.upper) }, loT: { value: v4(spans.lower) },
     });
     this.dof = new FSPass(DOF_FRAG, { src: { value: null }, focusD: { value: 100 }, aper: { value: 10 }, maxCoc: { value: 18 } });
   }
@@ -193,74 +201,85 @@ export default class ScalePlate extends Scene {
   /** The camera and the flash for a shot at local progress u (0..1) through it. */
   private pose(s: Shot, u: number): { P: Pose; L: Light } {
     const h1 = hash(s.i, 1.7), h2 = hash(s.i, 5.3), h3 = hash(s.i, 9.1);
-    const B = bp(0, 0);
+    const B = BITE.C;
     let P: Pose, L: Light;
     const fill = (d: THREE.Vector3, f: number) => ({ fillDir: d.clone().normalize(), fill: f });
+    const flashOn = (pos: THREE.Vector3, at: THREE.Vector3, I: number, rad = 5): Light => ({
+      // the flash on the camera, a hand above the lens
+      pos: pos.clone().addScaledVector(UP, 16), I, rad, ...fill(pos.clone().sub(at), 0.0),
+    });
     switch (s.kind) {
       case 'wide': {
-        // the exhibit: the apple, the scale beside the bite, the case sticker; an on-axis flash on the camera, falling
-        // off with distance into the velvet
-        const at = bp(30 + 10 * (h1 - 0.5), -4 + 4 * h2, -16);
-        const pos = from(at, -0.12 + 0.3 * (h2 - 0.5), 0.26 + 0.14 * h3, 1, 205 + 50 * h1);
-        P = { pos, at, fov: 27, roll: (h3 - 0.5) * 0.12, aper: 2.5, focus: B };
-        L = { pos: pos.clone().addScaledVector(UP, 14), I: 0.55, rad: 5, ...fill(pos.clone().sub(at), 0.0) };
+        // the exhibit at 3/4: the apple with its bite in the outline on the right, the scale beside it, the sticker
+        const at = AC.clone().addScaledVector(RC, 30 + 8 * (h1 - 0.5)).add(V(0, -2 + 4 * h2, 0));
+        const pos = at.clone().addScaledVector(dirAz(CAZ + 0.18 * (h2 - 0.5), 0.22 + 0.12 * h3), 300 + 40 * h1);
+        P = { pos, at, fov: 24, roll: (h3 - 0.5) * 0.1, aper: 2.5, focus: B };
+        L = flashOn(pos, at, 0.85);
         break;
       }
       case 'oblique': {
-        const at = bp(20, -10, -25);
-        const pos = from(at, -1.1 + 1.4 * h1, 0.45 + 0.35 * h2, 1, 280 + 60 * h3);
-        P = { pos, at, fov: 24, roll: (h2 - 0.5) * 0.15, aper: 5, focus: B };
-        L = { pos: from(at, -1.0, 0.9, 0.6, 360), I: 1.5, rad: 18, ...fill(pos.clone().sub(at), 0.02) };
+        const at = AC.clone().add(V(0, 0, 0));
+        const pos = at.clone().addScaledVector(dirAz(LAY.BAZ - 0.6 + 1.0 * h1, 0.45 + 0.35 * h2), 260 + 50 * h3);
+        P = { pos, at, fov: 26, roll: (h2 - 0.5) * 0.15, aper: 5, focus: B };
+        L = flashOn(pos, at, 0.85);
         break;
       }
       case 'ruler': {
-        // low along the foot of the scale, its ticks rushing toward the apple (out of focus beyond)
-        const at = bp(10, -30, -3);
-        const pos = SO.clone().addScaledVector(BT, 115 + 20 * h1).addScaledVector(BN, 26 + 14 * h2).setY(14 + 10 * h3);
-        P = { pos, at, fov: 30, roll: (h3 - 0.5) * 0.15, aper: 24, focus: SO.clone().addScaledVector(BT, 60).setY(14) };
-        L = { pos: from(B, 0.5, 0.6, 1, 300), I: 1.3, rad: 14, ...fill(V(0, 1, 0), 0.02) };
+        // low along the scale's foot, its ticks running to the apple (soft beyond)
+        const at = SO.clone().addScaledVector(RC, 10).setY(14);
+        const pos = SO.clone().addScaledVector(RC, 125 + 20 * h1).addScaledVector(DC, 30 + 15 * h2).setY(12 + 10 * h3);
+        P = { pos, at, fov: 30, roll: (h3 - 0.5) * 0.15, aper: 24, focus: SO.clone().addScaledVector(RC, 55).setY(12) };
+        L = flashOn(pos, at, 0.9, 8);
         break;
       }
       case 'profile': {
-        // the bite in profile from its far side: the impressions break the apple's outline, a hard flash from behind
-        const at = bp(-4, 0, -6);
-        const pos = from(at, -1, 0.05 + 0.08 * h3, 0.25 + 0.35 * h2, 170 + 30 * h1);
+        // the bite in profile: its crescent cut out of the outline, the flash raking across its wall
+        const at = B.clone().addScaledVector(BITE.N, -10).add(V(0, 2, 0));
+        const pos = at.clone().addScaledVector(dirAz(LAY.BAZ - 1.45 + 0.25 * (h1 - 0.5), 0.06 + 0.1 * h3), 170 + 30 * h2);
         P = { pos, at, fov: 20, roll: 0, aper: 10, focus: B };
-        L = { pos: from(at, -0.2, 0.5, -1, 300), I: 2.0, rad: 12, ...fill(pos.clone().sub(at), 0.03) };
+        L = { pos: at.clone().addScaledVector(dirAz(LAY.BAZ - 0.6, 0.5), 300), I: 1.1, rad: 12, ...fill(pos.clone().sub(at), 0.03) };
         break;
       }
       case 'macro': {
-        // macro on the arc with a flat flash beside the lens: the pattern of the bite
-        const at = bp(-8 + 16 * h1, -6 + 12 * h2, -1);
-        const pos = from(at, -0.4 + 0.8 * h3, -0.2 + 0.5 * h1, 1, 95);
-        P = { pos, at, fov: 22, roll: (h2 - 0.5) * 0.3, aper: 40, focus: at };
-        L = { pos: pos.clone().addScaledVector(UP, 30), I: 0.32, rad: 14, ...fill(pos.clone().sub(at), 0.02) };
+        // macro on the bitten rim at 3/4: the incisors' scallops and their grooves down the wall
+        const at = onF(BITE, -4 + 8 * h1, LAY.SCY + 5 + 3 * h2, -4);
+        const pos = at.clone().addScaledVector(dirAz(LAY.BAZ - 0.75 + 0.3 * (h3 - 0.5), 0.3 + 0.15 * h1), 90);
+        P = { pos, at, fov: 22, roll: (h2 - 0.5) * 0.2, aper: 30, focus: at };
+        L = flashOn(pos, at, 0.9, 8);
         break;
       }
       case 'corner': {
-        // the scale's corner circle sharp, the bite soft behind it
-        const at = SO.clone().addScaledVector(BT, 9).setY(10);
-        const pos = from(at, -0.5 + 0.4 * h1, 0.25 + 0.3 * h2, 1, 75 + 20 * h3);
+        const at = SO.clone().addScaledVector(RC, 9).setY(9);
+        const pos = at.clone().addScaledVector(DC, 80 + 15 * h3).addScaledVector(RC, -20 + 10 * h1).add(V(0, 22 + 10 * h2, 0));
         P = { pos, at, fov: 26, roll: (h1 - 0.5) * 0.2, aper: 30, focus: at };
-        L = { pos: from(at, -0.8, 0.8, 0.6, 250), I: 1.4, rad: 16, ...fill(V(0, 1, 0), 0.02) };
+        L = flashOn(pos, at, 0.9, 8);
         break;
       }
       case 'chip': {
-        // extreme macro on #8: its diagonal notch in the arc
-        const at = bp(this.c8[0] - 1.2, this.c8[1] - 1.0, -0.6);
-        const pos = from(at, -0.2 + 0.3 * h1, 0.15, 1, 40);
-        P = { pos, at, fov: 20, roll: (h2 - 0.5) * 0.2, aper: 55, focus: at };
-        L = { pos: from(at, -1, 0.3, 0.32, 260), I: 2.4, rad: 10, ...fill(pos.clone().sub(at), 0.05) };
+        // extreme macro on his chip: the chipped letter of the word bitten in, or #8's notch in the bite's rim
+        const hk = this.heroAt(s.t0 + 0.02)[0];
+        if (hk >= 0) {
+          const c = this.heroes[hk]!.chip;
+          const at = onF(WORDF, c[0] + 0.6, c[1] - 1.2, -1.2);
+          const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.4 + 0.1 * (h1 - 0.5), 0.14), 44);
+          P = { pos, at, fov: 20, roll: (h2 - 0.5) * 0.12, aper: 45, focus: at };
+          L = { pos: pos.clone().addScaledVector(UP, 18).addScaledVector(WORDF.T, -14), I: 0.85, rad: 5, ...fill(pos.clone().sub(at), 0.03), coat: 0.3 };
+        } else {
+          const at = onF(BITE, this.c8[0], this.c8[1], -2);
+          const pos = at.clone().addScaledVector(dirAz(LAY.BAZ - 0.6, 0.45), 45);
+          P = { pos, at, fov: 20, roll: (h2 - 0.5) * 0.12, aper: 45, focus: at };
+          L = flashOn(pos, at, 0.85);
+        }
         break;
       }
       case 'rake':
       default: {
-        // the hero frame: macro on the bite in a raking flash from the left (grazing the skin at ~20 degrees, the scale
-        // on the right out of its way); the word between his arcs, the scale's ruler edge framing the right side
-        const at = bp(10.0, 1.0, -0.5);
-        const pos = from(at, -0.04 + 0.04 * (h1 - 0.5), 0.07 + 0.05 * h2, 1, 88);
-        P = { pos, at, fov: 24, roll: -0.02 + (h3 - 0.5) * 0.05, aper: 22, focus: bp(0, 2, -0.3) };
-        L = { pos: from(at, -1, 0.3, 0.5, 260), I: 1.05, rad: 22, ...fill(pos.clone().sub(at), 0.1), cone: Math.cos(0.2), coat: 0.12 };
+        // the hero frame: a 3/4 macro on the flank where the word is bitten out, the skin curving away to the left, a
+        // hard flash a little above and left of the lens so each cavity's walls take light on one side
+        const at = onF(WORDF, 2.5, 0.5, -1.0);
+        const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.48 + 0.08 * (h1 - 0.5), 0.12 + 0.05 * h2), 66);
+        P = { pos, at, fov: 24, roll: -0.02 + (h3 - 0.5) * 0.05, aper: 22, focus: onF(WORDF, 0, 0, -0.6) };
+        L = { pos: pos.clone().addScaledVector(UP, 26).addScaledVector(WORDF.T, -18), I: 0.95, rad: 6, ...fill(pos.clone().sub(at), 0.05), coat: 0.35 };
         break;
       }
     }
@@ -291,7 +310,8 @@ export default class ScalePlate extends Scene {
     // the flash: the shutter fires on the cut; the head's output overshoots and settles into the photograph
     const burst = pulse(t, s.t0, 0.02);
     (m.keyPos!.value as THREE.Vector3).copy(L.pos);
-    m.keyI!.value = L.I * (1 + 0.8 * burst);
+    // L.I is the irradiance at the subject: the head sits wherever the shot needs it, inverse-square beyond
+    m.keyI!.value = (L.I * L.pos.distanceToSquared(P.at)) / 1e5 * (1 + 0.8 * burst);
     m.keyRad!.value = L.rad;
     (m.keyDir!.value as THREE.Vector3).copy(P.at.clone().sub(L.pos).normalize());
     m.keyCone!.value = L.cone ?? 0.8;

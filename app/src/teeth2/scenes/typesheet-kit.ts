@@ -108,10 +108,14 @@ function style(o: LineOpts, isHero: boolean, sung: boolean): RunStyle {
   }
   // C: as A, the hero in its plate's material colour (on white, a shade of it to hold contrast)
   const mat = o.heroMat ?? 'stone';
-  const matCol = white ? shade(mat, 0.62) : T_HEX[mat];
+  const matCol = white ? DEEP[mat] ?? shade(mat, 0.62) : T_HEX[mat];
   if (isHero) return { fam: heroF, size: o.hero, col: sung ? matCol : white ? trgba('film', 0.3) : trgba('halide', 0.35), up: true };
   return { fam: sup, size: o.size, col: sung ? ink : white ? trgba('film', 0.3) : trgba('halide', 0.35) };
 }
+
+/** The material colours set on lightbox white: a deep shade that holds contrast and keeps its hue (stone's plain
+ *  sRGB shade goes olive; this one is the stone's ochre at ~45% lightness). */
+const DEEP: Partial<Record<TKey, string>> = { stone: '#8E6A14', wax: '#A76875' };
 
 /** A shade of a palette colour (sRGB multiply), as a CSS colour. */
 export function shade(k: TKey, f: number, a = 1) {
