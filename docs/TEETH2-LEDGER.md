@@ -52,3 +52,14 @@ Lead rulings from review 2 (settled):
 - Plates 5 and 9 must not share a composition: plate 5's TEETH is a flash-lit photograph of the word in the apple's curved flank; plate 9's hero at the cut is the cast and its teeth (chip toward the lens), with TEETH secondary, raised in the same Archivo relief as HEART.
 - No bloom on non-glow materials: lamp reflections are crisp shapes, not soft orbs; DOF must not leave grainy halos on silhouettes.
 - The apple bite keeps one crescent (no frontal pair of arcs: face risk), but its rim is a row of individual incisor scallops with the #8 notch readable, and the lower teeth's marks sit on the far wall.
+
+### Review 3 (fresh reviewer, Opus high): fix round 2 → fix round 3 (the last round before the client)
+SHIP: drawer (both), wet stone 109.40, type sheets. FIX: 9.05, 10.60, 55.00, 110.20, 163/165. REWORK: 48.75. Top defects: the apple bite at the first flash (a white bowl with artefact streaks, no scallops or notch, seen edge-on); the chip at the lock reads as a raised knob; the 110.20 cast floats ungrounded with picket-fence gaps that don't match the cast at 165; 55.00 too dark to read as an apple; the lamp disk at 163/165 reads as an eye; the glove's all-round rim halo and the missing pen at 165.55; 10.60 should show the signed tag.
+
+Lead rulings from review 3 (settled):
+- The gauntlet caps at four rounds: after fix round 3, the set goes to the client with any remaining issues listed honestly.
+- Bite-mark photography puts the lens perpendicular to the bite with the scale in the bite's plane (plate 5, every shot of the bite).
+- 10.60 shows the signed tag (the monogram's first sighting, ~9.9 s in the treatment).
+- Exhibits are numbered in plate order: radiograph 1, bed 2, polygraph 3, apple 4, pillowcase 5, chart 6, voicemail 7, cast 8.
+- The maxillary pour fills the palate with stone (it becomes the full upper cast seen at 165).
+- TEETH on the cast's base matches HEART's weight (Archivo condensed black relief).
