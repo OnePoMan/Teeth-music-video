@@ -97,18 +97,23 @@ vec3 shade(vec2 px) {
   if (all(greaterThan(wuv, vec2(-0.05))) && all(lessThan(wuv, vec2(1.05)))) {
     float wl = max(lod + log2(${WORD_W.toFixed(1)} / wordRect.z / texPpm), 0.0);
     // soft-edged like the rest of the radiograph (~0.12 mm), taps at the base level (no mip blocks)
-    vec2 o = vec2(0.09) / wordRect.zw;
+    vec2 o = vec2(0.11) / wordRect.zw;
     wm = 0.36 * textureLod(wordTex, wuv, wl).r + 0.16 * (textureLod(wordTex, wuv + vec2(o.x, 0.0), wl).r + textureLod(wordTex, wuv - vec2(o.x, 0.0), wl).r + textureLod(wordTex, wuv + vec2(0.0, o.y), wl).r + textureLod(wordTex, wuv - vec2(0.0, o.y), wl).r);
+    // the density falls off toward a stroke's edge, as a filling's does (thicker metal in the middle)
+    wm *= 0.7 + 0.3 * textureLod(wordTex, wuv, wl + 1.6).r;
     wmW = textureLod(wordTex, wuv, wl + 5.0).r;
   }
   b = 1.0 - (1.0 - b) * exp(-1.75 * wm);
-  // the film's edge: a thin clear margin, the ID dot (an embossed dimple, clear, with its shadowed rim) in the corner
-  float margin = smoothstep(-0.9, -0.45, edge);
-  b = mix(b, max(b, 0.55), margin);
-  vec2 dot0 = filmRect.xy + filmRect.zw - vec2(6.0);
-  float dd = length(P - dot0);
-  b = mix(b, 0.9, 1.0 - smoothstep(1.0, 1.15 + coc, dd));
-  b *= 1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.18 + coc, abs(dd - 1.2)));
+  // the film's edge: a zero-thickness sheet, only a hairline where the cut edge catches the light
+  b *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, 0.07 + coc, abs(edge + 0.08)));
+  // the ID dot: a small embossed dimple near the corner, lit from the upper left, a little thinner than the film round it
+  vec2 dot0 = filmRect.xy + filmRect.zw - vec2(5.0);
+  vec2 dv = P - dot0;
+  float dd = length(dv);
+  float inDot = 1.0 - smoothstep(0.62, 0.7 + coc, dd);
+  float ring = 1.0 - smoothstep(0.0, 0.1 + coc, abs(dd - 0.66));
+  float lit = dot(dv / max(dd, 1e-3), vec2(-0.7071, 0.7071));
+  b = mix(b, b + 0.22, inDot) + 0.26 * ring * lit;
   // overexposure (BURNING): the dark film goes thin, everything toward clear
   b = mix(b, 1.0 - (1.0 - b) * 0.35, overex);
   b = clamp(b, 0.0, 1.0);
@@ -143,8 +148,21 @@ vec3 shade(vec2 px) {
   }
   col += T_HALIDE * 0.025 * scr * (1.0 - b);
   // off the film: the bare lightbox (its diffuser, the tubes behind it)
-  vec3 bare = boxCol * Lb * 0.98 * (0.97 + 0.03 * snoise(P * 0.7));
+  // off the film: the bare lightbox, the brightest thing in frame (the diffuser's faint texture)
+  vec3 bare = boxCol * box * 1.09 * (0.992 + 0.008 * snoise(P * 1.6));
   col = mix(bare, col, onFilm);
+  // a lightbox clip at the film's top edge: opaque, so a silhouette against the light, its metal edges catching a
+  // little of the room
+  vec2 cq = P - vec2(filmRect.x + filmRect.z - 34.0, filmRect.y + filmRect.w + 4.5);
+  vec2 cb = abs(cq) - vec2(8.0, 8.0) + 1.5;
+  float dClip = length(max(cb, 0.0)) + min(max(cb.x, cb.y), 0.0) - 1.5;
+  vec2 jq = cq - vec2(0.0, -8.6); vec2 jb = abs(jq) - vec2(6.4, 1.1) + 0.6;
+  dClip = min(dClip, length(max(jb, 0.0)) + min(max(jb.x, jb.y), 0.0) - 0.6);
+  float aaC = max(fwidth(dClip) * 1.2, coc * 0.5);
+  float onClip = 1.0 - smoothstep(-aaC, aaC, dClip);
+  float rim = 1.0 - smoothstep(0.0, 0.5, -dClip);
+  vec3 clipCol = T_FILM2 * (0.5 + 0.2 * smoothstep(-9.0, 9.0, cq.y)) + T_SILVER * 0.012 * rim;
+  col = mix(col, clipCol, onClip);
   // the loupe: a lens's dark rim and the falloff at its edge
   if (loupeR > 0.0) {
     float dl = length(FRAG_PX - loupe) / loupeR;
@@ -238,14 +256,14 @@ export default class Lightbox extends Scene {
     // (from the patient's right premolars to the midline by "know", then on toward his left at ~9 mm/s)
     let cx = 2 + 9 * (t - 9.05) - 18 * (1 - smoothstep(7.0, 9.1, t));
     // a push in on each downbeat after the first, eased into it (0.55 s), the width stepping down
-    const widths = [120, 90, 76, 66];
+    const widths = [140, 120, 100, 88];
     let w = widths[0]!;
     for (let i = 1; i < db.length && i < widths.length; i++) {
       const d = db[i]!;
       const k = ease.inOutCubic(clamp((t - (d - 0.55)) / 0.55));
       w = lerp(w, widths[i]!, k);
     }
-    let cy = 11.5 + 0.0021 * cx * cx;
+    let cy = 0.5 + 0.0021 * cx * cx;
     let loupe = 0;
     // between the lines (9.45 - 10.74): a pan along the film to its top right corner (the ID dot; the tag is clipped
     // there), held until the downbeat, where it cuts back to the jaw
@@ -253,9 +271,9 @@ export default class Lightbox extends Scene {
     if (t >= tc0 && t < tc1) {
       const k = ease.inOutCubic(clamp((t - tc0) / 0.5));
       const drift = (t - tc0) * 1.2;
-      cx = lerp(2 + 9 * (tc0 - 9.05), FILM.x1 - 29 + drift, k);
-      cy = lerp(11.5, FILM.y1 - 16.5, k);
-      w = lerp(90, 74, k);
+      cx = lerp(2 + 9 * (tc0 - 9.05), FILM.x1 - 33 + drift, k);
+      cy = lerp(0.5, FILM.y1 - 16.5, k);
+      w = lerp(120, 74, k);
     }
     // "Can't look away" x2: the loupe pushes in to #8 in two steps
     const t8 = tooth(HIS, 8);
@@ -314,8 +332,8 @@ export default class Lightbox extends Scene {
     if (p.layout) return p.layout;
     const ref = p.hero >= 0 ? p.words[p.hero]!.start + 0.12 : p.words[0]!.start + 0.1;
     this.placeCamera(ref);
-    const [x0, y0] = this.toFilm(960, 245);
-    const [x1] = this.toFilm(1060, 245);
+    const [x0, y0] = this.toFilm(960, 200);
+    const [x1] = this.toFilm(1060, 200);
     const mmPerPx = (x1 - x0) / 100;
     const c = this.wctx;
     const heroFam = F.archivo(125, 900), supFam = F.archivo(112, 500);
@@ -429,6 +447,8 @@ export default class Lightbox extends Scene {
       this.wordTex.needsUpdate = true;
     } else (u.wordRect!.value as THREE.Vector4).set(-1e4, -1e4, 1, 1);
     this.pass.render(renderer, out);
-    return {};
+    // the corner hold: the bare lightbox stays the brightest thing in frame, edge to edge
+    const inCorner = t > 9.7 && t < (this.downbeats.find((d) => d > 10.5) ?? 10.74);
+    return inCorner ? { vignette: 0.1 } : {};
   }
 }

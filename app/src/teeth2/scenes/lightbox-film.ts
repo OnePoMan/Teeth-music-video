@@ -8,7 +8,7 @@ import { HIS, buccalProfile, panoramic, panoPoint, panoOcclusal, tooth, type Arc
 import { mulberry32 } from '../../engine/util';
 
 /** The film: extent (mm) and resolution of the density map. */
-export const FILM = { x0: -122, x1: 122, y0: -64, y1: 64, ppm: 18, corner: 6 };
+export const FILM = { x0: -122, x1: 122, y0: -64, y1: 64, ppm: 18, corner: 2.5 };
 export const FILM_W = Math.round((FILM.x1 - FILM.x0) * FILM.ppm);
 export const FILM_H = Math.round((FILM.y1 - FILM.y0) * FILM.ppm);
 const px = (X: number) => (X - FILM.x0) * FILM.ppm;
@@ -187,11 +187,11 @@ export function buildFilm(arch: Arch = HIS): FilmInfo {
   const lower = half.filter(([x, y]) => y < 12 || x < 92);
   path(c, lower.slice(0, Math.floor(lower.length * 0.42)).map(([x, y]): V2 => [x, y + 1.6]), false); addStroke(c, 'g', 85, 3.6, 0.5);
   path(c, mir(lower.slice(0, Math.floor(lower.length * 0.42))).map(([x, y]): V2 => [x, y + 1.6]), false); addStroke(c, 'g', 85, 3.6, 0.5);
-  path(c, half.map(([x, y]): V2 => [x - 0.8 * Math.sign(x), y]), false); addStroke(c, 'g', 30, 1.4, 0.4);
-  path(c, mir(half).map(([x, y]): V2 => [x + 0.8 * Math.sign(-x), y]), false); addStroke(c, 'g', 30, 1.4, 0.4);
+  path(c, half.map(([x, y]): V2 => [x - 0.8 * Math.sign(x), y]), false); addStroke(c, 'g', 52, 1.5, 0.3);
+  path(c, mir(half).map(([x, y]): V2 => [x + 0.8 * Math.sign(-x), y]), false); addStroke(c, 'g', 52, 1.5, 0.3);
   for (const s of [1, -1]) {
     // the condyle's head and the articular eminence of the fossa above it
-    ell(c, s * 97.5, 43.5, 4.6, 3.4, s * 0.3); add(c, 'g', 30, 0.8);
+    ell(c, s * 97.5, 43.5, 4.6, 3.4, s * 0.3); add(c, 'g', 40, 0.4);
     path(c, smoothOpen([[s * 88, 46], [s * 93, 49.5], [s * 99, 50.5], [s * 104, 48]], 6), false); addStroke(c, 'g', 45, 1.4, 0.5);
     // the styloid process
     path(c, [[s * 103, 40], [s * 96, 16]], false); addStroke(c, 'g', 35, 1.3, 0.5);
@@ -237,16 +237,16 @@ export function buildFilm(arch: Arch = HIS): FilmInfo {
     lpath(rootOnly, false);
     c.globalCompositeOperation = 'multiply'; c.filter = blurPx(0.13); c.strokeStyle = 'rgb(255,200,255)'; c.lineWidth = 0.32; c.stroke();
     lpath(rootOnly.map(([s, h]): V2 => [s + Math.sign(s) * 0.38, h - 0.25]), false);
-    c.globalCompositeOperation = 'lighter'; c.filter = blurPx(0.15); c.strokeStyle = 'rgb(0,20,0)'; c.lineWidth = 0.28; c.stroke();
+    c.globalCompositeOperation = 'lighter'; c.filter = blurPx(0.12); c.strokeStyle = 'rgb(0,30,0)'; c.lineWidth = 0.3; c.stroke();
     // the root displaces the bone it sits in
-    lpath(pr.outline); op('multiply', soft, 'rgb(255,214,255)');
+    lpath(pr.outline); op('multiply', soft, 'rgb(255,196,255)');
     // a root seen through another (the upper molars' palatal root, the first premolar's second root)
     for (const r of pr.extraRoots) { lpath(r); op('lighter', 0.3, 'rgb(28,0,0)'); }
     // dentin with its thickness: a soft base and a centre-weighted body (a rounded solid seen through)
     lpath(pr.outline); op('lighter', soft, 'rgb(22,0,0)');
     c.save(); lpath(pr.outline); c.clip(); lpath(pr.outline); op('lighter', M * 0.5, 'rgb(60,0,0)'); c.restore(); local();
     // the pulp: chamber and canals, a soft hollow
-    lpath(pr.pulp); op('multiply', soft + 0.32, 'rgb(130,255,255)');
+    lpath(pr.pulp); op('multiply', soft * 0.5 + 0.06, 'rgb(118,255,255)');
     // the enamel cap: densest at the cusps and the edge, thinning to nothing at the cervical line
     const gE = c.createLinearGradient(0, H, 0, 0);
     gE.addColorStop(0, 'rgb(92,0,0)'); gE.addColorStop(0.55, 'rgb(64,0,0)'); gE.addColorStop(1, 'rgb(12,0,0)');

@@ -805,7 +805,7 @@ export interface PanoTooth {
    *  tooth: crown up; -1 upper: crown down), horizontal magnification (anteriors narrower, as in a real OPG) */
   angle: number; mirror: number; up: number; mag: number;
 }
-const PANO_MAG = [0.8, 0.84, 0.9, 0.98, 1.0, 1.04, 1.06, 1.07];
+const PANO_MAG = [0.9, 0.86, 0.92, 0.98, 1.0, 1.04, 1.06, 1.07];
 /** The occlusal curve of the panoramic ("smile"): film Y of the occlusal line at film X. */
 export const panoOcclusal = (X: number) => 0.0042 * X * X;
 export function panoramic(arch: Arch): PanoTooth[] {
@@ -977,7 +977,7 @@ float tCrownPost(int i, vec3 q, vec4 D) {
   float sB = mix(cer.y / B, 1.0, smoothstep(-0.05, 0.38, t)) * (1.0 - 0.17 * smoothstep(0.5, 1.05, t));
   vec2 p = q.xy;
   p.x += shp.y * p.y;
-  p.x /= 1.0 - shp.x * smoothstep(0.0, -B, p.y);
+  p.x /= 1.0 - shp.x * (1.0 - smoothstep(-B, 0.0, p.y));
   vec2 sd = tSuper(p, vec2(A * sA, B * sB), cer.z, cer.w);
   float z = -1e3;
   for (int k = 0; k < 5; k++) {
@@ -1004,8 +1004,16 @@ float tCrownAnt(int i, vec3 q, vec4 D, bool pointed) {
   float eB = E.x, eh = E.y;
   // the labial face: full in the cervical third, curving in toward the edge, rounded across
   float tl = max(t - 0.2, 0.0) / 0.8;
-  float lab = B - (B - eB - eh) * tl * tl - (pointed ? 1.1 : 0.85) * u2 * smoothstep(-0.3, 0.5, t);
-  if (pointed) lab += 0.35 * max(1.0 - abs(a - E.z) / (0.6 * A), 0.0) * smoothstep(0.1, 0.6, t);
+  float lab = B - (B - eB - eh) * tl * tl - (pointed ? 1.35 : 0.95) * u2 * smoothstep(-0.3, 0.5, t);
+  if (pointed) {
+    // the canine's labial ridge: a broad vertical crest down from the cusp tip
+    float ra = (a - E.z) / (0.55 * A);
+    lab += 0.6 * exp(-ra * ra) * smoothstep(0.05, 0.6, t);
+  } else {
+    // incisors: three labial lobes, two shallow developmental depressions between them in the incisal two thirds
+    float au = abs(u);
+    lab -= 0.14 * exp(-((au - 0.36) * (au - 0.36)) / 0.012) * smoothstep(0.3, 0.85, t);
+  }
   // the lingual face: the cingulum near the cervix, the fossa between marginal ridges
   float rs = 1.0 - smoothstep(0.04, 0.9, t);
   float ramp = 1.0 - rs * rs;
@@ -1015,28 +1023,34 @@ float tCrownAnt(int i, vec3 q, vec4 D, bool pointed) {
   lin -= 0.25 * u2 * (1.0 - t);
   float dB = max(b - lab, lin - b) * 0.85;
   // the cross-section: the occlusal outline (triangular: broad labially, the cingulum narrow), shrinking to the cervix
-  float sA = mix(cer.x / A, 1.0, smoothstep(0.0, 0.7, t));
+  float sA = mix(cer.x / A * 0.94, 1.0, smoothstep(0.05, 0.92, t));   // the crown narrows toward the gum
   float sB = mix(cer.y / B, 1.0, smoothstep(-0.05, 0.3, t));
   vec2 p = vec2(a, b);
-  p.x /= 1.0 - shp.x * smoothstep(0.0, -B, p.y);
+  p.x /= 1.0 - shp.x * (1.0 - smoothstep(-B, 0.0, p.y));
   float dXS = tSuper(p, vec2(A * sA, B * sB), cer.z, cer.w).x * 0.8;
   float d2 = smax(dXS, dB, 0.4);
   float d;
   if (pointed) {
-    float sl = E.w;
-    float top = c - (H - sl * (sqrt((a - E.z) * (a - E.z) + 0.25) - 0.5));
-    d = smax(d2, top / sqrt(1.0 + sl * sl), 0.45);
+    // a distinct cusp: steeper ridges, a small rounded tip, the mesial ridge shorter than the distal
+    float sl = E.w * 1.4;
+    float da = a - E.z;
+    float top = c - (H - sl * (da < 0.0 ? 1.15 : 0.9) * (sqrt(da * da + 0.09) - 0.3));
+    d = smax(d2, top / sqrt(1.0 + sl * sl), 0.35);
   } else {
+    // incisal outline: slightly rounded across, softened mamelons, the corners rounded (mesial sharper)
     float r = a < 0.0 ? E.z : E.w;
-    vec2 w = vec2(abs(a) - (A - r), c - (H - r));
+    float edgeH = H - 0.22 * u2 + 0.06 * cos(u * 9.4) * (1.0 - u2);
+    vec2 w = vec2(abs(a) - (A - r), c - (edgeH - r));
     d = smax(d2, length(max(w, 0.0)) + min(max(w.x, w.y), 0.0) - r, 0.25);
   }
   if (ch.x > 0.5) {
+    // the chip: a clean fracture facet off the mesial-incisal corner (a plane, slightly conchoidal), crisp edges
     vec2 P0 = vec2(-A + ch.y, H + 0.2), P1 = vec2(-A - 0.2, H - ch.z);
     vec2 e = normalize(P1 - P0), n = vec2(-e.y, e.x);
     if (dot(vec2(-A, H) - P0, n) < 0.0) n = -n;
-    float rough = 0.035 * sin(a * 5.3 + c * 3.1 + b * 2.0) + 0.025 * sin(b * 7.7 - a * 4.1 + c * 1.3);
-    d = max(d, dot(vec2(a, c) - P0, n) + rough);
+    float along = dot(vec2(a, c) - P0, e);
+    float conch = 0.025 * sin(along * 1.7);
+    d = max(d, dot(vec2(a, c) - P0, n) + conch);
   }
   return d;
 }
@@ -1058,8 +1072,9 @@ float tSocket(int i, vec3 p) {
   vec2 hw = vec2(cer.x + 1.0 + 0.12 * depth, cer.y + 1.35 + 0.2 * depth);
   float s2 = tSuper(q.xy + vec2(0.0, 0.3), hw, 2.4, 2.4).x;
   float ua = abs(q.x) / hw.x;
-  float gc = 0.75 + ch.w * pow(smoothstep(0.3, 1.05, ua), 1.4);
-  float d = smax(s2, (q.z - gc) * 0.8, 0.9);
+  // the margin follows the cervical line; the papillae fill the embrasures as low, rounded cones (not spikes)
+  float gc = 0.75 + 0.62 * ch.w * smoothstep(0.5, 1.15, ua);
+  float d = smax(s2, (q.z - gc) * 0.8, 1.3);
   return max(d, -9.0 - q.z);
 }
 
