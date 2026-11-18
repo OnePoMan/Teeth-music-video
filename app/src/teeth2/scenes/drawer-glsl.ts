@@ -13,13 +13,13 @@ export const LAY = {
   /** the open drawer's row (0 = bottom) */
   OPEN_J: 2,
   /** the hanging rails' height (the folders' rods rest there), the first folder's distance behind the front, pitch */
-  YR: 0.068 + 2 * 0.315 + 0.263, FZ0: 0.042, FDZ: 0.0225,
+  YR: 0.068 + 2 * 0.315 + 0.278, FZ0: 0.016, FDZ: 0.0185,
   /** the folders, and which one is 08-32 */
-  NF: 24, K0832: 1,
+  NF: 28, K0832: 3,
   /** 08-32's tab: its centre across the drawer, half width; the typed insert's half sizes */
   TABX: -0.062, TABW: 0.0565, INSW: 0.0525, INSH: 0.0102,
   /** the tube: its ends and radius */
-  TA: [-0.35, 2.05, 0.42] as const, TB: [0.85, 2.05, 0.42] as const, TR: 0.013,
+  TA: [-0.1, 1.75, 0.24] as const, TB: [1.42, 1.75, 0.24] as const, TR: 0.013,
 };
 
 const f = (x: number) => x.toFixed(4);
@@ -29,7 +29,7 @@ export const MARCH_FRAG = /* glsl */ `
 ${GLSL_TEETH_PALETTE}
 ${SS_TAP_GLSL}
 uniform vec3 camPos, camR, camU, camF; uniform float tanH;
-uniform float openZ, lift08, lean08, tubeI, difK, specK, louv, ambK, paintK, chromeR;
+uniform float openZ, lift08, lean08, tubeI, difK, specK, louv, ambK, paintK, chromeR, ccK, ccR;
 uniform float ftilt[${LAY.NF}]; uniform float fzs[${LAY.NF}];
 uniform sampler2D labelTex; uniform vec2 labelTexSize;
 
@@ -60,7 +60,7 @@ vec2 tiltYZ(vec2 yz, float a) { float c = cos(a), s = sin(a); return vec2(c * yz
 /** A pressed-steel drawer front with its label holder (chrome frame, card) and a chrome bar pull. */
 vec2 drawerFront(vec3 q, float yc, float zo) {
   vec3 c = q - vec3(0.0, yc, FZ + zo);
-  float d = dRBox(c, vec3(FHW, FHH, FTH), 0.0075);
+  float d = dRBox(c, vec3(FHW, FHH, FTH), 0.0095);
   // the pressed rim: a shallow step 14 mm in from the edge
   float inset = dRBox(c - vec3(0.0, 0.0, FTH), vec3(FHW - 0.014, FHH - 0.014, 0.0009), 0.004);
   d = max(d, -inset);
@@ -75,16 +75,15 @@ vec2 drawerFront(vec3 q, float yc, float zo) {
   r = opU(r, vec2(frame, M_CHROME));
   float card = dBox(h - vec3(0.0, 0.0, -0.0004), vec3(0.0372, 0.0138, 0.0005));
   r = opU(r, vec2(card, M_CARD));
-  // the bow pull: a chrome arc standing out from the front, round bosses where it meets it
+  // the bar pull: a straight chrome bar, its ends bent back to two escutcheon plates on the front
   vec3 b = c - vec3(0.0, 0.016, FTH - 0.0009);
-  const float BR = 0.075, BA = 0.9273;               // the arc's radius, half angle (ends at x = +-0.06)
-  vec3 bq = b - vec3(0.0, 0.0, 0.034 - BR);
-  float an = atan(bq.x, bq.z);
-  float bar;
-  if (abs(an) < BA) bar = length(vec2(length(bq.xz) - BR, bq.y * 0.85)) - 0.0055;
-  else bar = length(bq - vec3(sign(bq.x) * BR * sin(BA), 0.0, BR * cos(BA))) - 0.0055;
-  vec3 e = vec3(abs(b.x) - 0.06, b.y, b.z - 0.002);
-  bar = min(bar, length(vec2(length(e.xy) - 0.0045, e.z)) - 0.0035);
+  float bar = dCap(b, vec3(-0.052, 0.0, 0.03), vec3(0.052, 0.0, 0.03), 0.0055);
+  vec3 bb2 = vec3(abs(b.x) - 0.052, b.y, b.z - 0.012);   // the bend: a quarter ring from the bar back to the plate
+  float bend = length(vec2(length(bb2.xz) - 0.018, bb2.y)) - 0.0055;
+  bend = max(bend, max(-bb2.x, -bb2.z + 0.0));
+  bar = min(bar, bend);
+  bar = min(bar, dCap(vec3(abs(b.x), b.yz), vec3(0.07, 0.0, 0.012), vec3(0.07, 0.0, 0.0015), 0.0055));
+  bar = min(bar, dRBox(vec3(abs(b.x) - 0.07, b.y, b.z - 0.0012), vec3(0.0085, 0.011, 0.0012), 0.0011));
   r = opU(r, vec2(bar, M_CHROME));
   return r;
 }
@@ -138,7 +137,7 @@ vec2 folder(vec3 q, int k) {
   float h = hash11(fk * 7.13 + 1.7), h2 = hash11(fk * 3.71 + 9.2);
   float th = k == K0832 ? 0.0045 : 0.0014 + 0.0055 * h * h;   // its thickness (what's inside)
   // the pocket: card from the rod down, its top edge (a rolled hem round the rod) a little above the rod
-  float body = dRBox(f - vec3(0.0, -0.106, 0.0), vec3(0.182, 0.118, th), 0.0011);
+  float body = dRBox(f - vec3(0.0, -0.106, 0.0), vec3(0.1855, 0.118, th), 0.0011);
   vec2 r = vec2(body, M_FOLDER);
   // papers inside, a few standing a hair proud of the card, offset
   if (h2 > 0.3) {
@@ -146,8 +145,8 @@ vec2 folder(vec3 q, int k) {
     r = opU(r, vec2(pap, M_PAPER));
   }
   // the rod and its hooks, over the rails
-  float rod = dCap(f, vec3(-0.199, 0.0, 0.0), vec3(0.199, 0.0, 0.0), 0.0017);
-  rod = min(rod, dCap(vec3(abs(f.x), f.yz), vec3(0.199, 0.0, 0.0), vec3(0.2045, -0.006, 0.0), 0.0015));
+  float rod = dCap(f, vec3(-0.193, 0.0, 0.0), vec3(0.193, 0.0, 0.0), 0.0016);
+  rod = min(rod, dCap(vec3(abs(f.x), f.yz), vec3(0.193, 0.0, 0.0), vec3(0.1965, -0.0045, 0.0), 0.0014));
   r = opU(r, vec2(rod, M_ROD));
   // the tab: a clear plastic sleeve clipped on the top edge, raked back; staggered across the drawer
   float slot = floor(hash11(fk * 1.37 + 0.3) * 4.0);
@@ -169,11 +168,11 @@ vec2 openDrawer(vec3 p) {
   vec3 q = p - vec3(0.0, 0.0, openZ);
   // the drawer box: sheet-steel sides, bottom and back, open at the top
   float zb0 = -0.655, zb1 = -0.004;
-  float box = dBox(q - vec3(0.0, YB + 0.139, (zb0 + zb1) * 0.5), vec3(0.204, 0.122, (zb1 - zb0) * 0.5));
-  float inner = dBox(q - vec3(0.0, YB + 0.149, (zb0 + zb1) * 0.5), vec3(0.198, 0.122, (zb1 - zb0) * 0.5 - 0.005));
+  float box = dBox(q - vec3(0.0, YB + 0.146, (zb0 + zb1) * 0.5), vec3(0.204, 0.129, (zb1 - zb0) * 0.5));
+  float inner = dBox(q - vec3(0.0, YB + 0.156, (zb0 + zb1) * 0.5), vec3(0.198, 0.129, (zb1 - zb0) * 0.5 - 0.005));
   box = max(box, -inner);
-  // the hanging rails on the sides' top edges
-  box = min(box, dRBox(vec3(abs(q.x) - 0.201, q.y - (YR - 0.006), q.z - (zb0 + zb1) * 0.5), vec3(0.0035, 0.004, (zb1 - zb0) * 0.5), 0.0012));
+  // the hanging rails along the inside of the walls' top edges
+  box = min(box, dRBox(vec3(abs(q.x) - 0.1935, q.y - (YR - 0.0065), q.z - (zb0 + zb1) * 0.5), vec3(0.0035, 0.0055, (zb1 - zb0) * 0.5), 0.0012));
   r = opU(r, vec2(box, M_RAW));
   // the folders near p (they hang in z order; neighbours either side cover the tilts)
   float kc = (-FZ0 - q.z) / FDZ;
@@ -387,6 +386,7 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   }
   float ao = calcAO(P, N);
   vec3 alb = T_SILVER; float rough = 0.4; vec3 f0 = vec3(0.04); float metal = 0.0; float refl = 0.0;
+  float ccRough = 1.0, ccAmt = 1.0;
   vec3 emit = vec3(0.0);
   float fp = 1.0;
   if (m == M_PAINT) {
@@ -394,6 +394,7 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     float n = snoise(P * 260.0) * 0.5 + snoise(P * 37.0) * 0.5;
     alb = T_SILVER * paintK * (1.0 + 0.06 * n + 0.05 * snoise(P * 4.0));
     rough = 0.24 + 0.05 * snoise(P * 11.0);
+    ccRough = 1.0 + 0.45 * (snoise(P * 23.0) * 0.5 + 0.5);   // the gloss varies over the sheet
     fp = 0.95;
     // the drawer front under P, in its own frame
     float ix = floor(P.x / CW + 0.5);
@@ -405,19 +406,26 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
       alb *= mix(0.8, 1.0, smoothstep(-FHH, -FHH + 0.07, c.y));
       float hand = 1.0 - smoothstep(0.012, 0.03, length(vec2(abs(c.x) - 0.06, c.y - 0.016)));
       rough -= 0.1 * hand;
+      // fingermarks round the pull and along the lip, where the drawer is pulled: they dull the gloss
+      float lipBand = 1.0 - smoothstep(0.0, 0.03, FHH - c.y);
+      float smudge = smoothstep(0.05, 0.75, snoise(vec3(P.xy * 32.0, jr + ix * 3.0)) * 0.75 + snoise(P * 90.0) * 0.25)
+        * max(1.0 - smoothstep(0.02, 0.07, length(vec2(abs(c.x) - 0.03, c.y - 0.016))), lipBand * 0.7);
+      ccRough *= 1.0 + 2.5 * smudge; ccAmt = 1.0 - 0.5 * smudge;
       // the rolled rim worn through to bare steel in places, most along the top where it is pulled
       vec2 ex = abs(c.xy) - vec2(FHW, FHH) + 0.0075;
       float rim = smoothstep(-0.001, 0.003, max(ex.x, ex.y));
       float wn = snoise(vec3(P.x * 140.0 + ix * 13.0, P.y * 140.0, jr * 7.0)) * 0.6 + snoise(P * 700.0) * 0.4;
-      float wear = rim * smoothstep(0.62, 0.8, wn + (c.y > 0.0 ? 0.1 : -0.3));
+      float wear = rim * smoothstep(0.72, 0.9, wn + (c.y > 0.0 ? 0.1 : -0.3));
       alb = mix(alb, T_HALIDE * 0.35, wear);
       metal = wear; rough = mix(rough, 0.32, wear);
       f0 = mix(f0, T_HALIDE * 0.75, wear);
     }
   } else if (m == M_CHROME) {
     alb = vec3(0.0); metal = 1.0; f0 = mix(T_HALIDE, T_LIGHTBOX, 0.5) * 0.92; rough = chromeR; refl = 1.0;
-    // a dull bloom of fingermarks on the pulls
-    rough += 0.06 * smoothstep(0.2, 0.8, snoise(P * 90.0));
+    // fingermarks: dull, greasy blooms where hands take the bar; fine pitting
+    float fm = smoothstep(0.15, 0.7, snoise(P * 70.0) * 0.6 + snoise(P * 260.0) * 0.4);
+    rough += 0.18 * fm + 0.04 * snoise(P * 900.0);
+    f0 *= 1.0 - 0.18 * fm;
   } else if (m == M_CARD) {
     // a printed index card: a hairline border and a ruled line, nothing typed on it
     alb = mix(T_HALIDE, T_LIGHTBOX, 0.3) * 0.55; rough = 0.8;
@@ -447,8 +455,8 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   } else if (m == M_PAPER) {
     alb = T_LIGHTBOX * (0.78 + 0.04 * snoise(P * 300.0)); rough = 0.85;
   } else if (m == M_TAB) {
-    // an empty clear sleeve: the card's grey seen through it
-    alb = mix(T_SILVER, T_HALIDE, 0.5) * 0.55; rough = 0.12; f0 = vec3(0.05);
+    // a clear sleeve over a blank insert, dimmer than 08-32's typed one
+    alb = mix(T_HALIDE, T_LIGHTBOX, 0.35) * 0.58; rough = 0.1; f0 = vec3(0.05);
   } else if (m == M_LABEL) {
     vec3 g = tabFrame(P);
     vec2 uv = vec2(g.x / (2.0 * INSW) + 0.5, g.y / (2.0 * INSH) + 0.5);
@@ -467,7 +475,8 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     // zinc-plated sheet inside the drawer: dull metal
     alb = T_SILVER * 0.55; rough = 0.5; f0 = T_SILVER * 0.9; metal = 0.6;
   } else if (m == M_ROD) {
-    alb = T_SILVER * 0.3; rough = 0.3; f0 = T_HALIDE * 0.8; metal = 1.0;
+    // galvanised rod ends, dull
+    alb = T_SILVER * 0.3; rough = 0.42; f0 = T_HALIDE * 0.9; metal = 1.0;
   } else if (m == M_FLOOR) {
     alb = T_FILM2 * 1.4; rough = 0.45;
   } else if (m == M_WALL) {
@@ -476,6 +485,12 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   if (metal > 0.0) f0 = mix(vec3(0.04), f0, metal);
   vec3 dif, spe;
   tubeLight(P, N, V, rough, f0, sh, dif, spe);
+  // baked enamel has a gloss over its satin: the tube itself, a hard line along every rolled lip
+  if (m == M_PAINT && metal < 0.5) {
+    vec3 d2, s2;
+    tubeLight(P, N, V, ccR * ccRough, vec3(0.04), sh, d2, s2);
+    spe += s2 * ccK * ccAmt;
+  }
   vec3 col = alb * (1.0 - metal) * (dif * fp + mix(T_HALIDE, T_FILM2 * 6.0, 0.5) * ambK * ao) + spe * mix(1.0, ao, 0.5);
   // inside the drawer and under the lid the light falls away (the AO gives the seams their grime)
   col *= mix(0.55, 1.0, ao);

@@ -7,9 +7,9 @@
 // its hanging folders inside, folder 08-32 standing proud of the rest, its tab "08-32 · BITE MARK" the plate's one
 // readable label. Everything that moves is a function of t, keyed so the loop frame holds until the riff's first note:
 //  - drawerOpen(t): a hand's width, then on the first note (0.36) the drawer rolls fully open and stops with a knock;
-//  - the folders: the stop swings them forward into two leaning groups with a V-gap at folder 13; on each real riff
+//  - the folders: the stop swings them forward into two leaning groups with a V-gap 12 folders behind 08-32; on each real riff
 //    note the folder in front of the gap flicks back over it, so the gap walks forward one folder per note toward
-//    08-32 (12 notes, gap 13 -> 1), nothing moving in the riff's gaps (2.05–2.94, 5.50–6.39);
+//    08-32 (12 notes, gap 15 -> 3, 08-32 being the fourth folder from the front), nothing moving in the riff's gaps (2.05–2.94, 5.50–6.39);
 //  - the camera: from the loop pose it rises over the drawer as it rolls out, then dollies along the rail with the
 //    gap, continuously through each phrase (it carries the speed) and dead still in the gaps; on the last beat
 //    (6.855) 08-32 is lifted and the camera tips down into it (blocked in; the whip and the open folder are to come).
@@ -46,13 +46,16 @@ export function drawerOpen(t: number) {
   return roll + knock;
 }
 
-/** The gap's position: folder index of the first folder behind it (continuous; 13 after the open, 1 after the last
+/** The gap's position: folder index of the first folder behind it (continuous; G0 after the open, 08-32 after the last
  * flick). Each flick takes ~0.11 s and lands dead. */
 export function gapIndex(t: number) {
-  let g = 13;
+  let g = G0;
   for (const tf of FLICKS) g -= ease.outCubic(clamp((t - tf) / 0.11));
   return g;
 }
+/** The gap after the open: one folder per flick brings it to 08-32. */
+const G0 = LAY.K0832 + FLICKS.length;
+
 /** How far the open's stop has swung the folders into their groups (0 at the loop frame). */
 function swing(t: number) {
   const ts = T_FIRST + 0.3;
@@ -66,9 +69,9 @@ export function folders(t: number, tilt: number[], zs: number[]) {
     // the loop frame: hanging near plumb, each a little its own way; 08-32 lifted and leaning back on the next
     const rest = k === LAY.K0832 ? LEAN0 : (hash(k, 3.1) - 0.5) * 0.05 + (k === 0 ? 0.03 : 0);
     const back = clamp(k + 1 - g);                // 0: in the front group, 1: flicked back
-    const grp = lerp(0.075, -0.2, back);
+    const grp = lerp(0.045, -0.2, back);
     tilt[k] = lerp(rest, grp, clamp(s));
-    zs[k] = lerp(0, lerp(0.004, -0.028, back), clamp(s));
+    zs[k] = lerp(0, lerp(-0.012, -0.06, back), clamp(s));
   }
 }
 
@@ -95,13 +98,10 @@ function gapZ(t: number, g: number) {
 /** The dolly's gap index: continuous through each phrase, still in the riff's gaps. */
 function dollyIndex(t: number) {
   // phrase spans (first flick .. last flick + its landing), the index running from one note to the next
-  const pts: [number, number][] = [];
-  let g = 13;
-  for (const tf of FLICKS) { pts.push([tf, g]); g -= 1; pts.push([tf + 0.11, g]); }
   // within a phrase the dolly runs at the phrase's mean speed (linear in time between its first and last flick)
   const phrases: [number, number][] = [[0, 2], [3, 9], [10, 11]];
   for (const [a, b] of phrases) {
-    const t0 = FLICKS[a]!, t1 = FLICKS[b]! + 0.11, g0 = 13 - a, g1 = 13 - b - 1;
+    const t0 = FLICKS[a]!, t1 = FLICKS[b]! + 0.11, g0 = G0 - a, g1 = G0 - b - 1;
     if (t >= t0 - 0.43 && t <= t1) {
       // eases in from the previous note's time (it is already moving as the first flick lands)
       const u = clamp((t - (t0 - 0.43)) / (t1 - (t0 - 0.43)));
@@ -109,7 +109,7 @@ function dollyIndex(t: number) {
     }
     if (t > t1 && (b === 11 || t < FLICKS[b + 1]! - 0.43)) return g1;
   }
-  return 13.5;
+  return G0 + 0.5;
 }
 
 export function cameraPose(t: number): Pose {
@@ -187,7 +187,7 @@ export default class Drawer extends Scene {
       ssTap: SS_TAP,
       camPos: { value: new THREE.Vector3() }, camR: { value: new THREE.Vector3() }, camU: { value: new THREE.Vector3() },
       camF: { value: new THREE.Vector3() }, tanH: { value: 0.3 },
-      openZ: { value: OPEN0 }, lift08: { value: LIFT0 }, lean08: { value: LEAN0 }, tubeI: { value: 1 }, difK: { value: 0.32 }, specK: { value: 1.5 }, louv: { value: 2 }, ambK: { value: 0.02 }, paintK: { value: 0.45 }, chromeR: { value: 0.26 },
+      openZ: { value: OPEN0 }, lift08: { value: LIFT0 }, lean08: { value: LEAN0 }, tubeI: { value: 1 }, difK: { value: 0.16 }, specK: { value: 1.5 }, louv: { value: 3 }, ambK: { value: 0.002 }, paintK: { value: 0.45 }, chromeR: { value: 0.26 }, ccK: { value: 8 }, ccR: { value: 0.14 },
       ftilt: { value: this.tilt }, fzs: { value: this.zs },
       labelTex: { value: this.label },
       TA: { value: new THREE.Vector3(...LAY.TA) }, TB: { value: new THREE.Vector3(...LAY.TB) }, labelTexSize: { value: new THREE.Vector2(cw, ch) },
@@ -220,7 +220,7 @@ export default class Drawer extends Scene {
     folders(t, this.tilt, this.zs);
     // the tube: steady, flicker-free
     u.tubeI!.value = 1.0;
-    for (const k of ['difK', 'specK', 'louv', 'ambK', 'paintK', 'chromeR']) { const q = qv(k); if (q) u[k]!.value = q[0]; }
+    for (const k of ['difK', 'specK', 'louv', 'ambK', 'paintK', 'chromeR', 'ccK', 'ccR']) { const q = qv(k); if (q) u[k]!.value = q[0]; }
     const qa = qv('TA'), qb = qv('TB');
     if (qa) (u.TA!.value as THREE.Vector3).set(qa[0]!, qa[1]!, qa[2]!);
     if (qb) (u.TB!.value as THREE.Vector3).set(qb[0]!, qb[1]!, qb[2]!);
