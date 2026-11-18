@@ -214,7 +214,7 @@ export default class ScalePlate extends Scene {
         const at = AC.clone().addScaledVector(RC, 30 + 8 * (h1 - 0.5)).add(V(0, -2 + 4 * h2, 0));
         const pos = at.clone().addScaledVector(dirAz(CAZ + 0.18 * (h2 - 0.5), 0.22 + 0.12 * h3), 300 + 40 * h1);
         P = { pos, at, fov: 24, roll: (h3 - 0.5) * 0.1, aper: 2.5, focus: B };
-        L = flashOn(pos, at, 0.85);
+        L = { ...flashOn(pos, at, 1.0, 4), pos: pos.clone().addScaledVector(UP, 48).addScaledVector(RC, -34) };
         break;
       }
       case 'oblique': {
@@ -260,10 +260,10 @@ export default class ScalePlate extends Scene {
         const hk = this.heroAt(s.t0 + 0.02)[0];
         if (hk >= 0) {
           const c = this.heroes[hk]!.chip;
-          const at = onF(WORDF, c[0] + 0.6, c[1] - 1.2, -1.2);
-          const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.4 + 0.1 * (h1 - 0.5), 0.14), 44);
-          P = { pos, at, fov: 20, roll: (h2 - 0.5) * 0.12, aper: 45, focus: at };
-          L = { pos: pos.clone().addScaledVector(UP, 18).addScaledVector(WORDF.T, -14), I: 0.85, rad: 5, ...fill(pos.clone().sub(at), 0.03), coat: 0.3 };
+          const at = onF(WORDF, c[0] + 1.4, c[1] - 1.6, -1.4);
+          const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.25, 0.05), 12);
+          P = { pos, at, fov: 34, roll: 0.06, aper: 6, focus: onF(WORDF, c[0] + 0.5, c[1] - 0.5, -1.0) };
+          L = { pos: pos.clone().addScaledVector(UP, 8).addScaledVector(WORDF.T, 20), I: 2.4, rad: 4, ...fill(pos.clone().sub(at), 0.05), coat: 0.1 };
         } else {
           const at = onF(BITE, this.c8[0], this.c8[1], -2);
           const pos = at.clone().addScaledVector(dirAz(LAY.BAZ - 0.6, 0.45), 45);
@@ -276,10 +276,10 @@ export default class ScalePlate extends Scene {
       default: {
         // the hero frame: a 3/4 macro on the flank where the word is bitten out, the skin curving away to the left, a
         // hard flash a little above and left of the lens so each cavity's walls take light on one side
-        const at = onF(WORDF, 1.2, 0.2, -1.0);
-        const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.42 + 0.06 * (h1 - 0.5), 0.1 + 0.04 * h2), 50);
-        P = { pos, at, fov: 24, roll: -0.02 + (h3 - 0.5) * 0.05, aper: 22, focus: onF(WORDF, 0, 0, -0.6) };
-        L = { pos: pos.clone().addScaledVector(UP, 24).addScaledVector(WORDF.T, 18), I: 1.15, rad: 9, ...fill(pos.clone().sub(at), 0.05), coat: 0.25 };
+        const at = onF(WORDF, -3.0, 0.5, -2.0);
+        const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.7 + 0.05 * (h1 - 0.5), 0.17 + 0.03 * h2), 58);
+        P = { pos, at, fov: 27, roll: -0.02 + (h3 - 0.5) * 0.05, aper: 22, focus: onF(WORDF, 0, 0, -0.6) };
+        L = { pos: pos.clone().addScaledVector(UP, 26).addScaledVector(WORDF.T, 20), I: 1.1, rad: 5, ...fill(pos.clone().sub(at), 0.05), coat: 0.1 };
         break;
       }
     }
@@ -330,6 +330,7 @@ export default class ScalePlate extends Scene {
     d.aper!.value = qv('aper')?.[0] ?? P.aper;
     this.dof.render(renderer, out);
     // the flash reaches the film as an exposure kick (multiplicative: the blacks stay black)
-    return { exposure: 1 + 0.25 * pulse(t, s.t0, 0.025) };
+    const kick = s.i === 0 ? 0.7 * pulse(t, s.t0, 0.045) : 0.25 * pulse(t, s.t0, 0.025);
+    return { exposure: 1 + kick, halation: 0.04 };
   }
 }

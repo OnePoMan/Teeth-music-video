@@ -88,22 +88,22 @@ export function bakeWord(word: string, serif = false): { tex: THREE.DataTexture;
     c.rotate(th);
     c.fillText(ch, 0, (capMm / 2) * ppm);
     if (i === chipI && !serif) {
-      // the kit's chip (CHIP_8): a diagonal break off the mesial-incisal corner, a third along the top edge and a third
-      // down the side
+      // the kit's chip (CHIP_8): a small diagonal break off the mesial-incisal corner. Less of the letter is bitten there (a
+      // small unbitten wedge), the letter's arm intact
       const mt = c.measureText(ch);
       const L = -mt.actualBoundingBoxLeft, R = mt.actualBoundingBoxRight, T = -(capMm / 2) * ppm, capPx = capMm * ppm;
       const wpx = R - L;
       c.globalCompositeOperation = 'destination-out';
       c.beginPath();
       c.moveTo(L - 4, T - 4);
-      c.lineTo(L + 0.36 * wpx, T - 4);
-      c.lineTo(L + 0.36 * wpx, T);
-      c.lineTo(L, T + 0.36 * capPx);
-      c.lineTo(L - 4, T + 0.36 * capPx);
+      c.lineTo(L + 0.17 * wpx, T - 4);
+      c.lineTo(L + 0.17 * wpx, T);
+      c.lineTo(L, T + 0.13 * capPx);
+      c.lineTo(L - 4, T + 0.13 * capPx);
       c.closePath();
       c.fill();
       c.globalCompositeOperation = 'source-over';
-      const lx = L + 0.16 * wpx, ly = T + 0.14 * capPx;
+      const lx = L + 0.08 * wpx, ly = T + 0.07 * capPx;
       const px = (X - PATCH.x0) * ppm + lx * Math.cos(th) - ly * Math.sin(th), py = (PATCH.y1 - Y) * ppm + lx * Math.sin(th) + ly * Math.cos(th);
       chip = [PATCH.x0 + px / ppm, PATCH.y1 - py / ppm];
     }
