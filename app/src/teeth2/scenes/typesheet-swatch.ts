@@ -6,7 +6,7 @@ import { strokeText, drawStrokeText } from '../../engine/stroke';
 import { T_HEX, T_LIN, trgba, type TKey } from '../palette';
 import { MONOGRAM, drawMonogram } from '../monogram';
 import { LT } from './typesheet-gl';
-import { HIS, tooth, occlusalOutline, incisalEdge, grooves, type V2 as V2T } from '../teeth';
+import { HIS, tooth, occlusalOutline, incisalEdge, cuspTips, grooves, type V2 as V2T } from '../teeth';
 import { type Ctx2, cap, shade } from './typesheet-kit';
 
 /** A colour chip + token + hex (three to a row), then a line saying where it lives. */
@@ -150,24 +150,23 @@ export function paletteInContext(C: Ctx2, x0: number, y0: number, w: number) {
 
   // 5 the stone (plates 9, 10, 13): matt dental stone under a raking light; TEETH in relief, sweet set in wax
   scene(4, (x, y) => {
+    // as plate 9: the words raised out of the stone; TEETH in condensed black Archivo (the hit), sweet in wax Cormorant.
+    // Painted as a low relief under a key from the upper left: a soft contact shadow, the far (lower-right) walls in
+    // shade, the near edge catching the light, the flat top face
     c.fillStyle = T_HEX.stone; c.fillRect(x, y, vw, vh);
-    C.regions.push({ rect: [x, y, vw, vh], type: LT.STONE, a: [-0.8, -0.55, 0, 2.6], col: [1, 1, 1] });
-    const tf = F.archivo(62, 900), sf = F.serif(600, true);
-    const words: [string, string, number, number, number][] = [['TEETH', tf, 70, 26, 84], ['sweet', sf, 72, 168, 142]];
-    // the letters stand proud of the stone: a little occlusion at their feet, their faces a touch smoother and paler
-    c.save();
-    c.filter = 'blur(5px)';
-    c.fillStyle = shade('stone', 0.55, 0.55);
-    for (const [s, fam, sz, dx, dy] of words) { c.font = font(fam, sz); c.fillText(s, x + dx + 2, y + dy + 3); }
-    c.restore();
-    c.font = font(tf, 70); c.fillStyle = shade('stone', 1.07); c.fillText('TEETH', x + 26, y + 84);
-    c.font = font(sf, 72); c.fillStyle = T_HEX.wax; c.fillText('sweet', x + 168, y + 142);
-    const h = C.h;
-    h.save();
-    h.filter = 'blur(1.1px)';
-    h.fillStyle = 'rgb(255,0,0)';
-    for (const [s, fam, sz, dx, dy] of words) { h.font = font(fam, sz); h.fillText(s, x + dx, y + dy); }
-    h.restore();
+    C.regions.push({ rect: [x, y, vw, vh], type: LT.STONE, a: [-0.8, -0.55, 0, 0], col: [1, 1, 1] });
+    const words: [string, string, number, number, number, TKey][] = [
+      ['TEETH', F.archivo(62, 900), 78, 24, 90, 'stone'], ['sweet', F.serif(600, true), 74, 176, 146, 'wax'],
+    ];
+    for (const [s, fam, sz, dx, dy, k] of words) {
+      const X = x + dx, Y = y + dy;
+      c.font = font(fam, sz);
+      c.save(); c.filter = 'blur(4px)'; c.fillStyle = shade('stone', 0.5, 0.5); c.fillText(s, X + 4, Y + 5); c.restore();
+      c.fillStyle = shade(k, 0.62);
+      for (let d = 3; d >= 1; d -= 0.5) c.fillText(s, X + d * 0.8, Y + d);
+      c.fillStyle = shade(k, 1.12); c.fillText(s, X - 0.8, Y - 0.8);
+      c.fillStyle = k === 'stone' ? shade('stone', 1.03) : T_HEX.wax; c.fillText(s, X, Y);
+    }
   });
   chips(C, vx(4), vy(4) + vh + 22, vw, ['stone', 'wax'], 'THE CASTS: RELIEF IN STONE, TENDER WORDS IN WAX');
 
@@ -201,25 +200,43 @@ export function paletteInContext(C: Ctx2, x0: number, y0: number, w: number) {
     h.save(); h.strokeStyle = 'rgb(150,0,0)'; h.lineWidth = 1.2; h.filter = 'blur(0.6px)';
     for (const t of up) for (const g of grooves(t)) { path(h, g, false); h.stroke(); }
     h.restore();
-    // the tracing on the acetate: each anterior's incisal edge outlined, the chip ringed, TEETH above
-    for (const [ctx, col] of [[c, T_HEX.match], [C.g, trgba('match', 0.5)]] as const) {
+    // the tracing on the acetate, as in plate 13: a red bar on each incisor's incisal edge, a red mark on each
+    // canine's tip (the bite records only the anteriors), TEETH above; the chip on #8 ringed in film ink
+    for (const [ctx, col] of [[c, T_HEX.match], [C.g, trgba('match', 0.45)]] as const) {
       ctx.save();
       ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      for (let n = 6; n <= 11; n++) {
+      for (const n of [7, 8, 9, 10]) {
         const e = incisalEdge(tooth(HIS, n));
-        if (e) capsule(ctx, e.map(P), n === 6 || n === 11 ? 3.2 : 4);
+        if (e) capsule(ctx, trim(e.map(P), n === 8 ? 0 : 0.08, 0.08), 3);
       }
-      const e8 = incisalEdge(tooth(HIS, 8))!;
-      const [cx8, cy8] = P(e8[0]!);
-      ctx.beginPath(); ctx.arc(cx8, cy8, 13, 0, Math.PI * 2); ctx.stroke();
+      for (const n of [6, 11]) {
+        const tip = cuspTips(tooth(HIS, n))[0];
+        if (tip) { const [tx, ty] = P(tip.p); ctx.beginPath(); ctx.ellipse(tx, ty, 4.5, 3.5, 0, 0, Math.PI * 2); ctx.stroke(); }
+      }
       const st = strokeText('TEETH', 'sans', 38, 38 * 0.04);
       ctx.translate(x + 16, y + 48);
       ctx.lineWidth = 2.2;
       drawStrokeText(ctx, st, st.total);
       ctx.restore();
     }
+    const [cx8, cy8] = P(incisalEdge(tooth(HIS, 8))![0]!);
+    c.strokeStyle = T_HEX.film; c.lineWidth = 1.4;
+    c.beginPath(); c.arc(cx8, cy8, 11, 0, Math.PI * 2); c.stroke();
   });
   chips(C, vx(5), vy(5) + vh + 22, vw, ['match'], 'FROM 165.16: THE OUTLINE, THE MONOGRAM, THE STAMP');
+}
+
+/** The part of an open polyline between fractions a (from its start) and b (from its end) of its length. */
+function trim(pts: [number, number][], a: number, b: number): [number, number][] {
+  const L = [0];
+  for (let i = 1; i < pts.length; i++) L.push(L[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
+  const T = L[L.length - 1]!, s0 = a * T, s1 = (1 - b) * T;
+  const at = (s: number): [number, number] => {
+    let i = 1; while (i < pts.length - 1 && L[i]! < s) i++;
+    const u = (s - L[i - 1]!) / Math.max(1e-6, L[i]! - L[i - 1]!), p = pts[i - 1]!, q = pts[i]!;
+    return [p[0] + (q[0] - p[0]) * u, p[1] + (q[1] - p[1]) * u];
+  };
+  return [at(s0), ...pts.filter((_, i) => L[i]! > s0 && L[i]! < s1), at(s1)];
 }
 
 /** Stroke the outline of a round-ended band of half-width r around an open polyline (px). */

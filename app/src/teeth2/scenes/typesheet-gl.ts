@@ -127,7 +127,7 @@ void main() {
       float e = 1.5;
       float rx = height(p + vec2(e, 0.0)) - height(p - vec2(e, 0.0));
       float ry = height(p + vec2(0.0, e)) - height(p - vec2(0.0, e));
-      vec3 n = normalize(vec3(-(hx - h0) * 22.0 * fm - rx * 4.0, -(hy - h0) * 22.0 * fm - ry * 4.0, 1.0));
+      vec3 n = normalize(vec3(-(hx - h0) * 26.0 * fm - rx * 8.0, -(hy - h0) * 26.0 * fm - ry * 8.0, 1.0));
       n = normalize(mix(n, vec3(0.0, 0.0, 1.0), rigid));
       vec3 Ld = normalize(vec3(A.x, A.y, 0.55));
       float b = pool(p, Bq.xyzz * vec4(1.0, 1.0, 1.0, 0.75), A.z, 1.2);

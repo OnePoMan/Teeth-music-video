@@ -62,9 +62,9 @@ export function page1(C: Ctx2, ly: Lyrics, t: number) {
   const tk = your.start - 0.045 + 0.625 * (your.end - your.start); // "your" mid-word: "yo" lit, "u" springing
   // the phrase on screen at tk: 1-4 words from the hero on, nothing more than 0.4 s ahead of its onset
   const ws = line.words.slice(2, 6).filter((w) => w.start - tk <= 0.4);
-  const o = { treat: 'A' as const, ground: 'film' as const, size: 54, hero: 118, heroIdx: 0 };
-  const placed = drawLine(c, ws, tk, o, X0, 758);
-  const by = 780;
+  const o = { treat: 'A' as const, ground: 'film' as const, size: 50, hero: 104, heroIdx: 0 };
+  const placed = drawLine(c, ws, tk, o, X0, 744);
+  const by = 778;
   const names = ['HERO · SUNG', 'SUNG', 'SINGING', 'UNSUNG'];
   placed.forEach((p, i) => bracket(c, p.x, p.x + p.width, by, names[i]!));
   cap(c, `CHORUS 1, “LATE NIGHT DEVIL, PUT YOUR HANDS ON ME”, AT ${tk.toFixed(2)} S: “YOUR” MID-WORD · UNSUNG HALIDE 35% · TREATMENT A`, X0, 656, { size: 10 });
@@ -121,6 +121,7 @@ export function page1(C: Ctx2, ly: Lyrics, t: number) {
   for (const [ctx, col] of [[c, T_HEX.match], [C.g, trgba('match', 0.55)]] as const)
     inRect(ctx, lb.x, lb.y, lb.w, lb.h, lb.rot, () => drawMonogram(ctx, MONOGRAM.length, { ...mpl, x: 136, y: 101 - ms * MONO_H * 0.86, color: col }));
   cap(c, 'IN INK WHERE A SIGNATURE GOES · IN MATCH RED, ONCE, AT 165.16', MX, 678, { size: 10 });
+  cap(c, 'SIGNATURE: THE ONE EXCEPTION TO THE PEN HAND; NO FULL STOPS', MX, 792, { size: 10, col: trgba('halide', 0.85) });
   // the signing, frame by frame (0.55 s from the beat)
   const fr = [0.12, 0.28, 0.44, 0.6, 0.78, 1.0];
   const fw = 92, fh = 60, fg = (MW - fr.length * fw) / (fr.length - 1);
@@ -141,13 +142,13 @@ export function page1(C: Ctx2, ly: Lyrics, t: number) {
   });
 
   // ------------------------------------------------------------------ 03 lab labels
-  const R3 = 820;
+  const R3 = 834;
   const cw = [540, 540, X1 - (X0 + 540 * 2 + 48)];
   const cx = [X0, X0 + 540 + 24, X0 + 2 * (540 + 24)];
   head(c, '03', 'THE LAB · IBM PLEX MONO', cx[0]!, R3, cw[0]!);
   cap(c, 'INSIDE OBJECTS ONLY · ONE READABLE LABEL PER PLATE', cx[0]!, R3 + 26, { size: 10 });
   // a hanging folder's edge and its tab
-  const fx = cx[0]!, fy = R3 + 70;
+  const fx = cx[0]!, fy = R3 + 58;
   c.save();
   c.shadowColor = 'rgba(0,0,0,0.9)'; c.shadowBlur = 14; c.shadowOffsetY = 4;
   c.fillStyle = shade('film2', 1.35);

@@ -95,7 +95,7 @@ export interface LineOpts {
 function style(o: LineOpts, isHero: boolean, sung: boolean): RunStyle {
   const white = o.ground === 'white';
   const ink = white ? T_HEX.film : T_HEX.lightbox;
-  const sup = F.archivo(112, 300), heavy = F.archivo(100, 700);
+  const sup = F.archivo(112, 300), heavy = F.archivo(100, 900);
   const heroF = F.archivo(62, 900);
   if (o.treat === 'A') {
     if (isHero) return { fam: heroF, size: o.hero, col: sung ? ink : white ? trgba('film', 0.3) : trgba('halide', 0.35), up: true };

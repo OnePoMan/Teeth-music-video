@@ -11,7 +11,7 @@ import { X0, X1, frame } from './typesheet-p1';
 
 const TREATS: { id: TreatId; name: string; lines: string[] }[] = [
   { id: 'A', name: 'DEFAULT, AS WRITTEN', lines: ['UNSUNG HALIDE AT 35% · SUNG LIGHTBOX WHITE', 'HERO CONDENSED BLACK, IN ITS PLATE’S IDIOM', 'ON WHITE: UNSUNG FILM AT 30% · SUNG FILM INK'] },
-  { id: 'B', name: 'HAIRLINE TO HEAVY', lines: ['UNSUNG A SILVER HAIRLINE (ARCHIVO 300)', 'SUNG TURNS HEAVY AND WHITE: THE WEIGHT IS', 'THE WIPE · ON WHITE: SILVER TO FILM INK'] },
+  { id: 'B', name: 'HAIRLINE TO HEAVY', lines: ['THE DIFFERENCE FROM A IS THE SUNG WEIGHT:', 'SUNG WORDS GO BLACK-HEAVY (900); UNSUNG IS A', 'SILVER HAIRLINE (300) · ON WHITE: TO FILM INK'] },
   { id: 'C', name: 'THE HERO IN ITS MATERIAL', lines: ['AS A, BUT THE HERO TAKES ITS PLATE’S MATERIAL:', 'STONE ON THE CAST CHORUSES (9, 10, 13), WAX ON', 'THE TENDER WORDS · ON WHITE, A DEEP SHADE OF IT'] },
 ];
 
@@ -78,28 +78,44 @@ export function page2(C: Ctx2, ly: Lyrics, t: number) {
     c.fillStyle = shade('film2', 1.3); c.fillRect(x, by, tw2, bh);
     c.fillStyle = shade('lightbox', 0.86); c.fillRect(x, by, me - x, bh);
     c.fillStyle = shade('lightbox', 0.62); c.fillRect(me, by, 9, bh); // the sheet falling over the mattress's edge
-    const pil = { x: x + 18, y: by + 12, w: 192, h: 62 };
-    const pillow = (k: CanvasRenderingContext2D) => {
-      k.save(); k.translate(pil.x + pil.w / 2, pil.y + pil.h / 2); k.rotate(-0.06);
-      k.beginPath(); k.roundRect(-pil.w / 2, -pil.h / 2, pil.w, pil.h, 24); k.restore();
+    // the bare pillow: a stuffed case seen from above, its sides bowed out, its corners pinched into points
+    const pil = { x: x + 22, y: by + 14, w: 188, h: 60 };
+    const pillow = (k: CanvasRenderingContext2D, inset = 0) => {
+      const x0 = pil.x + inset, y0 = pil.y + inset * 0.6, x1 = pil.x + pil.w - inset, y1 = pil.y + pil.h - inset * 0.6, bx = 9 - inset * 0.3, byy = 7 - inset * 0.2;
+      k.beginPath(); k.moveTo(x0, y0);
+      k.quadraticCurveTo((x0 + x1) / 2, y0 - byy, x1, y0); k.quadraticCurveTo(x1 + bx, (y0 + y1) / 2, x1, y1);
+      k.quadraticCurveTo((x0 + x1) / 2, y1 + byy, x0, y1); k.quadraticCurveTo(x0 - bx, (y0 + y1) / 2, x0, y0); k.closePath();
     };
-    c.fillStyle = shade('lightbox', 0.98);
-    pillow(c); c.fill();
-    const cover = (k: CanvasRenderingContext2D, w: number) => {
-      k.beginPath(); k.moveTo(x - 20, by + bh - 4); k.quadraticCurveTo(x + 120, by + bh - 30, me + 12, by + bh - 50);
-      k.lineWidth = w; k.lineCap = 'butt'; k.stroke();
+    c.fillStyle = shade('lightbox', 0.98); pillow(c); c.fill();
+    // the cover, thrown back to the foot of the bed: a heavier layer across the whole width, its folded edge a roll
+    const cy0 = by + bh - 66;
+    const coverEdge = (k: CanvasRenderingContext2D) => {
+      k.beginPath(); k.moveTo(x - 4, cy0 + 6);
+      k.bezierCurveTo(x + 60, cy0 - 6, x + 140, cy0 + 10, me + 4, cy0 - 2);
+      k.lineTo(me + 4, by + bh + 4); k.lineTo(x - 4, by + bh + 4); k.closePath();
     };
-    c.strokeStyle = shade('lightbox', 0.84); cover(c, 44);
+    c.fillStyle = shade('lightbox', 0.8); coverEdge(c); c.fill();
     const h = C.h;
-    // relief (r): the mattress a plateau, the pillow standing on it, the cover's roll; folds (b) on the sheet only
+    // relief (r): the mattress a plateau, the pillow domed on it, the cover's layer and its roll and two soft ridges;
+    // folds (b) gentle on the sheet, a little on the cover, none on the pillow
     h.save();
-    h.filter = 'blur(4px)'; h.fillStyle = 'rgb(110,0,255)'; h.fillRect(x - 10, by - 10, me - x + 14, bh + 20);
-    h.filter = 'blur(10px)'; h.fillStyle = 'rgb(225,0,0)'; pillow(h); h.fill();
+    h.filter = 'blur(4px)'; h.fillStyle = 'rgb(110,0,170)'; h.fillRect(x - 10, by - 10, me - x + 14, bh + 20);
+    for (const [ins, v, bl] of [[0, 170, 6], [10, 205, 10], [24, 230, 12]] as const) {
+      h.filter = `blur(${bl}px)`; h.fillStyle = `rgb(${v},0,0)`; pillow(h, ins); h.fill();
+    }
+    h.filter = 'blur(1.5px)'; h.strokeStyle = 'rgb(150,0,0)'; h.lineWidth = 1.5;
+    for (const [px0, py0, dx, dy] of [[pil.x + 2, pil.y + 2, 16, 10], [pil.x + pil.w - 2, pil.y + 2, -16, 10], [pil.x + 2, pil.y + pil.h - 2, 16, -10], [pil.x + pil.w - 2, pil.y + pil.h - 2, -16, -10]] as const) {
+      h.beginPath(); h.moveTo(px0, py0); h.lineTo(px0 + dx, py0 + dy); h.stroke();
+    }
+    h.filter = 'blur(6px)'; h.fillStyle = 'rgb(175,0,110)'; coverEdge(h); h.fill();
     h.globalCompositeOperation = 'lighter';
-    h.filter = 'blur(8px)'; h.strokeStyle = 'rgb(80,0,0)'; cover(h, 40);
+    h.filter = 'blur(5px)'; h.strokeStyle = 'rgb(55,0,0)'; h.lineWidth = 12;
+    h.beginPath(); h.moveTo(x - 4, cy0 + 12); h.bezierCurveTo(x + 60, cy0, x + 140, cy0 + 16, me + 4, cy0 + 4); h.stroke();
+    h.lineWidth = 9; h.strokeStyle = 'rgb(35,0,0)';
+    for (const o of [26, 46]) { h.beginPath(); h.moveTo(x - 4, cy0 + o + 4); h.bezierCurveTo(x + 80, cy0 + o - 6, x + 150, cy0 + o + 8, me + 4, cy0 + o); h.stroke(); }
     h.restore();
     C.regions.push({ rect: [x, by, tw2, bh], type: LT.BED, a: [-0.85, -0.5, -0.5, 0.05], b: [x + tw2 * 0.3, by + bh * 0.3, tw2 * 1.15], col: k.col });
-    const mk = { x: x + 44, y: by + 94, w: 164, h: 64, rot: -0.07 };
+    const mk = { x: x + 46, y: by + 92, w: 164, h: 64, rot: -0.07 };
     // its shadow on the sheet (the light rakes from the upper left)
     c.save();
     c.translate(mk.x + mk.w / 2 + 16, mk.y + mk.h / 2 + 12); c.rotate(mk.rot);
