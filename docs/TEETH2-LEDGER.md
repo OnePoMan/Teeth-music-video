@@ -41,3 +41,14 @@ Lead rulings from review 1 (settled):
 - **The apple reads as an apple**: true apple silhouette, stem well and stem; skin a deep, desaturated shade of wax over a stone-yellow ground (shades of palette tokens), so the wax-pink tender word (SWEET) still separates.
 - **Lighting**: real blacks (film), a hard source per plate, and a light event on each money moment (the first flash, the cut to the cast, the lock).
 - Repetition watch (rule 1): plates 5, 9 and 10 all carry words in a material (bitten, set in relief, engraved); each plate's motion idiom (flash, set wave, reflection flare) must dominate.
+
+### Review 2 (fresh reviewer, Opus high): fix round 1 → fix round 2
+Overall call: not ready. Drawer, radiograph, match and sheets one fix round away; plate 5 (bite and bitten-letter shots) rework; plate 9 materials pass. Top threats: plate 5 at a glance (bite a white scoop with no tooth arc or chip; TEETH as stencil letters on a flat grey slab; 55.30 repeats 55.00); flat ungrounded light (no blacks on the match board, no light event at the first flash or the lock, no contact shadows); CG/toy objects (mouthguard-like wet stone with decal foam, boxy denture incisors, Voronoi flesh, glove lost in its shadow); the chip chain broken (missing in the apple, ambiguous on the cast); bloom orbs and halos on non-glow materials and grainy DOF edge fringes.
+
+Lead rulings from review 2 (settled):
+- The signature is the one exception to the single pen hand: the monogram stays a slanted signature mark, drawn without full stops (the client sees it at gate 2).
+- The ring around the chip at the lock is drawn in film ink, not red (red stays on the outline, TEETH, the monogram and the stamp).
+- Plate 13's cast photograph is 1:1 with the tracing (label "PHOTO 1:1").
+- Plates 5 and 9 must not share a composition: plate 5's TEETH is a flash-lit photograph of the word in the apple's curved flank; plate 9's hero at the cut is the cast and its teeth (chip toward the lens), with TEETH secondary, raised in the same Archivo relief as HEART.
+- No bloom on non-glow materials: lamp reflections are crisp shapes, not soft orbs; DOF must not leave grainy halos on silhouettes.
+- The apple bite keeps one crescent (no frontal pair of arcs: face risk), but its rim is a row of individual incisor scallops with the #8 notch readable, and the lower teeth's marks sit on the far wall.
