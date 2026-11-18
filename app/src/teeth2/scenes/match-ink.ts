@@ -4,34 +4,36 @@
 //  - TABLE: the light table; origin = where the arch origin (the point between #8 and #9's incisal edges) of a print
 //    sits when the print is perfectly aligned under the tracing.
 //  - PRINT-LOCAL: a print's own frame, its arch origin at 0; a print is placed on the table by (ox, oy, theta).
-//  - ARCH (real mm, teeth.ts): print-local = arch * PHOTO_SCALE (the photo is enlarged 2:1).
+//  - ARCH (real mm, teeth.ts): print-local = arch * PHOTO_SCALE (the photo is enlarged 2.2:1).
 import { SCALE } from '../../engine/gl';
 import { F, font } from '../../engine/type';
 import { strokeText, drawStrokeText, writtenLength, type StrokeText } from '../../engine/stroke';
 import { clamp } from '../../engine/util';
 import type { Line, Word } from '../../engine/lyrics';
-import { HIS, tooth, occlusalOutline, incisalEdge, toothPos, type V2 } from '../teeth';
+import { HIS, tooth, biteMark, type V2 } from '../teeth';
 import { drawMonogram, monoWritten, MONO_H } from '../monogram';
 import { T_HEX } from '../palette';
 
-export const PHOTO_SCALE = 1.75;
-/** The print (print-local mm): a glossy 11x8.5" print, a white border. */
-export const PRINT = { x0: -125, x1: 155, y0: -98, y1: 116, border: 7 };
+export const PHOTO_SCALE = 2.2;
+/** The print (print-local mm): a glossy 13x10" print, a white border. */
+export const PRINT = { x0: -150, x1: 190, y0: -112, y1: 140, border: 8 };
 /** The photograph inside the border, in ARCH mm (the region the cast photo render covers). */
 export const PHOTO = {
   x0: (PRINT.x0 + PRINT.border) / PHOTO_SCALE, y0: (PRINT.y0 + PRINT.border) / PHOTO_SCALE,
   x1: (PRINT.x1 - PRINT.border) / PHOTO_SCALE, y1: (PRINT.y1 - PRINT.border) / PHOTO_SCALE,
 };
 /** The cast label stuck on the print (print-local mm, top-left and size). */
-export const LABEL = { x0: 97, y0: -4, w: 56, h: 40, ppm: 18 };
+export const LABEL = { x0: 80, y0: -54, w: 56, h: 40, ppm: 18 };
 /** Where the monogram is signed (label mm): the NAME field's line. */
 export const MONO_PLACE = { x: 17.5, y: 11.6, size: 33 };
 /** The acetate (table mm): fixed to the table, the prints slide in under it. */
-export const ACETATE = { x0: -138, x1: 86, y0: -126, y1: 140 };
+export const ACETATE = { x0: -150, x1: 73, y0: -150, y1: 160 };
 /** The lyric band on the acetate (table mm) and its canvas resolution. */
-export const LYR = { x0: -138, x1: 86, y0: -122, y1: -10, ppm: 9 };
+export const LYR = { x0: -150, x1: 73, y0: -140, y1: -26, ppm: 9 };
+/** Where the lyric is centred (table x). */
+export const LYR_CX = -12;
 /** The tracing's canvas region (table mm). */
-export const TRC = { x0: -84, x1: 84, y0: -42, y1: 112, ppm: 12 };
+export const TRC = { x0: -72, x1: 72, y0: -24, y1: 40, ppm: 16 };
 
 const mkCanvas = (w: number, h: number) => {
   const c = document.createElement('canvas');
@@ -40,15 +42,32 @@ const mkCanvas = (w: number, h: number) => {
 };
 
 // ------------------------------------------------------------------------------------------------ the tracing
-/** Red-flush order per tooth (0 first .. 1 last): the molars first, the incisors after, the chip on #8 last. */
+/** The bite's upper arc (biteMark(HIS), canine to canine) mapped back onto the arch: per tooth, the outline of the mark
+ *  it left (a rounded bar along an incisal edge, a small triangle for a canine) in arch mm. #8's bar is the shortened,
+ *  slanted one: the chip. (The bite's lower arc belongs on the mandibular overlay; this sheet is laid on the maxillary
+ *  casts.) */
+export function biteTrace(): { n: number; poly: V2[] }[] {
+  const gap = 16;
+  const bm = biteMark(HIS, { gap });
+  const ts = [6, 7, 8, 9, 10, 11].map((n) => tooth(HIS, n)).filter((t) => t.present);
+  const canY = Math.max(...ts.map((t) => t.center[1]));
+  return bm.upper.map((m) => ({ n: m.n, poly: m.poly.map(([X, Y]) => [-X, canY - (Y - gap / 2)] as V2) }));
+}
+/** Red-flush order per tooth (0 first .. 1 last): the canines, the laterals, #9, and the chip on #8 last. */
 export function flushOrder(n: number) {
-  if (n === 8) return 0.97;
-  const pos = toothPos(n);
-  return 0.06 + ((7 - pos) / 7) * 0.8 + (n >= 9 ? 0.03 : 0);
+  return n === 8 ? 0.97 : n === 9 ? 0.72 : n === 7 || n === 10 ? 0.42 : 0.1;
+}
+/** Where the chip is (print-local mm): the mesial-incisal corner of #8's mark. */
+export function chipPoint(): V2 {
+  const m = biteTrace().find((q) => q.n === 8)!;
+  // the mark's mesial end (nearest the midline, x -> 0)
+  let best = m.poly[0]!;
+  for (const p of m.poly) if (Math.abs(p[0]) < Math.abs(best[0])) best = p;
+  return [best[0] * PHOTO_SCALE, best[1] * PHOTO_SCALE];
 }
 
-/** The bite tracing on the acetate: every upper tooth's outline and the anterior incisal edges, in a fine pen line
- *  with a hand's tremor. R = ink coverage, G = the tooth's flush order (for the red's sweep). Static. */
+/** The bite tracing on the acetate: the six upper anterior marks, a technical pen's even line with a hand's slight
+ *  tremor. R = ink coverage, G = the tooth's flush order (for the red's sweep; 1.0 = never red). Static. */
 export function buildTracing(): HTMLCanvasElement {
   const k = TRC.ppm * SCALE;
   const cv = mkCanvas((TRC.x1 - TRC.x0) * k, (TRC.y1 - TRC.y0) * k);
@@ -56,39 +75,25 @@ export function buildTracing(): HTMLCanvasElement {
   c.fillStyle = '#000'; c.fillRect(0, 0, cv.width, cv.height);
   c.setTransform(k, 0, 0, k, -TRC.x0 * k, -TRC.y0 * k);
   c.lineCap = 'round'; c.lineJoin = 'round';
-  // a hand's tremor: smooth low-amplitude wobble along the line (deterministic)
   const wob = (p: V2, i: number, n: number): V2 => {
     const s = i * 0.37 + n * 3.1;
-    return [p[0] + 0.07 * Math.sin(s * 1.7) + 0.04 * Math.sin(s * 4.3 + 1), p[1] + 0.07 * Math.cos(s * 1.3 + 2) + 0.04 * Math.sin(s * 3.7)];
+    return [p[0] + 0.05 * Math.sin(s * 1.7) + 0.03 * Math.sin(s * 4.3 + 1), p[1] + 0.05 * Math.cos(s * 1.3 + 2) + 0.03 * Math.sin(s * 3.7)];
   };
-  for (let n = 1; n <= 16; n++) {
-    const t = tooth(HIS, n);
-    const g = Math.round(flushOrder(n) * 255);
-    c.strokeStyle = `rgb(255,${g},0)`;
-    const o = occlusalOutline(t, 96).map((p) => [p[0] * PHOTO_SCALE, p[1] * PHOTO_SCALE] as V2);
-    c.lineWidth = 0.46;
+  for (const { n, poly } of biteTrace()) {
+    c.strokeStyle = `rgb(255,${Math.round(flushOrder(n) * 255)},0)`;
+    c.lineWidth = 0.42;
+    const o = poly.map((p) => [p[0] * PHOTO_SCALE, p[1] * PHOTO_SCALE] as V2);
     c.beginPath();
-    // the pen goes round once and overshoots its start a little (a traced outline is never closed exactly)
     const L = o.length;
-    for (let i = 0; i <= L + 3; i++) {
-      const p = wob(o[i % L]!, i, n);
-      if (i === 0) c.moveTo(p[0], p[1]); else c.lineTo(p[0], p[1]);
-    }
+    for (let i = 0; i <= L + 1; i++) { const p = wob(o[i % L]!, i, n); if (i === 0) c.moveTo(p[0], p[1]); else c.lineTo(p[0], p[1]); }
     c.stroke();
-    const e = incisalEdge(t);
-    if (e) {
-      c.lineWidth = 0.34;
-      c.beginPath();
-      e.forEach((q, i) => { const p = wob([q[0] * PHOTO_SCALE, q[1] * PHOTO_SCALE], i, n + 40); if (i) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); });
-      c.stroke();
-    }
   }
-  // the midline tick and two registration crosses (an overlay's alignment marks)
+  // the midline tick and the registration crosses (an overlay's alignment marks; they stay black)
   c.strokeStyle = 'rgb(255,255,0)';
-  c.lineWidth = 0.4;
+  c.lineWidth = 0.35;
   const cross = (x: number, y: number, r: number) => { c.beginPath(); c.moveTo(x - r, y); c.lineTo(x + r, y); c.moveTo(x, y - r); c.lineTo(x, y + r); c.stroke(); };
-  cross(-78, 22, 4); cross(78, 22, 4); cross(0, 104, 4);
-  c.beginPath(); c.moveTo(0, -14); c.lineTo(0, -6); c.stroke();
+  cross(-58, 4, 3.5); cross(58, 4, 3.5);
+  c.beginPath(); c.moveTo(0, -12); c.lineTo(0, -5); c.stroke();
   return cv;
 }
 
@@ -134,7 +139,7 @@ export function buildLabelBase(): HTMLCanvasElement {
   c.font = font(F.mono(500), 1.25);
   c.textBaseline = 'alphabetic';
   c.globalAlpha = 0.5;
-  c.fillText('08-32 · STONE CAST · MAX · PHOTO 1.75:1', 2.6, 4.6);
+  c.fillText('08-32 · STONE CAST · MAX · PHOTO 2.2:1', 2.6, 4.6);
   c.font = font(F.mono(400), 1.0);
   c.globalAlpha = 0.42; c.fillText('EXHIBIT 9 · TYPE IV STONE · TRIMMED · BAGGED', 2.6, 37.0);
   c.globalAlpha = 1;
@@ -175,22 +180,23 @@ export interface Phrase {
   rows: { st: StrokeText; words: number[]; x: number; y: number; width: number; pen: number }[];
 }
 
-const HERO_EM = 50, SUP_EM = 15, SOLO_EM = 17;
-const HERO_BASE = -27, SUP_BASE = -75, SOLO_BASE = -44;
+const HERO_EM = 40, SUP_EM = 12.5, SOLO_EM = 14;
+const HERO_BASE = -37, SUP_BASE = -80, SOLO_BASE = -50;
 
 /** Lay a phrase out on the acetate (table mm): supporting words on a row above the hero, both centred on the arch. */
 export function layoutPhrase(p: Phrase) {
   const sup = p.words.map((_, i) => i).filter((i) => i !== p.hero);
-  const txt = (i: number) => (i === p.hero ? p.words[i]!.w.replace(/[,.]/g, '').toUpperCase() : p.words[i]!.w);
+  // a technical pen hand: upright single-stroke capitals (Hershey Sans, as through a lettering guide)
+  const txt = (i: number) => (i === p.hero ? p.words[i]!.w.replace(/[,.]/g, '') : p.words[i]!.w).toUpperCase();
   const row = (idx: number[], em: number, y: number, pen: number) => {
-    const st = strokeText(idx.map(txt).join(' '), 'tech', em);
-    return { st, words: idx, x: -st.width / 2, y, width: st.width, pen };
+    const st = strokeText(idx.map(txt).join(' '), 'sans', em, em * 0.04);
+    return { st, words: idx, x: LYR_CX - st.width / 2, y, width: st.width, pen };
   };
   p.rows = [];
   if (p.hero >= 0) {
-    if (sup.length) p.rows.push(row(sup, SUP_EM, SUP_BASE, 0.55));
-    p.rows.push(row([p.hero], HERO_EM, HERO_BASE, 1.15));
-  } else p.rows.push(row(sup, SOLO_EM, SOLO_BASE, 0.6));
+    if (sup.length) p.rows.push(row(sup, SUP_EM, SUP_BASE, 0.5));
+    p.rows.push(row([p.hero], HERO_EM, HERO_BASE, 1.0));
+  } else p.rows.push(row(sup, SOLO_EM, SOLO_BASE, 0.55));
 }
 
 /** Write the phrase into the lyric canvas (R = ink, G = red), each word while it is sung. */
@@ -219,12 +225,6 @@ export function drawLyric(cv: HTMLCanvasElement, p: Phrase | null, t: number) {
     c.strokeStyle = red ? 'rgb(255,255,0)' : 'rgb(255,0,0)';
     c.lineWidth = r.pen;
     drawStrokeText(c, r.st, len);
-    // a marker's second pass on the hero: a slightly offset trace gives the line its body
-    if (r.words.includes(p.hero)) {
-      c.setTransform(k, 0, 0, k, (r.x - LYR.x0 + 0.35) * k, (r.y - LYR.y0 + 0.2) * k);
-      c.lineWidth = r.pen * 0.8;
-      drawStrokeText(c, r.st, Math.max(0, len - 4));
-    }
   }
 }
 export const lyricCanvas = () => mkCanvas((LYR.x1 - LYR.x0) * LYR.ppm * SCALE, (LYR.y1 - LYR.y0) * LYR.ppm * SCALE);

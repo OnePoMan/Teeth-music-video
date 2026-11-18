@@ -22,7 +22,7 @@ import { monoPenAt, monoWritten, MONOGRAM } from '../monogram';
 import { PHOTO_FRAG, MAIN_FRAG } from './match-glsl';
 import {
   PHOTO, LABEL, buildTracing, buildStamp, buildLabelBase, drawLabel, labelCanvas, drawLyric, lyricCanvas,
-  layoutPhrase, monoToLabel, type Phrase,
+  layoutPhrase, monoToLabel, chipPoint, type Phrase,
 } from './match-ink';
 
 const T_LOCK = 165.16;
@@ -31,8 +31,9 @@ const VFOV = 26;
 const SLIDE = 0.09;
 /** Photo resolution: px per arch mm (the photo is printed 2:1). */
 const PHOTO_PPM = 15;
-/** The suspects, one per beat (archVariant seeds); the order puts a clear gap at 163.0. */
-const SUSPECTS = [3, 7, 5, 2, 8, 4, 6, 9, 1, 10, 11, 12];
+/** The suspects, one per beat (archVariant seeds), chosen for features that show in the upper front teeth from above
+ *  (a missing or peg lateral, a gap between the centrals, crowding, flaring); 163.0 gets #7 missing with crowding. */
+const SUSPECTS = [5, 25, 13, 4, 33, 17, 2, 29, 12, 1, 37, 35];
 
 interface Pose { x: number; y: number; th: number }
 interface Ev { t: number; seed: number; pose: Pose; from: [number, number] }
@@ -81,7 +82,7 @@ export default class Match extends Scene {
       labTex: { value: this.labTex }, labBlank: { value: labBlank }, stampTex: { value: stamp },
       prA: { value: new THREE.Vector4() }, prB: { value: new THREE.Vector4() },
       flush: { value: 0 }, redGlow: { value: 0 }, stamp: { value: new THREE.Vector4() },
-      keyPos: { value: new THREE.Vector3(-270, 250, 560) },
+      keyPos: { value: new THREE.Vector3(329, 318, 560) }, lampK: { value: 1 }, ring: { value: new THREE.Vector4() },
       hTip: { value: new THREE.Vector3() }, hE1: { value: new THREE.Vector3() }, hE2: { value: new THREE.Vector3() }, hE3: { value: new THREE.Vector3() },
       handOn: { value: 0 }, ssTap: SS_TAP,
     });
@@ -179,37 +180,40 @@ export default class Match extends Scene {
   private framing(t: number): Cam {
     // per beat during the suspects; the payoff hold from the lock; the matched arch walked to the chip at the end
     const base: Cam = { cx: 0, cy: 0, w: 330, roll: -0.04, tilt: 0.16, yaw: 0 };
-    // one framing per suspect beat; each keeps the lyric band (top of the sheet) inside title-safe
+    // one framing per suspect beat; each keeps the lyric band inside title-safe (a line with a hero needs
+    // cy <= -85 + 0.411 * h, a line without one cy <= -58 + 0.411 * h; h = w * 9 / 16)
     const sus: Partial<Cam>[] = [
-      { cx: 0, cy: -2, w: 340, roll: -0.05 }, { cx: -22, cy: -6, w: 250, roll: 0.05 }, { cx: 18, cy: -4, w: 270, roll: -0.07 },
-      { cx: -6, cy: 4, w: 300, roll: 0.03 }, { cx: 6, cy: -6, w: 320, roll: -0.04 }, { cx: -14, cy: -12, w: 310, roll: 0.05 },
-      { cx: 12, cy: -6, w: 340, roll: -0.03 }, { cx: -4, cy: -16, w: 300, roll: 0.04 }, { cx: 12, cy: -4, w: 300, roll: -0.05 },
-      { cx: -26, cy: -4, w: 250, roll: 0.05 }, { cx: 20, cy: -2, w: 280, roll: -0.06 }, { cx: 0, cy: 4, w: 310, roll: 0.03 },
+      { cx: 10, cy: 4, w: 340, roll: -0.05 }, { cx: -10, cy: 0, w: 280, roll: 0.05 }, { cx: 30, cy: 2, w: 300, roll: -0.07 },
+      { cx: 0, cy: 10, w: 320, roll: 0.03 }, { cx: 16, cy: 4, w: 330, roll: -0.04 }, { cx: -6, cy: -14, w: 320, roll: 0.05 },
+      { cx: 20, cy: -10, w: 340, roll: -0.03 }, { cx: 4, cy: -16, w: 310, roll: 0.04 }, { cx: 8, cy: -2, w: 280, roll: -0.05 },
+      { cx: -16, cy: 0, w: 270, roll: 0.05 }, { cx: 24, cy: 4, w: 300, roll: -0.06 }, { cx: 10, cy: -12, w: 320, roll: 0.03 },
     ];
     const at = (t2: number): Cam => {
       if (t2 >= 166.13) {
-        // stub: "Late night devil...": reframe per word across the matched arch; "never...let go": walk it to the chip
+        // stub: "Late night devil...": reframe per word across the matched arch; "never...let go": walk to the chip.
+        // From GO (MATCH) the NAME label is kept out of frame (never both readable at once).
         const walk: [number, Partial<Cam>][] = [
-          // (every framing keeps the lyric band inside title-safe: hero lines need cy <= -86 + 0.411 * h)
-          [166.13, { cx: 10, cy: -12, w: 330, roll: 0.03 }], [166.56, { cx: -12, cy: -18, w: 300, roll: -0.04 }], [167.0, { cx: 14, cy: -12, w: 330, roll: 0.05 }],
-          [167.43, { cx: -6, cy: -6, w: 300, roll: -0.03 }], [167.86, { cx: 8, cy: -4, w: 340, roll: -0.04 }],
-          [169.59, { cx: 30, cy: -6, w: 300, roll: 0.04 }], [170.02, { cx: 22, cy: -10, w: 290, roll: -0.03 }], [170.45, { cx: 14, cy: -14, w: 280, roll: 0.03 }],
-          [170.88, { cx: 8, cy: -18, w: 268, roll: -0.04 }], [171.31, { cx: 4, cy: -22, w: 258, roll: 0.03 }], [171.74, { cx: 0, cy: -26, w: 250, roll: -0.02 }],
-          [172.18, { cx: -2, cy: -31, w: 246, roll: 0.02 }], [172.61, { cx: 4, cy: -32, w: 244, roll: -0.03 }],
+          [166.13, { cx: 10, cy: -14, w: 330, roll: 0.03 }], [166.56, { cx: -12, cy: -20, w: 300, roll: -0.04 }], [167.0, { cx: 14, cy: -14, w: 330, roll: 0.05 }],
+          [167.43, { cx: -6, cy: 0, w: 300, roll: -0.03 }], [167.86, { cx: 8, cy: 4, w: 340, roll: -0.04 }],
+          [169.59, { cx: 30, cy: 0, w: 300, roll: 0.04 }], [170.02, { cx: 22, cy: -2, w: 290, roll: -0.03 }], [170.45, { cx: 14, cy: -4, w: 280, roll: 0.03 }],
+          [170.88, { cx: 8, cy: -6, w: 268, roll: -0.04 }], [171.31, { cx: 4, cy: -8, w: 258, roll: 0.03 }], [171.74, { cx: 0, cy: -10, w: 250, roll: -0.02 }],
+          [172.18, { cx: -2, cy: -30, w: 250, roll: 0.02 }], [172.61, { cx: -46, cy: -32, w: 236, roll: -0.03 }],
         ];
         let j = 0;
         while (j < walk.length - 1 && t2 >= walk[j + 1]![0]) j++;
         return { ...base, ...walk[j]![1] };
       }
       if (t2 >= 164.41 - 0.02) {
-        // his print: wide on the landing, the push on "got", the payoff frame on the lock drifting toward the label
-        const land: Cam = { ...base, cx: 8, cy: -2, w: 360, roll: -0.06 };
-        const pay: Cam = { ...base, cx: 22, cy: -8, w: 354, roll: -0.035, tilt: 0.16 };
-        const g = ease.inOutCubic(clamp((t2 - 164.84) / (T_LOCK - 164.84)));
-        let c: Cam = { ...land, cx: lerp(land.cx, pay.cx, g), cy: lerp(land.cy, pay.cy, g), w: lerp(land.w, pay.w, g), roll: lerp(land.roll, pay.roll, g), tilt: lerp(land.tilt, pay.tilt, g) };
-        const d = ease.inOutQuad(clamp((t2 - T_LOCK) / 0.97));
-        c = { ...c, cx: c.cx + 8 * d, cy: c.cy + 3 * d, w: c.w - 16 * d };
-        return c;
+        // his print: wide on the landing, a push on "got", and on the lock a hard push in to the front teeth and the
+        // label (the centrals >= 120 px wide), drifting on toward the signature
+        const land: Cam = { ...base, cx: 20, cy: -16, w: 340, roll: -0.06 };
+        const got: Cam = { ...base, cx: 32, cy: -18, w: 312, roll: -0.045 };
+        const pay: Cam = { ...base, cx: 46, cy: -21, w: 288, roll: -0.035, tilt: 0.18 };
+        const mix = (a: Cam, b: Cam, k: number): Cam => ({ cx: lerp(a.cx, b.cx, k), cy: lerp(a.cy, b.cy, k), w: lerp(a.w, b.w, k), roll: lerp(a.roll, b.roll, k), tilt: lerp(a.tilt, b.tilt, k), yaw: 0 });
+        let c = mix(land, got, ease.inOutCubic(clamp((t2 - 164.84) / (T_LOCK - 164.84))));
+        c = mix(c, pay, ease.outCubic(clamp((t2 - T_LOCK) / 0.14)));
+        const d = ease.inOutQuad(clamp((t2 - T_LOCK - 0.14) / 0.83));
+        return { ...c, cx: c.cx + 3 * d, cy: c.cy - 1 * d, w: c.w - 6 * d };
       }
       let i = this.evs.findIndex((e) => e.t > t2) - 1;
       if (i < 0) i = 0;
@@ -269,8 +273,8 @@ export default class Match extends Scene {
       x = ex + 160 * k; y = ey + 110 * k; z = 4 + 70 * ease.outQuad(clamp((t - SIGN_T1 - 0.05) / 0.25));
     }
     // the wrist pivots a little as the pen travels across the label
-    const head = 0.95 + (x - sx) * 0.0035;
-    return { x, y, z, head, tilt: 0.92 + (y - sy) * 0.002 };
+    const head = 0.8 + (x - sx) * 0.0035;
+    return { x, y, z, head, tilt: 1.08 + (y - sy) * 0.002 };
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget) {
@@ -294,9 +298,14 @@ export default class Match extends Scene {
     // the red: the tracing tooth by tooth from the molars, the chip on #8 last; a lift that settles
     u.flush!.value = t < T_LOCK ? -0.1 : clamp((t - T_LOCK) / 0.24) * 1.04;
     u.redGlow!.value = t < T_LOCK ? 0 : 0.85 * pulse(t, T_LOCK, 0.4) + 0.22;
+    // the light event: the copy-stand lamp kicks on the lock (a surge as the print snaps home) and settles
+    u.lampK!.value = 1 + (t < T_LOCK ? 0 : 0.6 * pulse(t, T_LOCK, 0.09) + 0.08 * pulse(t, T_LOCK, 0.6));
+    // the examiner's ring round the chip, drawn as the red reaches #8 (it stays until the end of the plate)
+    const [rx, ry] = chipPoint();
+    (u.ring!.value as THREE.Vector4).set(rx - 1.0, ry - 1.5, 8.0, clamp((t - 165.31) / 0.16) * 1.06);
     // MATCH on GO (stub)
     const go = 172.61;
-    (u.stamp!.value as THREE.Vector4).set(52, 8, -0.14, t >= go ? 1 : 0);
+    (u.stamp!.value as THREE.Vector4).set(-44, 26, -0.14, t >= go ? 1 : 0);
 
     // the lyric
     const ph = this.phrases.find((p) => t >= Math.max(p.t0, p.red ? Math.min(p.t0, T_LOCK) : p.t0) && t < p.t1) ?? null;
