@@ -187,7 +187,7 @@ export default class Drawer extends Scene {
       ssTap: SS_TAP,
       camPos: { value: new THREE.Vector3() }, camR: { value: new THREE.Vector3() }, camU: { value: new THREE.Vector3() },
       camF: { value: new THREE.Vector3() }, tanH: { value: 0.3 },
-      openZ: { value: OPEN0 }, lift08: { value: LIFT0 }, lean08: { value: LEAN0 }, tubeI: { value: 1 }, difK: { value: 0.16 }, specK: { value: 1.5 }, louv: { value: 3 }, ambK: { value: 0.002 }, paintK: { value: 0.45 }, chromeR: { value: 0.26 }, ccK: { value: 8 }, ccR: { value: 0.14 },
+      openZ: { value: OPEN0 }, lift08: { value: LIFT0 }, lean08: { value: LEAN0 }, tubeI: { value: 1 }, difK: { value: 0.24 }, specK: { value: 1.5 }, louv: { value: 12 }, ambK: { value: 0.002 }, paintK: { value: 0.4 }, chromeR: { value: 0.26 }, ccK: { value: 8 }, ccR: { value: 0.14 },
       ftilt: { value: this.tilt }, fzs: { value: this.zs },
       labelTex: { value: this.label },
       TA: { value: new THREE.Vector3(...LAY.TA) }, TB: { value: new THREE.Vector3(...LAY.TB) }, labelTexSize: { value: new THREE.Vector2(cw, ch) },

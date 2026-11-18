@@ -13,13 +13,13 @@ export const LAY = {
   /** the open drawer's row (0 = bottom) */
   OPEN_J: 2,
   /** the hanging rails' height (the folders' rods rest there), the first folder's distance behind the front, pitch */
-  YR: 0.068 + 2 * 0.315 + 0.278, FZ0: 0.016, FDZ: 0.0185,
+  YR: 0.068 + 2 * 0.315 + 0.29, FZ0: 0.016, FDZ: 0.0185,
   /** the folders, and which one is 08-32 */
   NF: 28, K0832: 3,
   /** 08-32's tab: its centre across the drawer, half width; the typed insert's half sizes */
-  TABX: -0.062, TABW: 0.0565, INSW: 0.0525, INSH: 0.0102,
+  TABX: -0.122, TABW: 0.0565, INSW: 0.0525, INSH: 0.0102,
   /** the tube: its ends and radius */
-  TA: [-0.1, 1.75, 0.24] as const, TB: [1.42, 1.75, 0.24] as const, TR: 0.013,
+  TA: [-0.4, 2.1, 0.08] as const, TB: [0.4, 2.1, 0.08] as const, TR: 0.013,
 };
 
 const f = (x: number) => x.toFixed(4);
@@ -137,11 +137,13 @@ vec2 folder(vec3 q, int k) {
   float h = hash11(fk * 7.13 + 1.7), h2 = hash11(fk * 3.71 + 9.2);
   float th = k == K0832 ? 0.0045 : 0.0014 + 0.0055 * h * h;   // its thickness (what's inside)
   // the pocket: card from the rod down, its top edge (a rolled hem round the rod) a little above the rod
-  float body = dRBox(f - vec3(0.0, -0.106, 0.0), vec3(0.1855, 0.118, th), 0.0011);
+  float body = dRBox(f - vec3(0.0, -0.118, 0.0), vec3(0.1855, 0.118, th), 0.0011);
+  // each panel's hem rolled round its rod along the top edge (front and back panel)
+  body = min(body, dCap(vec3(f.x, f.y, abs(f.z) - th + 0.0012), vec3(-0.1855, 0.0, 0.0), vec3(0.1855, 0.0, 0.0), 0.0019));
   vec2 r = vec2(body, M_FOLDER);
   // papers inside, a few standing a hair proud of the card, offset
   if (h2 > 0.3) {
-    float pap = dBox(f - vec3(0.012 * (h - 0.5), -0.106 + 0.0035 * h2, 0.0), vec3(0.15 + 0.02 * h, 0.118, th * 0.6));
+    float pap = dBox(f - vec3(0.012 * (h - 0.5), -0.118 + 0.0035 * h2, 0.0), vec3(0.15 + 0.02 * h, 0.118, th * 0.6));
     r = opU(r, vec2(pap, M_PAPER));
   }
   // the rod and its hooks, over the rails
@@ -154,7 +156,7 @@ vec2 folder(vec3 q, int k) {
   if (has) {
     float tx = -0.135 + slot * 0.09, tw = 0.025;
     if (k == K0832) { tx = TABX; tw = TABW; }
-    vec3 g = f - vec3(tx, 0.012, 0.0);
+    vec3 g = f - vec3(tx, 0.0, 0.0);
     g.yz = tiltYZ(g.yz, -0.2);
     float tab = dRBox(g - vec3(0.0, 0.0085, 0.0), vec3(tw, 0.0145, 0.0011), 0.0012);
     r = opU(r, vec2(tab, k == K0832 ? M_LABEL : M_TAB));
@@ -168,8 +170,8 @@ vec2 openDrawer(vec3 p) {
   vec3 q = p - vec3(0.0, 0.0, openZ);
   // the drawer box: sheet-steel sides, bottom and back, open at the top
   float zb0 = -0.655, zb1 = -0.004;
-  float box = dBox(q - vec3(0.0, YB + 0.146, (zb0 + zb1) * 0.5), vec3(0.204, 0.129, (zb1 - zb0) * 0.5));
-  float inner = dBox(q - vec3(0.0, YB + 0.156, (zb0 + zb1) * 0.5), vec3(0.198, 0.129, (zb1 - zb0) * 0.5 - 0.005));
+  float box = dBox(q - vec3(0.0, YB + 0.152, (zb0 + zb1) * 0.5), vec3(0.204, 0.135, (zb1 - zb0) * 0.5));
+  float inner = dBox(q - vec3(0.0, YB + 0.162, (zb0 + zb1) * 0.5), vec3(0.198, 0.135, (zb1 - zb0) * 0.5 - 0.005));
   box = max(box, -inner);
   // the hanging rails along the inside of the walls' top edges
   box = min(box, dRBox(vec3(abs(q.x) - 0.1935, q.y - (YR - 0.0065), q.z - (zb0 + zb1) * 0.5), vec3(0.0035, 0.0055, (zb1 - zb0) * 0.5), 0.0012));
@@ -299,6 +301,8 @@ float V_SmithJ(float NoV, float NoL, float a) {
 }
 vec3 F_Schlick(vec3 f0, float VoH) { return f0 + (1.0 - f0) * pow(1.0 - VoH, 5.0); }
 
+/** Diffuse wrap: thin card lets a little light through and gathers bounce between the folders (0 for steel). */
+float gWrap = 0.0;
 /** The fitting's louvre: the tube throws its light down (L: from the surface to the tube). */
 float louvre(vec3 L) { return pow(sat(L.y), louv) * (1.0 + louv); }
 
@@ -309,7 +313,7 @@ void tubeLight(vec3 P, vec3 N, vec3 V, float rough, vec3 f0, float sh, out vec3 
   for (int i = 0; i < 4; i++) {
     vec3 Lp = mix(TA, TB, (float(i) + 0.5) / 4.0);
     vec3 L = Lp - P; float d2 = dot(L, L); L *= inversesqrt(d2);
-    dif += T_LIGHTBOX * tubeI * difK * louvre(L) * max(dot(N, L), 0.0) / d2;
+    dif += T_LIGHTBOX * tubeI * difK * louvre(L) * max((dot(N, L) + gWrap) / (1.0 + gWrap), 0.0) / d2;
   }
   dif *= sh;
   // the specular lobe: the point on the tube nearest the reflected ray, the roughness widened by its radius
@@ -338,7 +342,7 @@ vec3 tabFrame(vec3 p) {
   vec3 q = p - vec3(0.0, 0.0, openZ);
   vec3 f = q - vec3(0.0, YR + lift08, -FZ0 - float(K0832) * FDZ + fzs[K0832]);
   f.yz = tiltYZ(f.yz, ftilt[K0832]);
-  vec3 g = f - vec3(TABX, 0.012, 0.0);
+  vec3 g = f - vec3(TABX, 0.0, 0.0);
   g.yz = tiltYZ(g.yz, -0.2);
   return g - vec3(0.0, 0.0085, 0.0);
 }
@@ -377,12 +381,15 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   // the tube's shadow: one soft ray per tap to a point jittered along the tube (the taps cover its length)
   // the tube's shadow: two soft rays per tap to points jittered in their eighths of the tube (the taps cover it)
   float sh = 0.0;
+  bool card = m == M_FOLDER || m == M_PAPER;
+  gWrap = card ? 0.7 : 0.0;
   for (int i = 0; i < 2; i++) {
     float jit = hash12(FRAG_PX * 0.913 + vec2(tap * 17.0, float(i) * 5.3));
     vec3 Ls = mix(TA, TB, (tap * 2.0 + float(i) + jit) / 8.0);
     vec3 Ld = Ls - P; float ld = length(Ld);
     // (faces turned from the tube need no ray)
-    if (dot(N, Ld) > 0.0) sh += 0.5 * softShadow(P + N * 0.0012, Ld / ld, ld, 16.0);
+    if (card) sh += 0.5 * softShadow(P + Ld / ld * 0.009, Ld / ld, ld, 16.0);
+    else if (dot(N, Ld) > 0.0) sh += 0.5 * softShadow(P + N * 0.0012, Ld / ld, ld, 16.0);
   }
   float ao = calcAO(P, N);
   vec3 alb = T_SILVER; float rough = 0.4; vec3 f0 = vec3(0.04); float metal = 0.0; float refl = 0.0;
@@ -441,17 +448,13 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     float fib = snoise(vec3(P.x * 900.0, P.y * 160.0, P.z * 900.0)) * 0.5 + snoise(P * 60.0) * 0.5;
     alb = mix(T_SILVER, T_HALIDE, 0.42) * (0.62 + 0.05 * fib);
     rough = 0.7;
-    // the row of tab slots punched under the hem, and the hem's fold
+    // the fold under the rolled hem that sleeves the rod
     vec3 q = P - vec3(0.0, 0.0, openZ);
     int k = int(clamp(floor((-FZ0 - q.z) / FDZ + 0.5), 0.0, float(NF - 1)));
     vec3 fl = q - vec3(0.0, YR + (k == K0832 ? lift08 : 0.0), -FZ0 - float(k) * FDZ + fzs[k]);
     fl.yz = tiltYZ(fl.yz, ftilt[k]);
-    float px = 0.0009;
-    float sx = abs(fract((fl.x + 0.1688) / 0.0225) - 0.5) * 0.0225;
-    float slot = (1.0 - smoothstep(0.004 - px, 0.004 + px, sx)) * (1.0 - smoothstep(0.0009 - px, 0.0009 + px, abs(fl.y - 0.0035)))
-      * step(abs(fl.x), 0.17) * step(abs(fl.z), 0.02);
-    float hem = (1.0 - smoothstep(0.0, 0.0012, abs(fl.y + 0.0045))) * 0.25;
-    alb = mix(alb * (1.0 - hem), alb * 0.3, slot * 0.8);
+    float hem = (1.0 - smoothstep(0.0, 0.0012, abs(fl.y + 0.0075))) * 0.25;
+    alb *= 1.0 - hem;
   } else if (m == M_PAPER) {
     alb = T_LIGHTBOX * (0.78 + 0.04 * snoise(P * 300.0)); rough = 0.85;
   } else if (m == M_TAB) {
@@ -470,7 +473,7 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     vec3 paper = T_LIGHTBOX * (0.86 + 0.03 * snoise(P * 500.0));
     vec3 sleeve = mix(T_HALIDE, T_LIGHTBOX, 0.5) * 0.5;
     alb = mix(sleeve, mix(paper, T_FILM * 0.6, ink), inIns);
-    rough = 0.1; f0 = vec3(0.05);
+    rough = 0.45; f0 = vec3(0.02);   // a matt sleeve: no sheen over the type
   } else if (m == M_RAW) {
     // zinc-plated sheet inside the drawer: dull metal
     alb = T_SILVER * 0.55; rough = 0.5; f0 = T_SILVER * 0.9; metal = 0.6;
@@ -528,7 +531,7 @@ void main() {
  *  behind a sharper pixel cannot spread over it. */
 export const DOF_FRAG = /* glsl */ `
 uniform sampler2D src; uniform float focusD, aper, maxCoc;
-const int NT = 112;
+const int NT = 160;
 float coc(float d) { return min(aper * abs(d - focusD) / max(d, 1e-3), maxCoc); }
 void main() {
   vec4 c0 = texture(src, vUv);
@@ -536,7 +539,7 @@ void main() {
   float w0 = 1.0 / max(r0 * r0, 1.0) / (1.0 + 0.25 * luma(c0.rgb));
   vec3 acc = c0.rgb * w0; float ws = w0;
   float R = max(maxCoc, 1.0);
-  float rot = hash12(FRAG_PX) * 6.2831853;
+  float rot = 0.0;
   for (int i = 0; i < NT; i++) {
     float fi = float(i) + 0.5;
     float r = sqrt(fi / float(NT)) * R;
