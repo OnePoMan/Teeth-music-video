@@ -32,32 +32,24 @@ uniform vec4 wordRect;      // x0, y0, w, h (mm) of the word layer
 uniform float focusT, aperture, box, boxCool, overex, texPpm;
 uniform vec2 loupe; uniform float loupeR;   // the loupe's lens on screen (logical px), radius (0: none)
 
-vec2 vor(vec2 p) {
-  vec2 c0 = floor(p); float f1 = 9.0, f2 = 9.0;
-  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
-    vec2 c = c0 + vec2(float(i), float(j));
-    float d = length(p - c - hash22(c));
-    if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
-  }
-  return vec2(f1, f2);
-}
-// the developed film at film point P (mm)
+// the developed film at film point P (mm): density -> clearness b (0 black film .. 1 clear film)
 float bright(vec3 dn, vec2 P, float trabK) {
   float g = dn.g;
   float boneish = smoothstep(0.3, 0.46, dn.g);
   if (trabK * boneish > 0.0) {
-    // trabecular bone: a mesh of fine struts round dark marrow spaces (coarser, horizontal in the mandible)
+    // trabecular bone, fibrous and porous: fine struts streaking along the bone (horizontal in the mandible, more
+    // vertical round the maxillary roots), dark marrow pores between, a fine granular grain
     float mand = smoothstep(2.0, -6.0, P.y);
-    vec2 v1 = vor(vec2(P.x * mix(1.0, 0.75, mand), P.y * 1.2) * 1.7);
-    vec2 v2 = vor(P * 3.4 + 11.0);
-    float strut = 1.0 - smoothstep(0.03, 0.2, v1.y - v1.x);
-    float strut2 = 1.0 - smoothstep(0.02, 0.16, v2.y - v2.x);
-    float marrow = smoothstep(0.08, 0.55, v1.x);
-    float mott = snoise(P * 2.1) * 0.5 + snoise(P * 4.7 + 3.0) * 0.3;
-    float web = 0.4 * strut + 0.25 * strut2 - 0.35 * marrow + 0.35 * mott;
-    g *= 1.0 + trabK * boneish * (0.2 * web);
+    vec2 Q = mix(vec2(P.x * 2.2, P.y * 1.1), vec2(P.x * 0.9, P.y * 2.8), mand);
+    float fib = 1.0 - abs(snoise(Q * 1.3));
+    fib = fib * fib;
+    float fib2 = 1.0 - abs(snoise(Q * 2.9 + 5.0));
+    float pores = smoothstep(0.35, 0.8, snoise(P * 2.4 + 17.0)) + 0.6 * smoothstep(0.5, 0.9, snoise(P * 5.1 + 3.0));
+    float fine = snoise(P * 7.5);
+    float web = 0.55 * fib + 0.3 * fib2 * fib2 - 0.45 * pores + 0.2 * fine - 0.35;
+    g *= 1.0 + trabK * boneish * 0.2 * web;
   }
-  float mu = 1.3 * dn.r + 1.12 * g + 3.2 * dn.b;
+  float mu = 1.3 * dn.r + 1.12 * g + 0.38 * dn.b;
   return 1.0 - exp(-mu * 1.2);
 }
 vec3 ramp(float b) {
@@ -82,7 +74,8 @@ vec3 shade(vec2 px) {
   vec2 qq = abs(c) - hb + ${FILM.corner.toFixed(1)};
   float edge = length(max(qq, 0.0)) + min(max(qq.x, qq.y), 0.0) - ${FILM.corner.toFixed(1)};
   // the lightbox behind: a diffuser lit by tubes (soft horizontal bands), a little brighter in the middle
-  float tubes = 0.93 + 0.07 * (0.5 + 0.5 * cos((P.y - 8.0) * 6.2832 / 74.0)) + 0.012 * snoise(P * 0.05);
+  float tubes = (0.87 + 0.13 * pow(0.5 + 0.5 * cos((P.y - 14.0) * 6.2832 / 56.0), 1.5) + 0.03 * snoise(P * 0.025))
+    * (1.0 - 0.14 * smoothstep(40.0, 150.0, length(P * vec2(0.75, 1.3))));
   float Lb = box * tubes;
   vec3 boxCol = mix(T_LIGHTBOX, T_LIGHTBOX * vec3(0.86, 0.93, 1.05), boxCool);
   float aaE = max(fwidth(edge) * 1.5, coc * 0.5);
@@ -90,34 +83,47 @@ vec3 shade(vec2 px) {
   vec3 col;
   // the film
   vec3 dn = textureLod(filmTex, fuv, lod).rgb;
-  // the words: metal (radiopaque), in the film
-  vec2 wuv = (P - wordRect.xy) / wordRect.zw;
-  if (all(greaterThan(wuv, vec2(0.0))) && all(lessThan(wuv, vec2(1.0)))) {
-    float wl = max(lod + 0.7 + log2(${(WORD_W / 1).toFixed(1)} / wordRect.z / texPpm), 0.0);
-    vec4 w = textureLod(wordTex, wuv, wl);
-    dn.b = max(dn.b, w.r * 1.15);
-  }
   float trabK = 1.0 - smoothstep(0.5, 2.5, lod);
   float b = bright(dn, P, trabK);
   // edge contrast (the film's adjacency effect / a processor's sharpening)
   vec3 dB = textureLod(filmTex, fuv, lod + 2.2).rgb;
   float bB = bright(dB, P, 0.0);
-  b += 0.42 * (b - bB);
+  b += 0.38 * (b - bB);
+  b = clamp(b, 0.0, 1.0);
+  // the sung words: radiopaque, a density in the film like the metal of a filling; it multiplies the film's
+  // transmission, so the anatomy under a letter still shows a little through it; soft-edged like the rest of the image
+  vec2 wuv = (P - wordRect.xy) / wordRect.zw;
+  float wm = 0.0, wmW = 0.0;
+  if (all(greaterThan(wuv, vec2(-0.05))) && all(lessThan(wuv, vec2(1.05)))) {
+    float wl = max(lod + log2(${WORD_W.toFixed(1)} / wordRect.z / texPpm), 0.0);
+    // soft-edged like the rest of the radiograph (~0.12 mm), taps at the base level (no mip blocks)
+    vec2 o = vec2(0.09) / wordRect.zw;
+    wm = 0.36 * textureLod(wordTex, wuv, wl).r + 0.16 * (textureLod(wordTex, wuv + vec2(o.x, 0.0), wl).r + textureLod(wordTex, wuv - vec2(o.x, 0.0), wl).r + textureLod(wordTex, wuv + vec2(0.0, o.y), wl).r + textureLod(wordTex, wuv - vec2(0.0, o.y), wl).r);
+    wmW = textureLod(wordTex, wuv, wl + 5.0).r;
+  }
+  b = 1.0 - (1.0 - b) * exp(-1.75 * wm);
+  // the film's edge: a thin clear margin, the ID dot (an embossed dimple, clear, with its shadowed rim) in the corner
+  float margin = smoothstep(-0.9, -0.45, edge);
+  b = mix(b, max(b, 0.55), margin);
+  vec2 dot0 = filmRect.xy + filmRect.zw - vec2(6.0);
+  float dd = length(P - dot0);
+  b = mix(b, 0.9, 1.0 - smoothstep(1.0, 1.15 + coc, dd));
+  b *= 1.0 - 0.35 * (1.0 - smoothstep(0.0, 0.18 + coc, abs(dd - 1.2)));
   // overexposure (BURNING): the dark film goes thin, everything toward clear
   b = mix(b, 1.0 - (1.0 - b) * 0.35, overex);
   b = clamp(b, 0.0, 1.0);
-  // silver grain: clumps ~0.06 mm, strongest in the mid-tones
+  // silver grain: clumps ~0.06 mm, strongest in the mid-tones, still there in the clear areas
   vec2 gq = floor(P / 0.055);
   float gn = hash12(gq) + hash12(gq + 17.3) - 1.0;
   float mid = 1.0 - abs(b - 0.45) * 1.7;
   float grainK = (1.0 - smoothstep(0.0, 2.0, lod));
-  vec3 s = ramp(b) + gn * 0.045 * max(mid, 0.15) * grainK;
+  vec3 s = ramp(b) + gn * 0.05 * max(mid, 0.32) * grainK;
   col = toLinear(max(s, 0.0)) * Lb;
   col *= mix(vec3(1.0), boxCol / T_LIGHTBOX, 0.6);
-  // a slight scatter in the film base around the clearest areas (wide, faint, cold)
+  // halation: light scattered in the film base round the clearest areas (wide, faint, cold), the words' too
   vec3 dW = textureLod(filmTex, fuv, lod + 5.5).rgb;
-  float bW = bright(dW, P, 0.0);
-  col += T_LIGHTBOX * Lb * 0.045 * bW * bW;
+  float bW = max(bright(dW, P, 0.0), wmW * 0.9);
+  col += T_LIGHTBOX * Lb * 0.05 * bW * bW;
   // the film's surface: a faint sheen of the room on the gloss, dust, scratches in the emulsion
   float sheen = 0.006 * smoothstep(-60.0, 80.0, P.x * 0.6 + P.y);
   col += T_SILVER * sheen;
@@ -136,8 +142,8 @@ vec3 shade(vec2 px) {
     scr += along * (1.0 - smoothstep(0.0, 0.035 + coc * 0.5, d));
   }
   col += T_HALIDE * 0.025 * scr * (1.0 - b);
-  // off the film: the bare lightbox
-  vec3 bare = boxCol * Lb * 0.92;
+  // off the film: the bare lightbox (its diffuser, the tubes behind it)
+  vec3 bare = boxCol * Lb * 0.98 * (0.97 + 0.03 * snoise(P * 0.7));
   col = mix(bare, col, onFilm);
   // the loupe: a lens's dark rim and the falloff at its edge
   if (loupeR > 0.0) {
@@ -232,15 +238,25 @@ export default class Lightbox extends Scene {
     // (from the patient's right premolars to the midline by "know", then on toward his left at ~9 mm/s)
     let cx = 2 + 9 * (t - 9.05) - 18 * (1 - smoothstep(7.0, 9.1, t));
     // a push in on each downbeat after the first, eased into it (0.55 s), the width stepping down
-    const widths = [110, 72, 64, 58];
+    const widths = [120, 90, 76, 66];
     let w = widths[0]!;
     for (let i = 1; i < db.length && i < widths.length; i++) {
       const d = db[i]!;
       const k = ease.inOutCubic(clamp((t - (d - 0.55)) / 0.55));
       w = lerp(w, widths[i]!, k);
     }
-    let cy = 13 + 0.0013 * cx * cx;
+    let cy = 11.5 + 0.0021 * cx * cx;
     let loupe = 0;
+    // between the lines (9.45 - 10.74): a pan along the film to its top right corner (the ID dot; the tag is clipped
+    // there), held until the downbeat, where it cuts back to the jaw
+    const tc0 = 9.445, tc1 = db.find((d) => d > 10.5) ?? 10.74;
+    if (t >= tc0 && t < tc1) {
+      const k = ease.inOutCubic(clamp((t - tc0) / 0.5));
+      const drift = (t - tc0) * 1.2;
+      cx = lerp(2 + 9 * (tc0 - 9.05), FILM.x1 - 29 + drift, k);
+      cy = lerp(11.5, FILM.y1 - 16.5, k);
+      w = lerp(90, 74, k);
+    }
     // "Can't look away" x2: the loupe pushes in to #8 in two steps
     const t8 = tooth(HIS, 8);
     const p8 = panoramic(HIS).find((p) => p.n === 8)!;
@@ -333,6 +349,7 @@ export default class Lightbox extends Scene {
   private drawWords(t: number): [number, number, number, number] | null {
     const p = this.phrases.find((q) => t >= q.t0 && t < q.t1);
     const c = this.wctx;
+    c.filter = "none";
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.clearRect(0, 0, this.wcv.width, this.wcv.height);
     if (!p) return null;
@@ -344,7 +361,7 @@ export default class Lightbox extends Scene {
     const sx = this.wcv.width / ww;
     // film mm -> layer px (y up -> canvas y down)
     c.setTransform(sx, 0, 0, -sx, -wx * sx, (wy + wh) * sx);
-    c.fillStyle = '#fff';
+    c.fillStyle = "#fff";
     p.words.forEach((w, i) => {
       const hero = i === p.hero;
       const txt = hero ? w.w.replace(/[,.]/g, '').toUpperCase() : w.w;

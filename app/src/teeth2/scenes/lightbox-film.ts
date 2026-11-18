@@ -148,9 +148,9 @@ export function buildFilm(arch: Arch = HIS): FilmInfo {
   for (const s of [1, -1]) {
     const sp = smoothClosed(SINUS.map(([x, y]): V2 => [s * x, y]), 8);
     path(c, sp); mul(c, 'g', 0.42, 1.0);
-    path(c, sp); addStroke(c, 'g', 60, 0.7, 0.25);
+    path(c, sp); addStroke(c, 'g', 34, 0.9, 0.7);
     // the zygomatic buttress (key ridge): a bright inverted U above the first molar
-    path(c, smoothOpen([[s * 43, 30], [s * 44, 40], [s * 49, 46], [s * 55, 41], [s * 56, 31]], 8), false); addStroke(c, 'g', 55, 2.2, 0.8);
+    path(c, smoothOpen([[s * 43, 30], [s * 44, 40], [s * 49, 46], [s * 55, 41], [s * 56, 31]], 8), false); addStroke(c, 'g', 40, 2.6, 1.3);
     // the zygomatic arch going back to the ear
     path(c, smoothOpen([[s * 56, 46], [s * 72, 49], [s * 90, 49.5], [s * 106, 47]], 6), false); addStroke(c, 'g', 60, 5, 1.4);
     // the pterygomaxillary fissure (teardrop)
@@ -168,7 +168,7 @@ export function buildFilm(arch: Arch = HIS): FilmInfo {
   path(c, [[0, 30], [0.4, 46], [-0.3, 64]], false); addStroke(c, 'g', 45, 1.5, 0.6);
   // the palatoglossal air space: a dark band between the tongue and the palate, over the maxillary roots
   path(c, smoothOpen([[-64, 18], [-40, 22.5], [0, 23.8], [40, 22.5], [64, 18]], 8).concat(smoothOpen([[64, 13.5], [40, 18.8], [0, 20.5], [-40, 18.8], [-64, 13.5]], 8)));
-  mul(c, 'g', 0.62, 1.2);
+  mul(c, 'g', 0.6, 2.6);
   c.restore();
 
   // ---------------------------------------------------------------- the mandible
@@ -231,26 +231,35 @@ export function buildFilm(arch: Arch = HIS): FilmInfo {
     // focal trough: the anteriors a little softer
     const soft = t.pos <= 1 ? 0.28 : t.pos === 2 ? 0.24 : 0.18;
     local();
-    // the socket: the periodontal ligament space (dark) and the lamina dura (bright) round the root
+    // the socket: no outline, only density changes: the periodontal ligament space a thin soft dark line along the
+    // root, the lamina dura a thin soft bright line just outside it
     const rootOnly = pr.outline.filter(([, h]) => h < 0.4);
     lpath(rootOnly, false);
-    c.globalCompositeOperation = 'multiply'; c.filter = blurPx(0.08); c.strokeStyle = 'rgb(255,150,255)'; c.lineWidth = 0.5 / Math.max(p.mag, 0.5); c.stroke();
-    lpath(rootOnly.map(([s, h]): V2 => [s + Math.sign(s) * 0.5, h - 0.3]), false);
-    c.globalCompositeOperation = 'lighter'; c.filter = blurPx(0.1); c.strokeStyle = 'rgb(0,42,0)'; c.lineWidth = 0.32; c.stroke();
-    // the root displaces bone
-    lpath(pr.outline); op('multiply', soft, 'rgb(255,200,255)');
-    // a superimposed root (the upper molars' palatal root)
-    for (const r of pr.extraRoots) { lpath(r); op('lighter', 0.2, 'rgb(38,0,0)'); }
-    // dentin with its thickness: a soft base, and a centre-weighted body (a rounded solid seen through)
-    lpath(pr.outline); op('lighter', soft, 'rgb(26,0,0)');
-    c.save(); lpath(pr.outline); c.clip(); lpath(pr.outline); op('lighter', M * 0.45, 'rgb(64,0,0)'); c.restore(); local();
-    // the pulp: chamber and canals hollow, soft-edged
-    lpath(pr.pulp); op('multiply', soft + 0.15, 'rgb(105,255,255)');
-    // the enamel cap: densest at the cusps and the edge, thinning to nothing at the cervical line; brighter where its
-    // shell is seen edge-on (the crown's outline)
+    c.globalCompositeOperation = 'multiply'; c.filter = blurPx(0.13); c.strokeStyle = 'rgb(255,200,255)'; c.lineWidth = 0.32; c.stroke();
+    lpath(rootOnly.map(([s, h]): V2 => [s + Math.sign(s) * 0.38, h - 0.25]), false);
+    c.globalCompositeOperation = 'lighter'; c.filter = blurPx(0.15); c.strokeStyle = 'rgb(0,20,0)'; c.lineWidth = 0.28; c.stroke();
+    // the root displaces the bone it sits in
+    lpath(pr.outline); op('multiply', soft, 'rgb(255,214,255)');
+    // a root seen through another (the upper molars' palatal root, the first premolar's second root)
+    for (const r of pr.extraRoots) { lpath(r); op('lighter', 0.3, 'rgb(28,0,0)'); }
+    // dentin with its thickness: a soft base and a centre-weighted body (a rounded solid seen through)
+    lpath(pr.outline); op('lighter', soft, 'rgb(22,0,0)');
+    c.save(); lpath(pr.outline); c.clip(); lpath(pr.outline); op('lighter', M * 0.5, 'rgb(60,0,0)'); c.restore(); local();
+    // the pulp: chamber and canals, a soft hollow
+    lpath(pr.pulp); op('multiply', soft + 0.32, 'rgb(130,255,255)');
+    // the enamel cap: densest at the cusps and the edge, thinning to nothing at the cervical line
     const gE = c.createLinearGradient(0, H, 0, 0);
-    gE.addColorStop(0, 'rgb(96,0,0)'); gE.addColorStop(0.55, 'rgb(70,0,0)'); gE.addColorStop(1, 'rgb(16,0,0)');
-    lpath(pr.enamel); op('lighter', soft * 0.8, gE);
+    gE.addColorStop(0, 'rgb(92,0,0)'); gE.addColorStop(0.55, 'rgb(64,0,0)'); gE.addColorStop(1, 'rgb(12,0,0)');
+    lpath(pr.enamel); op('lighter', soft * 1.6 + 0.08, gE);
+    // premolars and molars: the lingual cusps seen through the buccal ones, a second, lower enamel layer in the crown
+    if (t.cls === 'premolar' || t.cls === 'molar') {
+      const dh = t.cls === 'premolar' ? 1.0 : 0.75, ks = t.cls === 'premolar' ? 0.78 : 0.9;
+      const gL = c.createLinearGradient(0, H - dh, 0, 0);
+      gL.addColorStop(0, 'rgb(46,0,0)'); gL.addColorStop(0.5, 'rgb(28,0,0)'); gL.addColorStop(1, 'rgb(0,0,0)');
+      c.save(); lpath(pr.outline); c.clip();
+      lpath(pr.enamel.map(([s, h]): V2 => [s * ks, h - dh])); op('lighter', soft + 0.08, gL);
+      c.restore(); local();
+    }
     const tip = panoPoint(p, H, 0, H), top = panoPoint(p, H, 0, 0);
     filmTeeth.push({ n: t.n, pano: p, tip, crownTop: top, H });
     // amalgam: a smooth, hard-edged lump under the occlusal surface; a proximal box where it reaches mesial or distal
