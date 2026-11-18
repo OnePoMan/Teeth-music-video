@@ -642,27 +642,33 @@ function rootCtl(t: Tooth): { pts: V2[]; apices: V2[]; trunk: number; extra: V2[
   if (t.cls !== 'molar' || t.type === 'molar3') {
     const w = t.type === 'molar3' ? C * 0.9 : C;
     const pts: V2[] = [bend(w * 0.92, -0.3 * R), bend(w * 0.58, -0.72 * R), bend(w * 0.18, -0.97 * R), bend(0, -R), bend(-w * 0.22, -0.96 * R), bend(-w * 0.6, -0.7 * R), bend(-w * 0.93, -0.3 * R)];
-    return { pts, apices: [bend(0, -R)], trunk: R, extra: [] };
+    // the upper first premolar: buccal and palatal roots, split in their apical half (a bifid apex, the second root
+    // seen through the first)
+    const extra: V2[][] = t.jaw === 'upper' && t.type === 'premolar1'
+      ? [chaikin([bend(w * 0.55, -0.42 * R), bend(w * 0.7, -0.75 * R), bend(w * 0.45, -0.98 * R), bend(w * 0.12, -0.9 * R), bend(w * 0.05, -0.55 * R)], [false, false, false, false, false], 3)]
+      : [];
+    return { pts, apices: [bend(0, -R)], trunk: R, extra };
   }
   const T = t.jaw === 'upper' ? 4.2 : 3.2;
   if (t.jaw === 'upper') {
     // distobuccal (shorter), mesiobuccal; the palatal root superimposed between them
     const RD = R * 0.86, RM = R * 0.95;
+    // the two buccal roots diverge from a short trunk, the furcation well clear of the cervical line
     const pts: V2[] = [
-      bend(C * 0.96, -T * 0.7), bend(C * 0.9, -0.5 * RD), bend(C * 0.62, -0.97 * RD), bend(C * 0.42, -RD), bend(C * 0.26, -0.9 * RD), bend(C * 0.22, -0.45 * RD), bend(C * 0.05, -T),
-      bend(-C * 0.15, -0.45 * RM), bend(-C * 0.3, -0.92 * RM), bend(-C * 0.48, -RM), bend(-C * 0.75, -0.9 * RM), bend(-C * 0.95, -0.45 * RM),
+      bend(C * 1.0, -T * 0.6), bend(C * 1.06, -0.5 * RD), bend(C * 0.96, -0.9 * RD), bend(C * 0.8, -RD), bend(C * 0.6, -0.9 * RD), bend(C * 0.46, -0.5 * RD), bend(C * 0.3, -T * 1.12), bend(C * 0.05, -T),
+      bend(-C * 0.2, -T * 1.12), bend(-C * 0.34, -0.5 * RM), bend(-C * 0.5, -0.9 * RM), bend(-C * 0.72, -RM), bend(-C * 0.94, -0.88 * RM), bend(-C * 1.08, -0.5 * RM), bend(-C * 1.02, -T * 0.6),
     ];
     const RP = R * 1.05;
     const pal = chaikin([bend(C * 0.28, -T * 0.8), bend(C * 0.24, -0.6 * RP), bend(C * 0.08, -RP), bend(-C * 0.12, -0.96 * RP), bend(-C * 0.3, -0.6 * RP), bend(-C * 0.32, -T * 0.8)], [false, false, false, false, false, false], 3);
-    return { pts, apices: [bend(C * 0.42, -RD), bend(-C * 0.48, -RM)], trunk: T, extra: [pal] };
+    return { pts, apices: [bend(C * 0.8, -RD), bend(-C * 0.72, -RM)], trunk: T, extra: [pal] };
   }
   // lower molars: mesial (broad, curved) and distal roots
   const RM = R, RD = R * 0.92;
   const pts: V2[] = [
-    bend(C * 0.97, -T * 0.6), bend(C * 0.88, -0.55 * RD), bend(C * 0.6, -0.97 * RD), bend(C * 0.4, -RD), bend(C * 0.22, -0.9 * RD), bend(C * 0.2, -0.4 * RD), bend(0, -T),
-    bend(-C * 0.2, -0.4 * RM), bend(-C * 0.3, -0.9 * RM), bend(-C * 0.5, -RM), bend(-C * 0.78, -0.95 * RM), bend(-C * 0.98, -0.5 * RM),
+    bend(C * 0.98, -T * 0.6), bend(C * 1.0, -0.5 * RD), bend(C * 0.9, -0.9 * RD), bend(C * 0.7, -RD), bend(C * 0.5, -0.9 * RD), bend(C * 0.36, -0.5 * RD), bend(C * 0.25, -T * 1.08), bend(C * 0.02, -T),
+    bend(-C * 0.2, -T * 1.08), bend(-C * 0.26, -0.5 * RM), bend(-C * 0.36, -0.92 * RM), bend(-C * 0.56, -RM), bend(-C * 0.8, -0.92 * RM), bend(-C * 1.0, -0.5 * RM), bend(-C * 1.0, -T * 0.6),
   ];
-  return { pts, apices: [bend(C * 0.4, -RD), bend(-C * 0.5, -RM)], trunk: T, extra: [] };
+  return { pts, apices: [bend(C * 0.7, -RD), bend(-C * 0.56, -RM)], trunk: T, extra: [] };
 }
 
 /** The chip in buccal view: removes the mesial-incisal corner (s < 0). [p0, n] for clipHalfPlane. */
@@ -684,7 +690,8 @@ export function buccalProfile(t: Tooth): Profile {
   const rr = rootCtl(t);
   // whole outline
   const ctl: V2[] = [...cc.map(([s, h]) => [s, h] as V2), ...rr.pts];
-  let outline = chaikin(ctl, ctl.map(() => false), 3);
+  // the canine's cusp tip stays a point
+  let outline = chaikin(ctl, [...cc.map((c) => c[2] && c[1] > 0.5 * H), ...rr.pts.map(() => false)], 3);
   // the crown curve alone (open), for the enamel
   const crown = chaikinOpen(cc.map(([s, h]) => [s, h] as V2), 3);
   const tMax = t.cls === 'molar' ? 2.0 : t.cls === 'premolar' ? 1.7 : t.cls === 'canine' ? 1.5 : 1.2;
@@ -800,7 +807,7 @@ export interface PanoTooth {
 }
 const PANO_MAG = [0.8, 0.84, 0.9, 0.98, 1.0, 1.04, 1.06, 1.07];
 /** The occlusal curve of the panoramic ("smile"): film Y of the occlusal line at film X. */
-export const panoOcclusal = (X: number) => 0.0026 * X * X;
+export const panoOcclusal = (X: number) => 0.0042 * X * X;
 export function panoramic(arch: Arch): PanoTooth[] {
   const out: PanoTooth[] = [];
   for (const jaw of ['upper', 'lower'] as Jaw[]) {
@@ -827,7 +834,7 @@ export function panoramic(arch: Arch): PanoTooth[] {
         const up = jaw === 'lower' ? 1 : -1;
         const y = occ - up * open * 0.5 + up * 0.0;
         // the axis is normal to the occlusal curve, and fans out a little toward the back
-        const slope = Math.atan(0.0052 * fx);
+        const slope = Math.atan(0.0084 * fx);
         const fan = sx * up * -0.05 * pos * 0.5;
         out.push({ n, x: fx, y, angle: slope + fan + sx * up * -t.tip * 0.6, mirror: sx, up, mag });
       }
@@ -1074,7 +1081,9 @@ float sdTeeth(vec3 p, int jaw, out int id) {
 
 /** Signed distance (2D, head XZ) to a jaw's arch line, + buccal; and the gum level (head Y) there. */
 vec2 tArchLine(vec2 xz, int jaw) {
-  // a smooth (soft-min) distance, so the vault and the base have no creases where the nearest segment changes
+  // a smooth (soft-min) distance, so the vault and the base have no creases where the nearest segment changes.
+  // Both halves of the arch take part (the mirrored half too): with the half arch alone the soft-min has a kink on
+  // the midline (x = 0), a crease down the front of the base; with both, the midline joins like any other vertex.
   int row = 32 + jaw;
   vec2 q = vec2(abs(xz.x), xz.y);
   float sgn = 1.0, es = 0.0, gs = 0.0, ws = 0.0;
@@ -1083,13 +1092,16 @@ vec2 tArchLine(vec2 xz, int jaw) {
   for (int k = 1; k < 16; k++) {
     vec4 b = tth(row, k);
     if (b.w <= 0.0) break;
-    vec2 pa = q - a.xy, ba = b.xy - a.xy;
-    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
-    float dd = length(pa - ba * h);
-    float e = exp(-dd / K);
-    es += e;
-    float w = 1.0 / (dd * dd + 4.0);
-    gs += w * mix(a.z, b.z, h); ws += w;
+    for (int m = 0; m < 2; m++) {
+      vec2 A = a.xy, B = b.xy;
+      if (m == 1) { A.x = -A.x; B.x = -B.x; }
+      vec2 pa = q - A, ba = B - A;
+      float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+      float dd = length(pa - ba * h);
+      es += exp(-dd / K);
+      float w = 1.0 / (dd * dd + 4.0);
+      gs += w * mix(a.z, b.z, h); ws += w;
+    }
     if (q.x >= a.x && q.x < b.x) { float kk = (q.x - a.x) / max(b.x - a.x, 1e-4); sgn = q.y > mix(a.y, b.y, kk) ? -1.0 : 1.0; }
     a = b;
   }
@@ -1104,8 +1116,8 @@ float tBase(vec3 p, int jaw, vec2 al) {
   float s = jaw == 0 ? 1.0 : -1.0;        // +Y is "into the cast" for the upper
   float d = al.x, gy = al.y;
   float h;
-  if (jaw == 0) h = 2.2 + 12.0 * smoothstep(-1.5, -18.0, d) + 5.5 * smoothstep(2.5, 8.5, d);
-  else h = 2.2 + 8.0 * smoothstep(-2.0, -6.5, d) + 5.5 * smoothstep(2.5, 8.5, d);
+  if (jaw == 0) h = 2.2 + 12.0 * (1.0 - smoothstep(-18.0, -1.5, d)) + 5.5 * smoothstep(2.5, 8.5, d);
+  else h = 2.2 + 8.0 * (1.0 - smoothstep(-6.5, -2.0, d)) + 5.5 * smoothstep(2.5, 8.5, d);
   float low = (gy + s * h);
   float dLow = s * (low - p.y) * 0.62;
   float dW = d - CAST_REACH;
