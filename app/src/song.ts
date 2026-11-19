@@ -1,10 +1,11 @@
-// Which song the app renders: `?song=monster` (default) or `?song=pdoom`. The engine is shared; each song
+// Which song the app renders: `?song=monster` (default), `?song=pdoom` or `?song=teeth` (Teeth v2, docs/TEETH2.md). The engine is shared; each song
 // brings its own audio, timing data (see analysis/) and timeline of scenes.
 import type { TimelineEntry } from './engine/engine';
 import type { Lyrics } from './engine/lyrics';
 import type { AudioData } from './engine/audio';
 import { makeTimeline as pdoomTimeline } from './timeline';
 import { makeTimeline as monsterTimeline } from './monster/timeline';
+import { makeTimeline as teethTimeline } from './teeth2/timeline';
 
 export interface Song {
   id: string;
@@ -18,6 +19,7 @@ export interface Song {
 export const SONGS: Record<string, Song> = {
   monster: { id: 'monster', title: 'Monster', audio: 'audio/monster.mp3', data: 'data/monster/', timeline: monsterTimeline },
   pdoom: { id: 'pdoom', title: 'I’m Upping My P(doom)', audio: 'audio/pdoom.mp3', data: 'data/', timeline: pdoomTimeline },
+  teeth: { id: 'teeth', title: 'Teeth', audio: 'audio/teeth.mp3', data: 'data/teeth/', timeline: teethTimeline },
 };
 
 function readSong(): Song {
