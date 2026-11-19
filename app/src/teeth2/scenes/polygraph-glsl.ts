@@ -20,7 +20,7 @@ uniform float armLen;
 uniform vec4 tearP[15];     // x, y, time the tip passed, rag seed
 uniform float tearOn, tearOpen;
 uniform float exposure;
-const float PAPER_H = 900.0;
+const float PAPER_H = 1500.0;
 const vec2 SOFF = vec2(0.42, -0.62);
 const vec3 KEY = vec3(-0.42, 0.52, 0.74);
 
@@ -83,16 +83,16 @@ void main() {
   float bx = 1.0 / (1.0 + vel * 0.012 / 10.0);
   float bX = 1.0 / (1.0 + vel * 0.012 / 50.0);
   float gw = back ? 2.2 : 1.0;
-  float gx = gridL(ws.x, 10.0, 0.7 * gw) * 0.15 * bx + gridL(ws.x, 50.0, 1.1 * gw) * 0.30 * bX;
-  float gy = gridL(ws.y, 10.0, 0.7 * gw) * 0.15 + gridL(ws.y, 50.0, 1.1 * gw) * 0.30;
+  float gx = gridL(ws.x, 10.0, 0.7 * gw) * 0.09 * bx + gridL(ws.x, 50.0, 1.1 * gw) * 0.20 * bX;
+  float gy = gridL(ws.y, 10.0, 0.7 * gw) * 0.09 + gridL(ws.y, 50.0, 1.1 * gw) * 0.20;
   float chl = 0.0;
   for (int i = 0; i < 4; i++) {
     float cy = float(i == 0 ? ${CH[0]} : i == 1 ? ${CH[1]} : i == 2 ? ${CH[2]} : ${CH[3]});
     float fw = max(fwidth(ws.y), 1e-4);
-    chl = max(chl, (1.0 - smoothstep(0.7, 0.7 + fw, abs(ws.y - cy))) * 0.34);
-    chl = max(chl, (1.0 - smoothstep(0.55, 0.55 + fw, abs(abs(ws.y - cy) - 88.0))) * 0.20);
+    chl = max(chl, (1.0 - smoothstep(0.7, 0.7 + fw, abs(ws.y - cy))) * 0.22);
+    chl = max(chl, (1.0 - smoothstep(0.55, 0.55 + fw, abs(abs(ws.y - cy) - 88.0))) * 0.12);
   }
-  float grid = clamp(max(gx, gy) + chl, 0.0, 0.75);
+  float grid = clamp(max(gx, gy) + chl, 0.0, 0.3);
   vec3 print = mix(T_SILVER, T_HALIDE, 0.35);
   paper = mix(paper, print * 0.86, grid * (back ? 0.75 : 1.0));
   // fan-fold: a crease and a line of perforations every 1300 units (a scrolling reference, and paper's own physics)
@@ -104,7 +104,7 @@ void main() {
     paper = mix(paper, T_FILM2 * 2.0, hole * (back ? 0.35 : 0.6));
   }
   // the margin: a printed rule top and bottom (the paper's width)
-  paper = mix(paper, T_SILVER * 0.8, (1.0 - smoothstep(0.8, 0.8 + max(fwidth(ws.y), 1e-4), abs(abs(ws.y) - 860.0))) * 0.5);
+  paper = mix(paper, T_SILVER * 0.8, (1.0 - smoothstep(0.8, 0.8 + max(fwidth(ws.y), 1e-4), abs(abs(ws.y) - 1420.0))) * 0.4);
   // ---- the header (SUBJECT, left blank)
   vec2 hu = (ws - hdrWin.xy) / hdrWin.zw;
   if (hu.x > 0.0 && hu.x < 1.0 && hu.y > 0.0 && hu.y < 1.0) {
@@ -143,32 +143,35 @@ void main() {
     shade = max(shade, (1.0 - smoothstep(0.0, 8.0 + 0.2 * T.z, dc)) * 0.22 * (1.0 - clamp(T.z / 80.0, 0.0, 1.0)));
   }
   paper *= 1.0 - shade;
-  // ---- the tear
+  // ---- the tear: a narrow ragged slit along the pen's path, the paper's white fibres curling up at its edges, a thin gap
+  // of the film beneath showing through (it opens a little behind the nib; never more than a few percent of the frame)
   vec3 col = paper;
   if (tearOn > 0.5) {
-    float best = 1e9, hwB = 0.0, ed = 1e9;
+    float ed = 1e9, hwB = 0.0, openB = 0.0, sideB = 1.0;
     for (int i = 0; i < 14; i++) {
       vec4 a = tearP[i], b = tearP[i + 1];
       float u; float d = segD(w, a.xy, b.xy, u);
       float to = mix(a.z, b.z, u);
       float kc = clamp((tNow - to) / 0.03, 0.0, 1.0);
-      float ko = clamp((tNow - tearOpen) / 0.13, 0.0, 1.0);
+      float ko = smoothstep(0.0, 1.0, (tNow - to) / 0.42);
       float s01 = (float(i) + u) / 14.0;
-      float taper = 0.04 + 0.96 * pow(smoothstep(0.0, 0.62, s01), 1.1);
-      float hw = kc * (3.5 + 1.2 * snoise(vec2(s01 * 30.0, 1.0)) + 300.0 * ko * ko * (3.0 - 2.0 * ko) * taper * (1.0 + 0.3 * snoise(vec2(s01 * 9.0, 3.0))));
-      float rag = (snoise(w * 0.045 + float(i) * 3.1) * 0.55 + snoise(w * 0.17) * 0.3) * (1.6 + 0.08 * hw);
+      float stp = 0.25 + 0.75 * smoothstep(0.0, 0.22, s01);
+      float hw = kc * stp * (1.3 + 0.5 * snoise(vec2(s01 * 30.0, 1.0)) + 8.5 * ko * (0.75 + 0.25 * snoise(vec2(s01 * 9.0, 3.0))));
+      float rag = (snoise(w * 0.07 + float(i) * 3.1) * 0.6 + snoise(w * 0.26) * 0.35) * (1.0 + 0.12 * hw);
       float dd = d + rag - hw;
-      if (dd < ed) { ed = dd; hwB = hw; }
+      if (dd < ed) { ed = dd; hwB = hw; openB = ko; sideB = (dot(w - a.xy, vec2(-(b.y - a.y), b.x - a.x)) >= 0.0) ? 1.0 : -1.0; }
     }
-    if (hwB > 0.5) {
-      // inside the slit: the black beneath; at its edge, torn fibres (white) and the flap's shadow beyond
-      float inside = 1.0 - smoothstep(-0.5, 0.8, ed);
-      float fibre = (1.0 - smoothstep(0.0, 5.0, ed)) * smoothstep(-0.5, 0.5, ed);
-      float flap = smoothstep(40.0, 0.0, ed) * smoothstep(-0.5, 0.5, ed);
-      vec3 black = T_FILM * (0.7 + 0.5 * smoothstep(-90.0, 0.0, ed) * 0.0);
-      col = mix(col, col * (1.0 - 0.38 * flap * min(1.0, hwB / 40.0)), step(0.0, ed));
-      col = mix(col, T_LIGHTBOX * 0.97, fibre * 0.85);
-      col = mix(col, black, inside);
+    if (hwB > 0.4) {
+      float inside = 1.0 - smoothstep(-0.4, 0.5, ed);
+      float fwid = sideB > 0.0 ? 3.0 : 7.5;
+      float fibre = (1.0 - smoothstep(0.0, fwid, ed + 1.6 * snoise(w * 0.4))) * smoothstep(-0.4, 0.4, ed);
+      float flap = smoothstep(26.0, 2.0, ed) * smoothstep(-0.4, 0.4, ed) * (sideB > 0.0 ? 1.0 : 0.15);
+      float fib2 = snoise(w * vec2(0.9, 0.25));
+      // the film below, lit a little at the far edge of the gap, darker where the paper's own edge shades it
+      vec3 gap = mix(T_FILM2 * 1.4, T_FILM2 * 3.2, smoothstep(-5.0, 0.0, ed) * 0.6 + 0.3 * (0.5 + 0.5 * fib2));
+      col = mix(col, col * (1.0 - 0.42 * flap * min(1.0, hwB / 4.0)), step(0.0, ed));
+      col = mix(col, vec3(1.0) * (1.0 + 0.04 * fib2), fibre * (0.7 + 0.3 * openB));
+      col = mix(col, gap, inside);
     }
   }
   if (back) col *= 1.04;

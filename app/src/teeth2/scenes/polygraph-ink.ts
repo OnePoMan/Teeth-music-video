@@ -1,45 +1,55 @@
 // Plate 4 `polygraph`: the ink. Each frame the pen traces and the lyric written so far are redrawn as capsule
 // segments (LineBatch) into a world-space target that the paper shader samples: R = lyric (the cardio pen's
-// letters), G = the pens' traces (and the cardio line, its climb and its drop), B = the blots where a pen lands.
+// letters), G = the pens' traces (and the cardio line: its climb out of the channel, the faint line the pen draws
+// between strokes, its drop back), B = the blots where a pen lands.
+// The cardio trace is one continuous line: it leaves its channel, climbs into a word, writes it, and drops back (or
+// runs straight on into the next word).
 // Also the header (SUBJECT, left blank) as a small texture, and where the cardio pen is at any time.
 import * as THREE from 'three';
 import { LineBatch } from '../../engine/lines';
 import { F, font } from '../../engine/type';
 import { clamp, lerp, ease } from '../../engine/util';
 import { T_HEX } from '../palette';
-import { Script, T0, T_DROP, T_LIE, T_TEAR, PEN_OX, handShake, type PhraseS } from './polygraph-script';
+import { Script, T0, T_DROP, T_LIE, T_TEAR, PEN_OX, handShake, type PhraseS, type Unit } from './polygraph-script';
 
 export interface InkWin { x0: number; y0: number; w: number; h: number; rho: number }
 const LY: [number, number, number] = [1, 0, 0], TR: [number, number, number] = [0, 1, 0], BL: [number, number, number] = [0, 0, 1];
+/** The faint line the pen draws while it travels between strokes. */
+const CON: [number, number, number] = [0, 0.34, 0];
 
-/** World position of the cardio pen's nib at t, and whether it is writing letters. */
+/** World position of the cardio pen's nib at t, and whether it is in the lyric. */
 export function cardioPen(S: Script, t: number): { x: number; y: number; writing: boolean } {
-  const p = S.cardioWriting(t);
-  const rack = S.rack(t);
-  if (!p) return { x: rack, y: S.cardioY(t), writing: false };
-  if (t < p.t0) return { ...climbPos(S, p, t), writing: true };
-  if (t <= p.t1) {
-    const q = penAtPhrase(p, t);
-    const [dx, dy] = handShake(S, t);
-    return { x: q.x + dx, y: q.y + dy, writing: true };
+  const U = S.units;
+  for (let k = 0; k < U.length; k++) {
+    const u = U[k]!;
+    const a0 = u.joinPrev ? u.t0 : u.tc0;
+    if (t < a0) break;
+    const p = S.phrases[u.p]!;
+    if (!u.joinPrev && t < u.t0) return { ...climbPos(S, u, t), writing: true };
+    if (t <= u.t1) {
+      const q = penAtPhrase(p, t);
+      const [dx, dy] = handShake(S, t);
+      return { x: q.x + dx, y: q.y + dy, writing: true };
+    }
+    if (u.joinNext) {
+      const nx = U[k + 1]!;
+      if (t < nx.t0) { const v = (t - u.t1) / Math.max(1e-6, nx.t0 - u.t1); return { x: lerp(u.last.x, nx.first.x, v), y: lerp(u.last.y, nx.first.y, v), writing: true }; }
+    } else if (t <= u.td1) return { ...dropPos(S, u, t), writing: true };
   }
-  // the drop back to the line
-  return { ...dropPos(S, p, t), writing: true };
+  return { x: S.rack(t), y: S.cardioY(t), writing: false };
 }
 
 /** The climb out of the line into the first letter (the nib rides the paper's feed, so it follows a whip). */
-export function climbPos(S: Script, p: PhraseS, tau: number): { x: number; y: number } {
-  const u = clamp((tau - p.tc0) / (p.t0 - p.tc0));
-  const first = p.strokes[0]![0]!;
-  const off = first.x - S.rack(p.t0);
-  return { x: S.rack(tau) + off * ease.inOutQuad(u), y: lerp(S.cardioY(tau), first.y, ease.outCubic(u)) };
+export function climbPos(S: Script, u: Unit, tau: number): { x: number; y: number } {
+  const v = clamp((tau - u.tc0) / Math.max(1e-6, u.t0 - u.tc0));
+  const off = u.first.x - S.rack(u.t0);
+  return { x: S.rack(tau) + off * ease.inOutQuad(v), y: lerp(S.cardioY(tau), u.first.y, ease.outCubic(v)) };
 }
 /** The drop from the last letter back down to the line. */
-export function dropPos(S: Script, p: PhraseS, tau: number): { x: number; y: number } {
-  const u = clamp((tau - p.t1) / (p.td1 - p.t1));
-  const q = penAtPhrase(p, p.t1);
-  const off = q.x - S.rack(p.t1);
-  return { x: S.rack(tau) + off * (1 - ease.inOutQuad(u)), y: lerp(q.y, S.cardioY(tau), ease.inCubic(u)) };
+export function dropPos(S: Script, u: Unit, tau: number): { x: number; y: number } {
+  const v = clamp((tau - u.t1) / Math.max(1e-6, u.td1 - u.t1));
+  const off = u.last.x - S.rack(u.t1);
+  return { x: S.rack(tau) + off * (1 - ease.inOutQuad(v)), y: lerp(u.last.y, S.cardioY(tau), ease.inCubic(v)) };
 }
 
 /** The nib along the phrase's strokes at t (it rests at the end of a stroke until the next one starts). */
@@ -65,6 +75,9 @@ export function drawInk(lb: LineBatch, S: Script, t: number, W: InkWin) {
     if ((ax < W.x0 && bx < W.x0) || (ax > xr && bx > xr)) return;
     lb.seg2(px(ax), py(ay), px(bx), py(by), Math.max(w * W.rho, 0.8), col, 1);
   };
+  // pen widths in screen px (the camera's width changes between setups)
+  const pxw = S.camW(t) / 1920;
+  const wTr = 2.6 * pxw;
   // ---- the traces: sampled on an absolute time grid so that the ink never shimmers between frames
   const dt = 1 / 360;
   for (let i = 0; i < 4; i++) {
@@ -74,71 +87,70 @@ export function drawInk(lb: LineBatch, S: Script, t: number, W: InkWin) {
       const ok = S.penDown(i, tau) && (i < 3 || !S.cardioWriting(tau));
       if (!ok) { pOk = false; return; }
       const x = S.rack(tau) + PEN_OX[i]!, y = i < 3 ? S.penY(i, tau) : S.cardioY(tau);
-      if (pOk) seg(pvx, pvy, x, y, i === 3 ? 2.0 : 1.7, TR);
+      if (pOk) seg(pvx, pvy, x, y, i === 3 ? wTr * 1.1 : wTr, TR);
       pvx = x; pvy = y; pOk = true;
     };
     for (let n = Math.ceil(tA / dt); n * dt <= t; n++) sample(n * dt);
     sample(t);
   }
-  // ---- the blots where the pens land (T_DROP, and after every whip)
-  const lands: number[] = [T_DROP];
-  for (const tl of lands) {
-    if (t < tl || t - tl > 3.2) continue;
+  // ---- the blots where the pens land (T_DROP)
+  if (t >= T_DROP && t - T_DROP < 3.2) {
     for (let i = 0; i < 3; i++) {
-      const x = S.rack(tl) + PEN_OX[i]!, y = S.penY(i, tl);
-      seg(x, y, x + 0.01, y, 6.5, BL);
+      const x = S.rack(T_DROP) + PEN_OX[i]!, y = S.penY(i, T_DROP);
+      seg(x, y, x + 0.01, y, 4 * pxw, BL);
     }
   }
-  // ---- the cardio pen: climb, letters, drop
-  S.phrases.forEach((p, k) => {
-    const nx = S.phrases[k + 1];
-    if (t < p.t0 - 0.2 || (nx && t > nx.w1 + 0.03) || t > p.t1 + 6) return;
-    const hero = p.hero ? 0.58 + 0.42 * ease.outCubic(clamp((t - p.t0) / 0.3)) : 1;
+  // ---- the cardio pen, word by word: climb, letters, drop
+  S.units.forEach((u, k) => {
+    const p = S.phrases[u.p]!;
+    if (t < (u.joinPrev ? u.t0 : u.tc0) || t > p.vis1) return;
+    const hero = p.hero ? 0.58 + 0.42 * ease.outCubic(clamp((t - u.t0) / 0.3)) : 1;
     const w = p.pen * hero;
-    // the climb (not for the first phrase: the pen starts on the first letter)
-    if (k > 0 && t >= p.tc0) {
-      const tEnd = Math.min(t, p.t0);
-      let a = climbPos(S, p, p.tc0);
+    if (!u.joinPrev && u.tc0 < u.t0 && t >= u.tc0) {
+      const tEnd = Math.min(t, u.t0);
+      let a = climbPos(S, u, u.tc0);
       for (let n = 1; n <= 12; n++) {
-        const b = climbPos(S, p, p.tc0 + ((tEnd - p.tc0) * n) / 12);
-        seg(a.x, a.y, b.x, b.y, 1.8, TR); a = b;
+        const b = climbPos(S, u, u.tc0 + ((tEnd - u.tc0) * n) / 12);
+        seg(a.x, a.y, b.x, b.y, wTr, TR); a = b;
       }
     }
-    // the letters
-    let prevEnd: { x: number; y: number; t: number } | null = null;
-    for (const sk of p.strokes) {
+    // the letters, and the line the pen draws travelling between one stroke and the next
+    let pe: { x: number; y: number } | null = null;
+    for (const si of u.sIdx) {
+      const sk = p.strokes[si]!;
       if (sk[0]!.t > t) break;
+      if (pe) seg(pe.x, pe.y, sk[0]!.x, sk[0]!.y, wTr, CON);
       for (let j = 0; j + 1 < sk.length; j++) {
         const a = sk[j]!, b = sk[j + 1]!;
         if (a.t > t) break;
         const [ax, ay] = handShake(S, a.t), [bx0, by0] = handShake(S, Math.min(b.t, t));
         let bx = b.x + bx0, by = b.y + by0;
-        if (b.t > t) { const u = (t - a.t) / Math.max(1e-6, b.t - a.t); bx = lerp(a.x + ax, b.x + bx0, u); by = lerp(a.y + ay, b.y + by0, u); }
+        if (b.t > t) { const v = (t - a.t) / Math.max(1e-6, b.t - a.t); bx = lerp(a.x + ax, b.x + bx0, v); by = lerp(a.y + ay, b.y + by0, v); }
         seg(a.x + ax, a.y + ay, bx, by, w, LY);
       }
+      const e = sk[sk.length - 1]!;
+      pe = t >= e.t ? e : null;
     }
-    void prevEnd;
-    // "lie": the pen jumps a channel in one jagged stroke, from the E to the G
-    if (p.raiseAt >= 0) {
-      const eEnd = p.strokes.filter((s2, si) => p.st.charOf[si]! < p.raiseAt).flat().reduce((m, q) => (q.t > m.t ? q : m), p.strokes[0]![0]!);
-      const gStart = p.strokes.find((s2, si) => p.st.charOf[si]! >= p.raiseAt)![0]!;
-      if (t >= eEnd.t) {
-        const u = clamp((t - eEnd.t) / 0.03);
-        let ax = eEnd.x, ay = eEnd.y;
-        for (let n = 1; n <= 9; n++) {
-          const v = (n / 9) * u, jag = n < 9 ? (n % 2 ? 1 : -1) * 16 * Math.sin(v * Math.PI) : 0;
-          const bx = lerp(eEnd.x, gStart.x, v) + jag, by = lerp(eEnd.y, gStart.y, ease.outQuad(v)) + (n < 9 ? 24 * Math.sin(v * Math.PI) : 0);
-          seg(ax, ay, bx, by, 3.0, LY); ax = bx; ay = by;
-        }
+    // between two words that run on: "lie" -> the jump of a channel in one jagged stroke, otherwise the line itself
+    if (u.joinNext && t > u.t1) {
+      const nx = S.units[k + 1]!;
+      const v1 = clamp((t - u.t1) / Math.max(1e-6, nx.t0 - u.t1));
+      const lie = u.p === 4 && S.units[k - 1]?.p !== 4;
+      let ax = u.last.x, ay = u.last.y;
+      for (let n = 1; n <= 9; n++) {
+        const v = (n / 9) * v1;
+        const jag = lie && n < 9 ? (n % 2 ? 1 : -1) * 16 * Math.sin(v * Math.PI) : 0;
+        const bx = lerp(u.last.x, nx.first.x, v) + jag, by = lerp(u.last.y, nx.first.y, lie ? ease.outQuad(v) : v) + (lie && n < 9 ? 24 * Math.sin(v * Math.PI) : 0);
+        seg(ax, ay, bx, by, lie ? 3 * pxw : wTr, lie ? LY : TR); ax = bx; ay = by;
       }
     }
     // the drop back to the line
-    if (t > p.t1) {
-      const tEnd = Math.min(t, p.td1);
-      let a = dropPos(S, p, p.t1);
+    if (!u.joinNext && t > u.t1) {
+      const tEnd = Math.min(t, u.td1);
+      let a = dropPos(S, u, u.t1);
       for (let n = 1; n <= 10; n++) {
-        const b = dropPos(S, p, p.t1 + ((tEnd - p.t1) * n) / 10);
-        seg(a.x, a.y, b.x, b.y, 1.8, TR); a = b;
+        const b = dropPos(S, u, u.t1 + ((tEnd - u.t1) * n) / 10);
+        seg(a.x, a.y, b.x, b.y, wTr, TR); a = b;
       }
     }
   });

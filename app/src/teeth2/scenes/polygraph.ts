@@ -21,7 +21,7 @@ const TANV = Math.tan((12 * Math.PI) / 180), TANH = TANV * (16 / 9);
 const ARM_DIR = new THREE.Vector3(0.05, 0.93, 0.36).normalize();
 const ARM_LEN = 1500;
 /** World window of the ink target. */
-const WIN = { w: 3000, h: 1500, y0: -750 };
+const WIN = { w: 3800, h: 1500, y0: -750 };
 
 export default class Polygraph extends Scene {
   private S!: Script;
@@ -69,8 +69,8 @@ export default class Polygraph extends Scene {
   // ------------------------------------------------------------------ camera
   private placeCamera(t: number) {
     const S = this.S;
-    const fr = S.framing(t);
-    const phi = S.phi(t);
+    const fr = S.cam(t);
+    const phi = fr.phi;
     // a hit on every downbeat (small, eased out), and the tear's lunge
     const kick = this.downs.reduce((m, b) => Math.max(m, pulse(t, b, 0.06)), 0);
     const w = fr.w * (1 - 0.014 * kick);
@@ -150,13 +150,13 @@ export default class Polygraph extends Scene {
     const tp = u.tearP!.value as THREE.Vector4[];
     S.tear.forEach((q, i) => tp[i]!.set(q.x, q.y, q.t, q.r));
     u.tearOn!.value = t >= T_TEAR ? 1 : 0;
-    u.tearOpen!.value = T_TEAR + 0.3;
+    u.tearOpen!.value = T_TEAR + 0.4;
 
     this.pass.render(renderer, out);
 
     // ---- post: the pens land, the paper is whipped, the tear
     let sh = 5 * pulse(t, T_DROP, 0.05) * (t >= T_DROP ? 1 : 0);
-    for (const p of S.phrases.slice(1)) sh = Math.max(sh, 2.6 * pulse(t, p.w1, 0.045));
+    for (const lw of S.landings) sh = Math.max(sh, 2.6 * pulse(t, lw, 0.045));
     const tearK = ease.inCubic(clamp((t - (T_TEAR + 0.1)) / 0.2));
     sh += 13 * tearK;
     const ang = t * 91;
