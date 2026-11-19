@@ -17,7 +17,7 @@ export const LAY = {
   AC: [0, 39, 0] as const, AR: 39, AH: 38, AROT: 0.07,
   /** the bite: its azimuth about the apple's axis (from +Z toward +X), its centre's height above the apple's centre;
    *  the scoop: an ellipsoid (half sizes along the bite's tangent, up, normal), its centre out along the normal */
-  BAZ: 0.5, BH: 4, SCR: [23, 20, 20] as const, SCZ: -2.0, SCY: 1.5,
+  BAZ: 0.5, BEL: 0.62, BH: 10, SCR: [19, 14, 15] as const, SCZ: -5.0, SCY: 0.0,
   /** the word: its azimuth and height on the apple */
   WAZ: -0.62, WH: 10,
   /** the scale: arm length, width, thickness */
@@ -30,11 +30,13 @@ ${SS_TAP_GLSL}
 uniform vec3 camPos, camR, camU, camF; uniform float tanH;
 uniform vec3 keyPos, keyDir; uniform float keyI, keyRad, keyCone;
 uniform vec3 fillDir; uniform float fillI;
-uniform sampler2D wordTex, labelTex, digitTex;
-uniform float wordAmt, wordWax, coatK;
-uniform vec3 BC, BN, BT;          // the bite: centre on the skin, normal, tangent (photo X)
+uniform sampler2D wordTex, word2Tex, labelTex, digitTex;
+uniform float wordAmt, wordWax, coatK, word2Amt;
+uniform vec3 W2C, W2N, W2U, W2T;      // the small supporting word: centre on the skin below the bite, normal, up
+uniform vec3 BC, BN, BT, BU;      // the bite: centre on the skin, normal, tangent (photo X), up in its plane (photo Y)
 uniform vec3 WC, WN, WT;          // the word: centre on the skin, normal, tangent
-uniform vec3 SO, SN, SU;          // the scale: outer corner (on the cloth, its face), face normal, along the foot
+uniform vec3 SO, SN, SU, SV;      // the scale: outer corner, face normal, along the foot, up the upright (in the bite's plane)
+uniform vec4 POST[2];             // its black posts: x, z, top y, half size
 uniform vec4 upT[6]; uniform vec4 loT[6];   // tooth spans along the bite: x0, x1, depth, n
 
 const vec3 AC = vec3(${LAY.AC.map(f).join(',')});
@@ -75,8 +77,9 @@ float teethCut(float X, bool upper) {
     vec4 t = upper ? upT[i] : loT[i];
     float u = (X - t.x) / max(t.y - t.x, 0.1);
     if (u > -0.15 && u < 1.15) {
-      float sc = sqrt(sat(1.0 - pow(abs(2.0 * u - 1.0) / 1.15, 4.0)));
-      float facet = t.w == 8.0 ? smoothstep(0.0, 0.5, u) : 1.0;
+      float sc = sat(1.0 - pow(abs(2.0 * u - 1.0) / 1.1, 2.0));
+      // #8: its mesial third is the chip, a small unbitten wedge between #9's scallop and #8's
+      float facet = t.w == 8.0 ? smoothstep(0.22, 0.48, u) : 1.0;
       g = max(g, sc * mix(0.75, 1.0, t.z) * facet);
     }
   }
@@ -87,25 +90,31 @@ float gCut = 1e3, gWord = 0.0;
 /** The bite taken out: the scoop's signed distance (negative inside the removed volume). */
 float scoop(vec3 p) {
   vec3 d = p - BC - BN * SCZ;
-  vec3 q = vec3(dot(d, BT), d.y - SCY, dot(d, BN));
+  vec3 q = vec3(dot(d, BT), dot(d, BU) - SCY, dot(d, BN));
+  // the crescent: the upper edge arched high by the incisors, the lower edge flatter
+  q.y *= mix(1.0, 1.35, smoothstep(0.0, -10.0, q.y));
   // (the ellipsoid estimate is not a bound: scaled down so the march never oversteps into the scoop)
   float s = sdEll(q, SCR) * 0.72;
-  float X = dot(p - BC, BT), Y = p.y - BC.y - SCY;
+  float X = dot(p - BC, BT), Y = dot(p - BC, BU) - SCY;
   // the incisors' edges: deeper scallops along the rim, their grooves dragged down the upper wall into the scoop; the
   // lowers' shorter scrapes on the lower wall
   // (only in a band at each rim: the teeth cut the rim and drag a few millimetres down the wall, not across the floor)
-  float up = smoothstep(9.0, 15.0, Y), lo = smoothstep(-9.0, -15.0, Y);
-  if (up > 0.0) s -= 3.2 * teethCut(X, true) * up;
-  if (lo > 0.0) s -= 1.6 * teethCut(X, false) * lo;
-  // fine drag striations along the bite's direction, and torn flesh
-  // fine drag grooves running across the bite (from the rim toward its floor), torn flesh between them
-  s += 0.12 * snoise(vec2(X * 2.2, Y * 0.12)) * max(up, lo) + 0.025 * snoise(vec3(p * 2.0));
-  return s;
+  float up = smoothstep(5.0, 13.0, Y), lo = smoothstep(-6.0, -14.0, Y);
+  // the upper incisors cut the rim (each its own scallop) and drag down the wall; the lowers mark the far wall faintly
+  // (shallow, wide arcs meeting in small points of skin: a bitten edge, never fang shapes)
+  if (up > 0.0) s -= 1.4 * teethCut(X, true) * up;
+  if (lo > 0.0) s -= 0.4 * teethCut(X, false) * lo;
+  // tooth drag: fine grooves running down the flesh from the upper rim (perpendicular to it), fading toward the floor
+  s += (0.035 + 0.05 * up) * snoise(vec2(X * 1.6, Y * 0.16)) + 0.02 * snoise(vec3(p * 2.0));
+  return s * 0.8;
 }
 
 float wordDepth(vec2 X) {
   float wd = textureLod(wordTex, (X - PATCHR.xy) * PATCHR.zw, 0.0).r;
-  float tn = 0.03 * snoise(X * 2.2) + 0.012 * snoise(X * 6.0);
+  // the bitten edge: the outline scalloped at tooth width (~1.6 mm), torn
+  float edge = smoothstep(-0.9, 0.2, wd);
+  wd -= edge * 0.22 * (0.5 + 0.5 * sin(dot(X, vec2(3.9, 0.6)) + 2.0 * snoise(X * 0.6)));
+  float tn = 0.06 * snoise(X * 2.2) + 0.03 * snoise(X * 7.0);
   float s = wd + tn;
   gWord = s;
   return 2.3 * smoothstep(0.3, -0.5, s) * (0.65 + 0.35 * sqrt(sat(-s / 0.8))) * wordAmt;
@@ -117,6 +126,15 @@ float apple(vec3 p) {
   if (dot(p - AC, WN) > 16.0) {
     vec2 X = vec2(dot(p - WC, WT), p.y - WC.y);
     if (abs(X.x) < 27.0 && abs(X.y) < 18.0 && d < 4.0) d += wordDepth(X);
+  }
+  if (word2Amt > 0.0 && dot(p - AC, W2N) > 16.0) {
+    // a supporting word: bitten small and shallow below the bite (the hero words bite deep, elsewhere)
+    vec2 X = vec2(dot(p - W2C, W2T), dot(p - W2C, W2U)) * 1.65;
+    if (abs(X.x) < 27.0 && abs(X.y) < 18.0 && d < 3.0) {
+      float wd = textureLod(word2Tex, (X - PATCHR.xy) * PATCHR.zw, 0.0).r * 0.5 + 0.03 * snoise(X * 1.5);
+      gWord = min(gWord, wd * 2.0);
+      d += 0.9 * smoothstep(0.08, -0.2, wd) * word2Amt;
+    }
   }
   if (dot(p - AC, BN) > 4.0) {
     float s = scoop(p);
@@ -162,7 +180,7 @@ float clothH(vec2 xz) {
   float far = smoothstep(200.0, 340.0, length(xz));
   return far * (3.0 * snoise(xz * 0.008 + 3.1) + 1.2 * snoise(xz * 0.02 + 7.7));
 }
-vec3 scaleL(vec3 p) { vec3 d = p - SO; return vec3(dot(d, SU), d.y, dot(d, SN)); }
+vec3 scaleL(vec3 p) { vec3 d = p - SO; return vec3(dot(d, SU), dot(d, SV), dot(d, SN)); }
 float scaleD(vec3 p) {
   vec3 s = scaleL(p);
   float a1 = sdBox3(s - vec3(SWD * 0.5, SL * 0.5, -ST * 0.5), vec3(SWD * 0.5, SL * 0.5, ST * 0.5));
@@ -170,8 +188,12 @@ float scaleD(vec3 p) {
   return min(a1, a2) - 0.12;
 }
 float blockD(vec3 p) {
-  vec3 s = scaleL(p);
-  return sdBox3(s - vec3(10.0, 15.0, -ST - 9.0), vec3(8.0, 15.0, 9.0)) - 0.8;
+  float d = 1e9;
+  for (int i = 0; i < 2; i++) {
+    vec4 b = POST[i];
+    d = min(d, sdBox3(p - vec3(b.x, b.z * 0.5, b.y), vec3(b.w, b.z * 0.5, b.w)) - 0.6);
+  }
+  return d;
 }
 
 vec2 map(vec3 p) {
@@ -181,7 +203,7 @@ vec2 map(vec3 p) {
   else r = opU(r, vec2(ab + 3.0, M_SKIN));
   r = opU(r, vec2(stem(p), M_STEM));
   float lb = length(toApple(p) - LB - LDIR * 26.0) - 30.0;
-  r = opU(r, vec2(lb < r.x ? leaf(p) : lb + 2.0, M_LEAF));
+  r = opU(r, vec2(lb < r.x ? leaf(p) * 0.6 : lb + 2.0, M_LEAF));
   r = opU(r, vec2(scaleD(p), M_SCALE));
   r = opU(r, vec2(blockD(p), M_BLOCK));
   return r;
@@ -196,7 +218,7 @@ vec3 calcN(vec3 p, float e) {
 float stepK(vec3 p) {
   vec3 q = p - AC;
   if (dot(q, WN) > 14.0 && abs(q.y) < 26.0) return 0.32;
-  if (dot(q, BN) > 2.0 && abs(q.y - ${f(LAY.BH)}) < 26.0) return 0.5;
+  if (length(p - BC) < 32.0) return 0.45;
   if (q.y > 20.0 && length(q.xz) < 16.0) return 0.55;
   return 0.85;
 }
@@ -301,6 +323,8 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   vec3 jit = (hash33(vec3(FRAG_PX * 0.73, tap * 3.1)) - 0.5) * keyRad * 0.6;
   vec3 Ls = normalize(keyPos + jit - P);
   float sh = dot(N, Ls) > 0.0 ? softShadow(P + N * 0.03, Ls, lD, lD / max(keyRad, 0.1) * 0.5) : 0.0;
+  // (the bitten word's floors: soft, the flash fills them from beside the lens)
+  if (m == M_SKIN && ws < 0.0) sh = mix(sh, 1.0, 0.5);
   float ao = m == M_SKIN ? mix(calcAO(P, N, 0.3), 1.0, 0.35) : calcAO(P, N, 2.0);
   vec3 alb = T_SILVER; float rough = 0.5, f0 = 0.04, wrap = 0.0, sheen = 0.0, coat = 0.0;
   float fleshK = 0.0, waxK = 0.0; vec3 fleshC = vec3(0.0);
@@ -324,23 +348,23 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     float len = 1.0 - smoothstep(lr * 0.4, lr, length(dl));
     float dens = mix(0.7, 0.4, smoothstep(-0.2, -0.85, hN));
     alb = mix(alb, vec3(0.046), len * 0.55 * step(dens, hash12(ci + 3.0)));
-    rough = 0.4 + 0.05 * snoise(P * 0.4); f0 = 0.035; wrap = 0.2; coat = 1.0;
+    rough = 0.6 + 0.05 * snoise(P * 0.4); f0 = 0.025; wrap = 0.2; coat = 1.0;
     // the flesh: inside the bite (below the original skin) and in the word's cavities
     float inBite = smoothstep(-0.05, -0.35, body0) * step(cut, 1.0);
     float inWord = smoothstep(0.1, -0.25, ws) * wordAmt;
     float flesh = max(inBite, inWord);
     if (flesh > 0.0) {
-      float gr = 0.5 * snoise(P * 11.0) + 0.3 * snoise(P * 27.0) + 0.2 * snoise(P * 3.0);
-      float wall = sat(0.5 - 0.5 * gr);
+      float gr = 0.6 * snoise(P * 18.0) + 0.4 * snoise(P * 40.0);
+      float wall = sat(0.5 - 0.5 * gr) * 0.5;
       // white, a little translucent; browning (very desaturated) a millimetre or so in from the cut skin
       float brown = inBite * (1.0 - smoothstep(-0.4, -2.2, body0)) + inWord * (1.0 - smoothstep(-0.05, -0.6, ws));
-      vec3 cream = vec3(0.34) * (1.0 - 0.16 * wall);
+      vec3 cream = vec3(0.27) * (1.0 - 0.2 * wall);
       vec3 flc = mix(cream, mix(T_STONE, T_SILVER, 0.55) * 0.5, sat(brown) * 0.55);
       // SWEET (the tender word): its flesh blushes wax, the one colour in the photograph
       waxK = inWord * wordWax;
       flc = mix(flc, T_WAX * 0.78, waxK);
       alb = mix(alb, flc, flesh);
-      rough = mix(rough, 0.16 + 0.2 * wall, flesh); f0 = mix(f0, 0.025, flesh); wrap = mix(wrap, 0.5, flesh); coat *= 1.0 - flesh;
+      rough = mix(rough, 0.55 + 0.15 * wall, flesh); f0 = mix(f0, 0.025, flesh); wrap = mix(wrap, 0.5, flesh); coat *= 1.0 - flesh;
       fleshK = flesh; fleshC = flc;
     }
     float cr = length(q.xz);
@@ -396,8 +420,9 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   vec3 col = alb * difL * fall * sh * T_LIGHTBOX;
   col += T_LIGHTBOX * spec * fall * sh;
   if (coat > 0.0) {
-    float ac = 0.032;
-    col += T_LIGHTBOX * coat * F_Sch(0.03, max(dot(V, Hh), 0.0)) * D_GGX(NoH, ac) * V_SmithJ(NoV, max(NoL, 0.0), ac) * max(NoL, 0.0) * fall * sh * 0.6 * coatK;
+    // a crisp image of the flash head: a hard-edged small disc with no tail (no orb, nothing for the halation to catch)
+    float disc = smoothstep(0.99972, 0.99986, NoH);
+    col += T_LIGHTBOX * coat * disc * max(NoL, 0.0) * min(fall, 1.0) * sh * 0.75 * coatK;
   }
   col += T_SILVER * sheen * pow(1.0 - NoV, 4.0) * fall * (0.3 + 0.7 * sh) * sat(NoL + 0.6);
   // apple flesh is translucent: the cut carries some of the light that reaches the fruit around it

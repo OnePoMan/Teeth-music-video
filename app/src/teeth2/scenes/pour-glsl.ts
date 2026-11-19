@@ -116,7 +116,7 @@ float shiver(vec2 xz) {
 // the alginate's surface (head of the tray frame): the rim inside the wall, the palate's dome; low in the trough
 float algH(float al) {
   float rim = 0.0;
-  float dome = (1.0 - smoothstep(-19.0, -7.2, al)) * (2.9 + 3.2 * (1.0 - smoothstep(-26.0, -12.0, al)));
+  float dome = (1.0 - smoothstep(-19.0, -7.2, al)) * (0.8 + 0.6 * (1.0 - smoothstep(-26.0, -12.0, al)));   // under the stone
   return SURF - 2.2 + rim + dome;
 }
 // the stone's surface height above SURF at xz; the wetness and the word sample
@@ -124,7 +124,7 @@ float surfH(vec2 xz, float al, float t2, out float wet, out vec4 wd) {
   float sm = setMask(xz);
   wet = wetAll * (1.0 - sm);
   wd = wordAt(svA(xz));
-  float wall = min(al + 7.6, -t2);   // distance to the palate's dome or to the tray wall
+  float wall = -t2;   // distance to the tray wall (the stone fills the palate too)
   float h = shiver(xz) * (1.0 - sm) * smoothstep(0.0, 2.0, wall) * (1.0 - smoothstep(0.02, 0.35, wd.w));
   h += bubbles(xz, wet) * (1.0 - wd.w) * smoothstep(1.0, 2.5, wall);
   h += wordDepth * wd.x;
@@ -174,11 +174,11 @@ float mapA(vec3 p, out int mat) {
   float alg = max(t2, (q.y - algH(al.x)) * 0.7);
   if (alg < d) { d = alg; mat = 6; }
   if (SHM) return d;
-  if (al.x > -8.6 && q.y > SURF - 3.0) {
+  if (q.y > SURF - 3.0) {
     float wet = 0.0; vec4 wd = vec4(0.0);
     float h = surfH(q.xz, al.x, t2, wet, wd);
     float g = wd.w > 0.0 ? wordDepth * wordSlope(svA(q.xz)) : 0.0;
-    float st = max(max(-al.x - 8.2, t2), (q.y - SURF - h) / sqrt(1.0 + g * g) * 0.75);
+    float st = max(t2, (q.y - SURF - h) / sqrt(1.0 + g * g) * 0.75);
     if (st < d) { d = st; mat = 4; }
   }
   return d;
@@ -219,7 +219,7 @@ float crumbs(vec3 p) {
   vec3 h = hash33(vec3(c, 4.2));
   vec2 o = (c + 0.4 + 0.2 * hash22(c + 1.7)) * CS;
   float rr = length((o - vec2(0.0, 20.0)) / vec2(1.0, 1.25));
-  if (h.x > 0.14 * smoothstep(44.0, 50.0, rr) * (1.0 - smoothstep(58.0, 78.0, rr))) return min(bound, 1e3);
+  if (h.x > 0.2 * smoothstep(44.0, 48.0, rr) * (1.0 - smoothstep(52.0, 60.0, rr))) return min(bound, 1e3);
   float r = 0.35 + 0.85 * h.y * h.y;
   vec3 q = p - vec3(o.x, PB + r * 0.45, o.y);
   q.xz = rot2(h.z * 6.28) * q.xz;
@@ -387,12 +387,22 @@ vec4 shadePx(vec2 px) {
     float g = 0.9 + 0.1 * fbm(P.xz * 0.08, 3) + 0.05 * snoise(P.xz * 1.3);
     vec3 alb = T_FILM2 * 1.1 * g;
     if (mode == 1) {
+      // slate: a fine honed grain and faint scratches, read by the grazing key
+      vec2 e = vec2(0.15, 0.0);
+      float b0 = fbm(P.xz * 0.9, 3) + 0.4 * snoise(P.xz * vec2(0.15, 3.2) + 7.0);
+      float bx = fbm((P.xz + e.xy) * 0.9, 3) + 0.4 * snoise((P.xz + e.xy) * vec2(0.15, 3.2) + 7.0);
+      float bz = fbm((P.xz + e.yx) * 0.9, 3) + 0.4 * snoise((P.xz + e.yx) * vec2(0.15, 3.2) + 7.0);
+      N = normalize(vec3(-(bx - b0) / 0.15 * 0.06, 1.0, -(bz - b0) / 0.15 * 0.06));
+      ndl = dot(N, L);
+      alb = mix(T_FILM2, T_SILVER * 0.3, 0.6) * g;
+    }
+    if (mode == 1) {
       float rr = length((P.xz - castOff.xz - vec2(0.0, 20.0)) / vec2(1.0, 1.25));
       float dust = smoothstep(0.55, 0.9, snoise(P.xz * 0.9) * 0.5 + 0.5 + 0.25 * snoise(P.xz * 5.0)) * (1.0 - smoothstep(48.0, 85.0, rr));
       alb = mix(alb, T_STONE * 0.12, dust * 0.0);
     }
-    float ca = clamp(0.3 + mapD(P + vec3(0.0, 3.0, 0.0)) / 4.0, 0.2, 1.0);
-    col = alb * (keyK * max(ndl, 0.0) * att * sh + sky * 0.6) * ca;
+    float ca = clamp(0.15 + mapD(P + vec3(0.0, 3.0, 0.0)) / 5.0, 0.12, 1.0);
+    col = alb * (keyK * 1.6 * max(ndl, 0.0) * att * sh + sky * 0.6) * ca;
     col += T_LIGHTBOX * 0.01 * pow(max(dot(N, Hh), 0.0), 30.0) * att * sh;
   } else if (mat == 1 || mat == 2 || mat == 7) {
     // the vibrator: painted grey body, black rubber platform (ribbed), black dial and switch

@@ -171,8 +171,10 @@ export default class Pour extends Scene {
           c.lineWidth = 40; c.lineJoin = 'round';
           c.strokeText(s, x, base); c.fillText(s, x, base);
           c.globalCompositeOperation = 'lighter';
-          c.filter = 'blur(2px)'; c.fillStyle = 'rgb(255,0,0)'; c.fillText(s, x, base);
-          c.filter = 'blur(9px)'; c.fillStyle = 'rgb(0,255,0)'; c.fillText(s, x, base);
+          const fat = p.surf === 'B' ? 7 : 0;   // the cast's letters dilated to HEART's wet, meniscus-fattened weight
+          c.lineWidth = fat; c.lineJoin = 'round';
+          c.filter = 'blur(2px)'; c.fillStyle = c.strokeStyle = 'rgb(255,0,0)'; c.fillText(s, x, base); if (fat) c.strokeText(s, x, base);
+          c.filter = 'blur(9px)'; c.fillStyle = c.strokeStyle = 'rgb(0,255,0)'; c.fillText(s, x, base); if (fat) c.strokeText(s, x, base);
           x += c.measureText(s).width + row.gap;
         });
         y = base;
@@ -199,7 +201,7 @@ export default class Pour extends Scene {
       // "heart got": high and close over the words, the set front crossing
       { t0: 109.16, pos0: [24, 108, -98], pos1: [20, 102, -90], at0: [-2, 6, 12], at1: [-2, 6, 12], fov: 30, aper: 8, focus: [0, 12, 2] },
       // THE CAST: macro, low three-quarter from the patient's right, the lamp raking from the left
-      { t0: T_CUT, pos0: [-6, -2.5, -112], pos1: [-5, -3.0, -102], at0: [-3, -13, 4], at1: [-3, -13.5, 4], fov: 26, aper: 14, focus: [-4, 0, -2] },
+      { t0: T_CUT, pos0: [-6, -2.5, -118], pos1: [-5, -3.0, -108], at0: [-3, -15, 4], at1: [-3, -15.5, 4], fov: 27, aper: 14, focus: [-4, 0, -2] },
       { t0: 110.88, pos0: [70, 6, -110], pos1: [56, 2, -112], at0: [0, -15, 10], at1: [0, -15, 10], fov: 26, aper: 14, focus: [0, -14, -6] },
       { t0: 112.61, pos0: [-58, 24, -100], pos1: [-44, 18, -106], at0: [0, -16, 8], at1: [0, -16, 8], fov: 26, aper: 14, focus: [0, -14, -6] },
       { t0: 114.33, pos0: [8, 36, -118], pos1: [0, 28, -112], at0: [0, -15, 10], at1: [0, -15, 10], fov: 26, aper: 14, focus: [0, -14, -6] },
@@ -254,7 +256,7 @@ export default class Pour extends Scene {
       (u.wordRect!.value as THREE.Vector4).set(r[0], r[1], r[2], r[3]);
     }
     // one relief for every word in the plate: Archivo risen out of the stone, a soft shoulder and a meniscus foot
-    u.wordDepth!.value = castMode ? 0.6 : 0.7;
+    u.wordDepth!.value = 0.7;
     u.skirtK!.value = 1.0;
     const rise = u.wRise!.value as number[], wet = u.wWet!.value as number[];
     rise.fill(0); wet.fill(0);

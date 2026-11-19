@@ -51,8 +51,9 @@ const UP = V(0, 1, 0);
 const AC = V(...LAY.AC);
 /** A frame on the apple's flank at azimuth az (from +Z toward +X) and height h over its centre: the skin point C,
  *  its outward normal N (horizontal), its tangent T (to the right, seen from outside). */
-function flank(az: number, h: number) {
-  const N = V(Math.sin(az), 0, Math.cos(az)), T = V(Math.cos(az), 0, -Math.sin(az));
+function flank(az: number, h: number, el = 0) {
+  const N = V(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)), T = V(Math.cos(az), 0, -Math.sin(az));
+  const U = new THREE.Vector3().crossVectors(N, T);
   // the body without its noise and wells (scale-glsl.ts appleBody): bisect outward along N
   const c = Math.cos(LAY.AROT), s = Math.sin(LAY.AROT);
   const body = (p: THREE.Vector3) => {
@@ -65,22 +66,37 @@ function flank(az: number, h: number) {
   const at = (k: number) => AC.clone().add(V(0, h, 0)).addScaledVector(N, k);
   let lo = 0, hi = 60;
   for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (body(at(m)) > 0) hi = m; else lo = m; }
-  return { C: at(lo), N, T };
+  return { C: at(lo), N, T, U };
 }
 /** The bite (its crescent faces right-front), the word (on the left-front flank). */
-const BITE = flank(LAY.BAZ, LAY.BH);
+// the bite sits on the apple's upper shoulder, facing up and out: the lens looks down onto it, perpendicular
+const BITE0 = flank(LAY.BAZ, 0, LAY.BEL);
+// the bite taken on the diagonal (as an apple is held): its arch turned in the plane, never a level mouth-like slot
+const BITE = (() => {
+  const a = 0.95, c = Math.cos(a), s = Math.sin(a);
+  return { C: BITE0.C, N: BITE0.N, T: BITE0.T.clone().multiplyScalar(c).addScaledVector(BITE0.U, s), U: BITE0.U.clone().multiplyScalar(c).addScaledVector(BITE0.T, -s) };
+})();
 const WORDF = flank(LAY.WAZ, LAY.WH);
 /** The copy camera's azimuth for the exhibit: the bite seen at 3/4 on the apple's right, its crescent in the outline. */
 const CAZ = LAY.BAZ - 1.08;
 const DC = V(Math.sin(CAZ), 0, Math.cos(CAZ)), RC = V(Math.cos(CAZ), 0, -Math.sin(CAZ));
-/** The scale: standing on the cloth to the right of the apple (beside the bite), its face to the copy camera. */
-const SO = AC.clone().addScaledVector(RC, 47).addScaledVector(DC, -6).setY(0);
+/** The scale: standing on the cloth to the right of the apple, its face in the bite's plane (as bite-mark photography
+ *  requires: the lens perpendicular to the bite, the scale in the bite's plane). */
+// (it lies in the bite's tangent plane beside it, held on two black posts)
+const SO = BITE0.C.clone().addScaledVector(BITE0.T, 38).addScaledVector(BITE0.U, -34).addScaledVector(BITE0.N, 1.0);
+const postAt = (u: number, v: number, back: number) => {
+  const p = SO.clone().addScaledVector(BITE0.T, u).addScaledVector(BITE0.U, v).addScaledVector(BITE0.N, -back);
+  return new THREE.Vector4(p.x, p.z, p.y - 4, 4);
+};
+const POSTS = [postAt(9, 6, 8), postAt(88, 6, 8)];
+/** The small supporting words: bitten below the bite, facing the same way. */
+const W2 = flank(LAY.BAZ + 0.22, 0, LAY.BEL - 0.6);
 /** A direction at azimuth az (from +Z toward +X) and elevation el. */
 const dirAz = (az: number, el: number) => V(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
 /** A point on a flank frame at (X right, Y up) mm, `out` along its normal, the skin's sag allowed for. */
-function onF(F: { C: THREE.Vector3; N: THREE.Vector3; T: THREE.Vector3 }, X: number, Y: number, out = 0) {
+function onF(F: { C: THREE.Vector3; N: THREE.Vector3; T: THREE.Vector3; U: THREE.Vector3 }, X: number, Y: number, out = 0) {
   const sag = (X * X + Y * Y) / (2 * LAY.AR);
-  return F.C.clone().addScaledVector(F.T, X).addScaledVector(UP, Y).addScaledVector(F.N, out - sag);
+  return F.C.clone().addScaledVector(F.T, X).addScaledVector(F.U, Y).addScaledVector(F.N, out - sag);
 }
 
 /** Look-development overrides from the page URL (render.ts --query sc_cam=...): sc_<name>=v1,v2,... */
@@ -171,12 +187,28 @@ export default class ScalePlate extends Scene {
       fillDir: { value: V(0, 1, 0) }, fillI: { value: 0.02 },
       wordTex: { value: this.empty }, labelTex: { value: label }, digitTex: { value: digits },
       wordAmt: { value: 0 }, wordWax: { value: 0 }, coatK: { value: 1 },
-      BC: { value: BITE.C }, BN: { value: BITE.N }, BT: { value: BITE.T },
+      BC: { value: BITE.C }, BN: { value: BITE.N }, BT: { value: BITE.T }, BU: { value: BITE.U }, POST: { value: POSTS },
       WC: { value: WORDF.C }, WN: { value: WORDF.N }, WT: { value: WORDF.T },
-      SO: { value: SO }, SN: { value: DC }, SU: { value: RC },
+      SO: { value: SO }, SN: { value: BITE0.N }, SU: { value: BITE0.T }, SV: { value: BITE0.U },
+      word2Tex: { value: this.empty }, word2Amt: { value: 0 }, W2C: { value: W2.C }, W2N: { value: W2.N }, W2U: { value: W2.U }, W2T: { value: W2.T },
       upT: { value: v4(spans.upper) }, loT: { value: v4(spans.lower) },
     });
     this.dof = new FSPass(DOF_FRAG, { src: { value: null }, focusD: { value: 100 }, aper: { value: 10 }, maxCoc: { value: 18 } });
+  }
+
+  private support = new Map<string, THREE.DataTexture>();
+  /** The supporting word being sung at t (a word of the current line that is not a hero), baked on first use. */
+  private supportWord(t: number): { tex: THREE.DataTexture; amt: number } | null {
+    const line = this.ctx.lyrics.lineAt(t + 0.045) ?? this.ctx.lyrics.lastLine(t);
+    if (!line || t > line.end + 0.3) return null;
+    let w = null as (typeof line.words)[number] | null;
+    for (const x of line.words) if (x.start - 0.045 <= t) w = x;
+    if (!w) return null;
+    const word = w.w.replace(/[^A-Za-z]/g, '');
+    if (!word || this.heroes.some((h) => Math.abs(h.start - w!.start) < 1e-3)) return null;
+    let tex = this.support.get(word);
+    if (!tex) { tex = bakeWord(word).tex; this.support.set(word, tex); }
+    return { tex, amt: clamp((t - (w.start - 0.045)) / 0.05) };
   }
 
   private shotAt(t: number): Shot {
@@ -210,11 +242,12 @@ export default class ScalePlate extends Scene {
     });
     switch (s.kind) {
       case 'wide': {
-        // the exhibit at 3/4: the apple with its bite in the outline on the right, the scale beside it, the sticker
-        const at = AC.clone().addScaledVector(RC, 30 + 8 * (h1 - 0.5)).add(V(0, -2 + 4 * h2, 0));
-        const pos = at.clone().addScaledVector(dirAz(CAZ + 0.18 * (h2 - 0.5), 0.22 + 0.12 * h3), 300 + 40 * h1);
-        P = { pos, at, fov: 24, roll: (h3 - 0.5) * 0.1, aper: 2.5, focus: B };
-        L = { ...flashOn(pos, at, 1.0, 4), pos: pos.clone().addScaledVector(UP, 48).addScaledVector(RC, -34) };
+        // the exhibit: the lens perpendicular to the bite, the scale in its plane beside the apple; a hard flash on the
+        // camera (a hand above and left of the lens), so the apple throws its shadow onto the velvet and the scale
+        const at = BITE0.C.clone().addScaledVector(BITE0.T, 36 + 6 * (h1 - 0.5)).addScaledVector(BITE0.U, -4 + 4 * (h2 - 0.5));
+        const pos = at.clone().addScaledVector(BITE0.N, 245 + 20 * h1).addScaledVector(BITE0.U, 10 * h3).addScaledVector(BITE0.T, -8 * h2);
+        P = { pos, at, fov: 30, roll: (h3 - 0.5) * 0.06, aper: 2.5, focus: B };
+        L = { ...flashOn(pos, at, s.i === 0 ? 1.35 : 1.15, 3), pos: pos.clone().addScaledVector(BITE0.U, 70).addScaledVector(BITE0.T, -85) };
         break;
       }
       case 'oblique': {
@@ -279,7 +312,7 @@ export default class ScalePlate extends Scene {
         const at = onF(WORDF, -3.0, 0.5, -2.0);
         const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.7 + 0.05 * (h1 - 0.5), 0.17 + 0.03 * h2), 58);
         P = { pos, at, fov: 27, roll: -0.02 + (h3 - 0.5) * 0.05, aper: 22, focus: onF(WORDF, 0, 0, -0.6) };
-        L = { pos: pos.clone().addScaledVector(UP, 26).addScaledVector(WORDF.T, 20), I: 1.1, rad: 5, ...fill(pos.clone().sub(at), 0.05), coat: 0.1 };
+        L = { pos: pos.clone().addScaledVector(UP, 14).addScaledVector(WORDF.T, -40), I: 2.0, rad: 3, ...fill(pos.clone().sub(at), 0.06), coat: 0.0 };
         break;
       }
     }
@@ -322,6 +355,10 @@ export default class ScalePlate extends Scene {
     m.wordTex!.value = hk >= 0 ? this.heroes[hk]!.tex : this.empty;
     m.wordAmt!.value = hk >= 0 ? amt : 0;
     m.wordWax!.value = hk >= 0 && this.heroes[hk]!.wax ? 1 : 0;
+    // the line's other words, one at a time as sung, bitten small and shallow below the bite (none while a hero shows)
+    const sw = hk < 0 ? this.supportWord(t) : null;
+    m.word2Tex!.value = sw ? sw.tex : this.empty;
+    m.word2Amt!.value = sw ? sw.amt : 0;
     this.march.render(renderer, this.rt);
 
     const d = this.dof.u;
