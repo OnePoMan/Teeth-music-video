@@ -1,17 +1,18 @@
-// Plate 11 `luminol` — the bridge (131.60 – 145.41), docs/TEETH2.md. No drums. A dark evidence room: his white shirt
-// on a wire hanger, a clear evidence bag hanging on a wire just in front of it, one dimmed hard key. The camera circles
-// the shirt slowly and stops on each phrase. A gloved hand sprays luminol from a trigger sprayer (the spray itself is
-// never drawn); where it lands the blood glows luminol blue in one soft bloom soaked into the weave over the left
-// chest, flaring on each re-spray (every phrase, harder on the heroes). The lyric is printed on the bag's clear face,
-// lit only from behind by the glow: SHIRT, *rose* (wax Cormorant, the one warm thing), WHO, HEART, BEATING.
+// Plate 11 `luminol` — the bridge (131.60 – 145.41), docs/TEETH2.md. No drums. A film-black evidence room: his dark
+// shirt on a wire hanger, a thin clear evidence bag hanging on a wire just in front of it. No key light: the plate is lit
+// only by the reaction (the luminol patch in the weave over the left chest) plus one constant dim cold ambient. The
+// camera circles the shirt and settles on a new angle at each phrase start. A gloved hand sprays luminol from a trigger
+// sprayer (the spray itself is never drawn); where it lands the patch rises over ~0.3 s, then fades, on each phrase.
+// The lyric is printed on the bag's clear face and reads only where the glow is behind it: SHIRT, *rose* (wax
+// Cormorant, the one warm thing), WHO, HEART, BEATING.
 //
-// Beats: 131.60 cut in wide, the sprayer arrives; "Blood" the first spray, the bloom spreads where it lands; SHIRT
-// flares (a light event); the camera circles onto "rose"; then onto "You're looking at me", easing in to the bar;
-// "like you don't know who I am": the bag's label in close-up, NAME:, the gloved hand's pen comes down to the blank
-// line and stops; NAME stays blank; WHO flares beside it. Back out on the other side for "Blood on my shirt"; a push
-// onto the chest for HEART (glow 1 of 2, it fades); "Still beating" (glow 2, it fades to an ember). On the 143.69
-// downbeat a hard cut: the shirt folded in the sealed bag, the seal flap slaps down, the evidence camera's flash
-// fires, and the hand signs the T.F. monogram on the seal (pen down on the next beat). Hard cut out at 145.41.
+// Beats: 131.60 wide, easing to three-quarter left for "Blood" (132.30), the first spray; a push for *rose*; near-profile
+// for "You're looking at me" (135.70); "like you don't know who I am": a cut to the bag's label, NAME:, easing to a
+// close-up as the gloved hand's pen comes down on "don't" (137.65) and stops; NAME stays blank; WHO beside it. Three-
+// quarter right for "Blood on my shirt" (139.23); a macro on the patch for HEART (141.03, glow 1 of 2, it fades); wide
+// for "Still beating" (142.69, glow 2, it fades to an ember). On the 143.69 downbeat a hard cut: the shirt folded in the
+// sealed bag, the seal flap slaps down; a cut to the seal strip, and the hand signs the T.F. monogram on it (pen down on
+// the next beat, T.F. ~25% of the frame's width). Hard cut out at 145.41.
 //
 // Files: luminol-type.ts (the bag's print, the label, the seal), luminol-glsl.ts (the frame), luminol-hands.ts.
 import * as THREE from 'three';
@@ -20,13 +21,14 @@ import { FSPass, SS_TAP } from '../../engine/gl';
 import { clamp, ease, lerp, noise1, pulse, smootherstep } from '../../engine/util';
 import { monoPenAt, monoWritten } from '../monogram';
 import { LUM_FRAG } from './luminol-glsl';
-import { bakeLabel, bakeLyric, SealInk, monoToFlap, LABEL, NAME_LINE, FLAP, TILE_W, TILE_H, ATLAS_C, type LPhrase, type LWord } from './luminol-type';
+import { bakeLabel, bakeLyric, SealInk, monoToFlap, LABEL, NAME_LINE, FLAP, SIGN, TILE_W, TILE_H, ATLAS_C, type LPhrase, type LWord } from './luminol-type';
+import { MONO_H } from '../monogram';
 
 const VFOV = 30;
 const DEG = Math.PI / 180;
 const CUT = 1e-3;
-const BAG_Y = -150, BAG_Z0 = -90;
-const BLOOM = new THREE.Vector3(110, -58, -280);
+const BAG_Y = -150, BAG_Z0 = -150;
+const BLOOM = new THREE.Vector3(110, -55, -335);
 
 interface Key { t: number; d: number; v: number[] }
 /** Piecewise moves: from each key's value to the next, eased (smootherstep), arriving at the key's time. */
@@ -53,6 +55,7 @@ export default class LuminolPlate extends Scene {
   private tSeal = 143.69; private tLand = 143.76; private sign0 = 144.12; private sign1 = 144.66;
   private tClose0 = 136.99; private tClose1 = 138.51;
   private tFirst = 132.3;
+  private tSealCU = 143.95;
   private heroT: number[] = [];
 
   override init() {
@@ -84,35 +87,49 @@ export default class LuminolPlate extends Scene {
     this.tClose0 = P[3]!.t0 - 0.01;
     this.tClose1 = downs.find((d) => d > who.start) ?? 138.51;
 
-    // the re-sprays: every phrase that the hand can reach, harder on the heroes; HEART and BEATING fade out (twice)
-    const sp = (t: number, a: number, tau = 0.8, fl = 0.36, pump = true) => this.sprays.push({ t, a, tau, fl, pump });
-    sp(W(0, 0).start, 0.95); sp(shirt.start, 1.5); sp(rose.start, 1.15); sp(W(2, 0).start, 0.95);
-    sp(who.start, 1.3, 0.8, 0.36, false); sp(W(5, 0).start, 0.95);
-    sp(heart.start, 1.75, 0.42, 0.05); sp(still.start, 0.7, 0.3, 0.2); sp(beating.start, 1.45, 0.62, 0.3);
+    // the re-sprays: one on every phrase (the hand pumps where it is in frame), a second flare on SHIRT; HEART and
+    // "Still beating" glow and fade, twice
+    const sp = (t: number, a: number, tau = 0.9, fl = 0.4, pump = true) => this.sprays.push({ t, a, tau, fl, pump });
+    sp(P[0]!.t0, 0.85); sp(shirt.start, 1.15); sp(rose.start, 1.1); sp(P[2]!.t0, 0.95);
+    sp(P[3]!.t0, 0.95, 0.9, 0.4, false); sp(who.start, 1.15, 0.9, 0.4, false); sp(P[5]!.t0, 1.0);
+    sp(heart.start, 1.55, 0.5, 0.06); sp(still.start, 1.4, 0.7, 0.22);
+    void beating;
     this.sprays.sort((a, b) => a.t - b.t);
 
     // the camera: az (deg), el (deg), distance (mm), target xyz; cuts and eased circling moves that stop on phrases
     const k = (t: number, d: number, az: number, el: number, D: number, x: number, y: number, z: number) =>
       this.camKeys.push({ t, d, v: [az, el, D, x, y, z] });
-    const d0 = downs;
-    k(this.ctx.start, CUT, -34, 6, 1750, -20, 0, -330);
-    k(this.tFirst, this.tFirst - this.ctx.start - 0.02, -15, 5, 1620, 0, 0, -320);
-    k(rose.start, rose.start - (d0[1] ?? 133.33), -4, 4, 1330, 45, 0, -300);
-    k(P[2]!.t0, P[2]!.t0 - (d0[2] ?? 135.05), 20, 8, 1300, 50, 0, -300);
-    k(d0[3] ?? 136.78, 0.55, 22, 8, 1160, 60, 0, -290);
-    k(this.tClose0, CUT, -9, -3, 680, -20, BAG_Y, BAG_Z0 - 150);
-    k(who.start, 1.0, -7, -3, 620, -15, BAG_Y, BAG_Z0 - 146);
-    k(this.tClose1, CUT, 34, -5, 1560, 20, 0, -340);
-    k(P[5]!.t0, P[5]!.t0 - this.tClose1, 27, -4, 1500, 30, 0, -335);
-    k(heart.start, heart.start - (d0[5] ?? 140.23), 9, 0, 960, 85, -40, -262);
-    k(P[7]!.t0, P[7]!.t0 - (d0[6] ?? 141.96), -4, 3, 1120, 30, 0, -290);
-    k(this.tSeal, CUT, -8, 4, 1180, 10, BAG_Y, -262);
-    k(this.ctx.end - 0.2, this.ctx.end - 0.2 - this.tLand, -6, 4, 1060, 15, BAG_Y, -262);
+    const d0 = (i: number, dflt: number) => downs[i] ?? dflt;
+    const labX = LABEL.u0 + LABEL.w / 2, labZ = BAG_Z0 + LABEL.v0 - LABEL.h / 2;
+    const tDont = P[3]!.words[2]!.start;
+    // the seal strip: frame the monogram so it is ~25% of the frame's width
+    const mW = SIGN.size, mX = -FLAP.hw + SIGN.x + mW / 2, mZ = BAG_Z0 - (SIGN.y + (MONO_H * SIGN.size) / 2);
+    const dSeal = (4 * mW) / (2 * Math.tan((VFOV * DEG) / 2) * (16 / 9));
+    this.tSealCU = (this.tLand + this.sign0) / 2;
+    k(this.ctx.start, CUT, -22, 4, 1950, 0, 0, -370);
+    k(this.tFirst, this.tFirst - this.ctx.start - 0.02, -40, 5, 1600, 10, 0, -350);       // three-quarter left
+    k(d0(1, 133.33), d0(1, 133.33) - this.tFirst - 0.05, -30, 4, 1430, 40, -20, -345);
+    k(rose.start, 0.8, -16, 3, 1170, 75, -40, -350);                                    // a push for rose
+    k(P[2]!.t0, 0.7, 58, 4, 1300, 30, -40, -345);                                       // near-profile
+    k(d0(3, 136.78), d0(3, 136.78) - P[2]!.t0 - 0.05, 64, 6, 1220, 30, -40, -348);
+    k(this.tClose0, CUT, -5, -2, 780, labX + 40, BAG_Y, labZ);                           // the label
+    k(tDont, tDont - this.tClose0 - 0.02, -9, -3, 560, labX + 20, BAG_Y, labZ);         // NAME close-up
+    k(who.start, 0.4, -4, -2, 620, labX + 110, BAG_Y, labZ + 5);                        // WHO beside it
+    k(this.tClose1, CUT, 30, 3, 1560, 30, 0, -365);
+    k(P[5]!.t0, P[5]!.t0 - this.tClose1 - 0.02, 40, 4, 1400, 40, -20, -355);            // three-quarter right
+    k(d0(5, 140.23), d0(5, 140.23) - P[5]!.t0 - 0.05, 34, 3, 1320, 50, -20, -352);
+    k(heart.start, heart.start - d0(5, 140.23) - 0.02, 12, -1, 830, 100, -60, -345);     // macro on the patch
+    k(d0(6, 141.96), d0(6, 141.96) - heart.start - 0.05, 8, 0, 770, 96, -60, -345);
+    k(P[7]!.t0, P[7]!.t0 - d0(6, 141.96) - 0.02, -10, 5, 1750, 30, 0, -390);           // wide
+    k(this.tSeal - 0.01, this.tSeal - P[7]!.t0 - 0.05, -6, 5, 1640, 30, 0, -390);
+    k(this.tSeal, CUT, -6, 4, 940, 30, BAG_Y, -345);                                    // the sealed bag
+    k(this.tSealCU, CUT, -8, 6, dSeal * 0.97, mX, BAG_Y, mZ + 6);                           // the seal strip
+    k(this.ctx.end - 0.05, this.ctx.end - 0.05 - this.tSealCU - 0.02, -5, 6, dSeal * 0.9, mX + 4, BAG_Y, mZ + 4);
 
     const V = () => new THREE.Vector3();
     this.pass = new FSPass(LUM_FRAG, {
       invVP: { value: new THREE.Matrix4() }, camPos: { value: V() }, res: { value: new THREE.Vector2() }, pxAng: { value: 0 },
-      mode: { value: 0 }, glowK: { value: 0 }, glowR: { value: 1 }, keyK: { value: 0.34 }, flashK: { value: 0 }, flapA: { value: -0.12 },
+      mode: { value: 0 }, glowK: { value: 0 }, glowR: { value: 1 }, flapA: { value: -0.12 },
       lyrTex: { value: baked.tex }, labTex: { value: bakeLabel() }, sealTex: { value: this.seal.tex },
       tileO: { value: new THREE.Vector2() },
       wR: { value: Array.from({ length: 4 }, () => new THREE.Vector4()) },
@@ -123,17 +140,22 @@ export default class LuminolPlate extends Scene {
     });
   }
 
-  /** The glow's level: each spray flares (a fast rise) and decays to its floor; the last level carries and fades. */
+  /** The glow's level: each spray's patch rises over ~0.3 s (centred a little after the pump) and decays to its floor;
+   *  the previous level carries and fades under it. */
   private glow(t: number): number {
     let carry = 0, tc = -1e9, lvl = 0;
-    const at = (s: Spray, x: number, c: number, cT: number) =>
-      Math.max(c * Math.exp(-(x - cT) / 1.2), s.a * (1 - Math.exp(-(x - s.t) / 0.035)) * (s.fl + (1 - s.fl) * Math.exp(-(x - s.t) / s.tau)));
+    const at = (s: Spray, x: number, c: number, cT: number) => {
+      const r0 = s.t - 0.12, r1 = s.t + 0.18;
+      const rise = smootherstep(r0, r1, x);
+      const dec = x < r1 ? 1 : s.fl + (1 - s.fl) * Math.exp(-(x - r1) / s.tau);
+      return Math.max(c * Math.exp(-(x - cT) / 1.2), s.a * rise * dec);
+    };
     for (let i = 0; i < this.sprays.length; i++) {
       const s = this.sprays[i]!;
-      if (t < s.t) break;
+      if (t < s.t - 0.12) break;
       lvl = at(s, t, carry, tc);
       const nx = this.sprays[i + 1];
-      if (nx) { carry = at(s, nx.t, carry, tc); tc = nx.t; }
+      if (nx) { carry = at(s, nx.t - 0.12, carry, tc); tc = nx.t - 0.12; }
     }
     return lvl;
   }
@@ -173,9 +195,9 @@ export default class LuminolPlate extends Scene {
       const kDn = ease.inOutCubic(clamp((t - (tDown - 0.15)) / 0.15));
       const kUp = ease.inOutCubic(clamp((t - tWho - 0.05) / 0.4));
       const tr = 0.35 * noise1(t * 3.1, 5);
-      const x = lerp(sx + 120, sx, kIn) + 6 * kUp + tr, y = lerp(sy + 150, sy, kIn) + 4 * kUp + tr;
+      const x = lerp(sx + 70, sx, kIn) + 3 * kUp + tr, y = lerp(sy + 175, sy, kIn) + 5 * kUp + tr;
       const h = lerp(lerp(150, 9, kIn), 2.0, kDn) + 11 * kUp;
-      return { p: lab(x, y, h), head: 0.62 + 0.08 * (1 - kIn), tilt: 0.62 };
+      return { p: lab(x, y, h), head: 1.05 + 0.08 * (1 - kIn), tilt: 0.62 };
     }
     if (t >= this.tLand && t < this.ctx.end) {
       // the seal: in from the lower right, pen down on the beat, the monogram, then away
@@ -207,10 +229,10 @@ export default class LuminolPlate extends Scene {
     const inClose = t >= this.tClose0 && t < this.tClose1;
     const t0 = this.tFirst - 0.45, t1 = this.tSeal - 0.5;
     if (t < t0 || t > t1 + 0.4 || inClose || t >= this.tSeal) return null;
-    const home = new THREE.Vector3(-330, -105, -255);
+    const home = new THREE.Vector3(-330, -105, -305);
     const kIn = ease.outCubic(clamp((t - t0) / 0.38));
     const kOut = ease.inCubic(clamp((t - t1) / 0.4));
-    const away = new THREE.Vector3(-700, -320, -330);
+    const away = new THREE.Vector3(-700, -320, -380);
     const p = home.clone().lerp(away, 1 - kIn).lerp(away, kOut);
     let pull = 0;
     for (const s of this.sprays) {
@@ -242,14 +264,11 @@ export default class LuminolPlate extends Scene {
     (u.res!.value as THREE.Vector2).set(out.width, out.height);
     u.pxAng!.value = (2 * Math.tan((VFOV * DEG) / 2)) / out.height;
 
-    // light: the glow, the key (brighter in the close-ups so the label and seal read), the seal's flash
+    // light: only the reaction (no key, no flash); the patch reveals itself outward on the first spray
     u.glowK!.value = this.glow(t);
-    u.glowR!.value = 0.5 + 0.5 * ease.outCubic(clamp((t - this.tFirst) / 0.45));
-    const close = t >= this.tClose0 && t < this.tClose1;
-    u.keyK!.value = close ? 0.24 : mode ? 0.2 : 0.15;
-    u.flashK!.value = mode ? 1.0 * pulse(t, this.tLand, 0.05) : 0;
+    u.glowR!.value = 0.55 + 0.45 * ease.outCubic(clamp((t - (this.tFirst - 0.12)) / 0.5));
     // the seal flap: standing open, then slapped down on the downbeat (landing a beat-fraction later, a small bounce)
-    if (!mode) u.flapA!.value = -1.25;
+    if (!mode) u.flapA!.value = -1.5;
     else {
       const k = clamp((t - this.tSeal) / (this.tLand - this.tSeal));
       u.flapA!.value = lerp(0.62 * Math.PI, Math.PI, k * k) - (k >= 1 ? 0.035 * Math.sin((t - this.tLand) * 40) * Math.exp(-(t - this.tLand) / 0.05) : 0);
@@ -290,9 +309,7 @@ export default class LuminolPlate extends Scene {
     }
 
     this.pass.render(this.ctx.renderer, out);
-    const [tS, tW, tH] = this.heroT as [number, number, number];
-    const kick = 0.16 * pulse(t, tS, 0.09) + 0.1 * pulse(t, tW, 0.09) + 0.2 * pulse(t, tH, 0.1) + (mode ? 0.25 * pulse(t, this.tLand, 0.06) : 0);
-    const sh = mode ? 6 * pulse(t, this.tLand, 0.05) : 0;
-    return { exposure: 1 + kick, halation: 0.16, bloom: 0.55, shake: [sh * 0.4, -sh] as [number, number] };
+    const sh = mode ? 4 * pulse(t, this.tLand, 0.05) : 0;
+    return { halation: 0.14, bloom: 0.4, shake: [sh * 0.4, -sh] as [number, number] };
   }
 }

@@ -1,12 +1,12 @@
-// Plate 11 `luminol`: the frame shader. A dark evidence room: a man's white shirt on a wire hanger on a steel rail, a
-// clear evidence bag hanging from two clips on a wire just in front of it, a far wall. One hard source, dimmed for the
-// luminol (a narrow cold spot high at front left: a hard pool, the shirt's shadow on the wall), the luminol glow
-// itself (one soft bloom soaked into the weave over the left chest, lighting the cloth round it, the bag, the glove),
-// and, at the seal, the evidence camera's flash. Mode 0: the shirt on the hanger; mode 1: the shirt folded inside the
-// sealed bag (a hard cut: no cloth fold), the empty hanger behind. Ray-traced in one pass: the shirt, hanger and clips
-// as one SDF, the two gloved hands as SDFs in their own frames, the rail and wire as cylinders, the bag's two panels
-// and its seal flap as planes (printed lyric, label and seal from textures). Units: mm, world z up, y away from the
-// camera's side, x right; the bag's front panel is the plane y = -150, its top edge at z = -90.
+// Plate 11 `luminol`: the frame shader. A film-black evidence room: a man's dark shirt on a wire hanger on a steel rail,
+// a thin clear polyethylene evidence bag hanging from two clips on a wire just in front of it. There is no key light:
+// the plate is lit only by the reaction (the luminol patch soaked into the weave over the left chest, which lights the
+// folds round it, the bag's face and the gloves locally) plus one constant, dim, cold ambient (a dome, brighter from
+// above, the same in every shot). Mode 0: the shirt on the hanger; mode 1: the shirt folded inside the sealed bag (a
+// hard cut: no cloth fold), the empty hanger behind. Ray-traced in one pass: the shirt, hanger and clips as one SDF,
+// the two gloved hands as SDFs in their own frames, the rail and wire as cylinders, the bag's two panels and its seal
+// flap as planes (printed lyric, label and seal from textures). Units: mm, world z up, y away from the camera's side,
+// x right; the bag's front panel is the plane y = -150, its top edge at z = -150 (below the collar and shoulders).
 import { GLSL_TEETH_PALETTE } from '../palette';
 import { SS_TAP_GLSL } from '../../engine/gl';
 import { GLSL_HANDS } from './luminol-hands';
@@ -18,18 +18,19 @@ export const LUM_FRAG = /* glsl */ `
 ${GLSL_TEETH_PALETTE}
 ${SS_TAP_GLSL}
 uniform mat4 invVP; uniform vec3 camPos; uniform vec2 res; uniform float pxAng;
-uniform float mode, glowK, glowR, keyK, flashK, flapA;
+uniform float mode, glowK, glowR, flapA;
 uniform sampler2D lyrTex, labTex, sealTex;
 uniform vec2 tileO;
 uniform vec4 wR[4]; uniform vec4 wS[4];
 uniform float sprayOn, sPull; uniform vec3 sTip, sE1, sE2, sE3;
 uniform float handOn; uniform vec3 hTip, hE1, hE2, hE3;
 
-const float BAG_Y = -150.0, BAG_Z0 = -90.0;
-const vec3 KEYP = vec3(-1300.0, -1750.0, 1150.0);
-const vec3 KEYAIM = vec3(0.0, 0.0, -380.0);
+const float BAG_Y = -150.0, BAG_Z0 = -150.0;
 const vec3 SLO = vec3(-345.0, -178.0, -800.0), SHI = vec3(345.0, 95.0, 88.0);
 const vec2 ATLAS = vec2(${f(TILE_W * ATLAS_C)}, ${f(TILE_H * ATLAS_R)});
+// the one ambient: cold, dim, constant (a dome brighter from above)
+const vec3 AMBC = vec3(0.78, 0.88, 1.0);
+const float AMBK = 0.24;
 
 ${GLSL_HANDS}
 
@@ -51,38 +52,60 @@ float sdTri(vec2 p, vec2 p0, vec2 p1, vec2 p2) {
 }
 
 // ---------------------------------------------------------------- the shirt on its hanger (mode 0)
-float hwAt(float z) { return 226.0 + 18.0 * smoothstep(-110.0, -300.0, z) - 14.0 * smoothstep(-330.0, -520.0, z) + 10.0 * smoothstep(-560.0, -760.0, z); }
-float htAt(float z) { return mix(54.0, 20.0, smoothstep(-110.0, -560.0, z)); }
-float shZ(float ax) { return -50.0 - max(ax - 64.0, 0.0) * 0.46; }
+// half width: chest under the arms, a slight waist, the tails; half thickness: full at the hanger, flat below
+float hwAt(float z) { return 214.0 - 12.0 * smoothstep(-240.0, -460.0, z) + 9.0 * smoothstep(-500.0, -720.0, z); }
+float htAt(float z) { return mix(50.0, 17.0, smoothstep(-110.0, -520.0, z)); }
+// the shoulder line: from the collar base down the hanger's arms to the seam, then over the sleeve head
+float shZ(float ax) { return -42.0 - max(ax - 58.0, 0.0) * 0.62; }
 float folds(vec3 p) {
-  float lo = smoothstep(-240.0, -640.0, p.z);
-  float f = sin(p.x * 0.041 + 1.6 * sin(p.z * 0.0043 + 0.6)) * (1.6 + 3.4 * lo);
+  float lo = smoothstep(-200.0, -660.0, p.z);
   float ax = abs(p.x);
-  f += 2.6 * sin((ax * 0.85 + p.z) * 0.026) * smoothstep(110.0, 220.0, ax) * smoothstep(-110.0, -230.0, p.z) * (1.0 - lo);
+  // long vertical drape folds, deeper toward the hem, wandering a little
+  float f = sin(p.x * 0.041 + 1.6 * sin(p.z * 0.0043 + 0.6)) * (1.1 + 3.4 * lo);
+  f += sin(p.x * 0.087 + 2.3 + 0.9 * sin(p.z * 0.0065 + 1.1)) * (0.4 + 1.8 * lo);
+  // the drag from the hanger's ends: diagonal folds from the shoulder points toward the middle
+  f += 2.6 * sin((ax * 0.85 + p.z) * 0.026) * smoothstep(100.0, 200.0, ax) * smoothstep(-120.0, -240.0, p.z) * (1.0 - lo);
+  // a shallow V of drape under the collar
+  f += 1.6 * sin((ax * 0.9 - p.z * 0.55) * 0.034) * smoothstep(40.0, 90.0, ax) * (1.0 - smoothstep(150.0, 200.0, ax)) * smoothstep(-110.0, -170.0, p.z) * (1.0 - smoothstep(-260.0, -330.0, p.z));
   return f;
+}
+float zb0() { return mode < 0.5 ? -120.0 : -331.0; }
+// the placket's line: the shirt's middle (folded, the bundle lies right of the label, a little askew)
+float pkX() { return mode < 0.5 ? 0.0 : 75.0; }
+float btnDist(vec3 p) {
+  float zt = zb0() - 30.0;
+  float zb = zt - 95.0 * floor((zt - p.z + 47.5) / 95.0);
+  return p.z > zt + 47.5 ? 1e3 : length(vec2(p.x - pkX(), p.z - zb));
 }
 float sdTorso(vec3 p) {
   float hw = hwAt(p.z), ht = htAt(p.z);
   float qx = abs(p.x) - (hw - ht);
   float cr = (qx > 0.0 ? length(vec2(qx, p.y)) : abs(p.y)) - ht;
-  float top = (p.z - shZ(abs(p.x))) * 0.9;
-  float hem = (-765.0 + 52.0 * (p.x * p.x) / (240.0 * 240.0)) - p.z;
-  float d = smax(cr, top, 20.0);
+  float top = (p.z - shZ(abs(p.x))) * 0.85;
+  float hem = (-768.0 + 95.0 * (p.x * p.x) / (240.0 * 240.0)) - p.z;
+  float d = smax(cr, top, 18.0);
   // the neck opening inside the collar (dark, the back of the collar inside it)
   float neck = max((length(vec2(p.x / 60.0, (p.y - 4.0) / 44.0)) - 1.0) * 44.0, -170.0 - p.z);
   d = max(d, -neck);
   d = smax(d, hem, 5.0);
-  return d + folds(p);
+  d += folds(p);
+  // the button placket (a raised double layer down the front) and its buttons
+  float fr = step(p.y, 0.0) * step(p.z, -112.0);
+  d -= fr * 1.3 * (1.0 - smoothstep(15.5, 18.5, abs(p.x)));
+  d -= fr * 1.6 * (1.0 - smoothstep(4.6, 6.0, btnDist(p)));
+  return d;
 }
 float sdSleeves(vec3 p) {
-  vec3 q = vec3(abs(p.x), p.y * 1.7, p.z);
-  vec3 a = vec3(206.0, 4.0, -132.0), b = vec3(240.0, -6.0, -596.0);
-  float s = rcap(q, a, b, 50.0, 37.0);
+  vec3 q = vec3(abs(p.x), p.y * 1.5, p.z);
+  vec3 a = vec3(214.0, -6.0, -142.0), b = vec3(244.0, -18.0, -648.0);
+  float s = rcap(q, a, b, 47.0, 35.0);
   vec3 ax = normalize(b - a);
-  float cuff = rcap(q, b, b + ax * 58.0, 39.0, 38.5);
+  float cuff = rcap(q, b, b + ax * 62.0, 37.5, 37.0);
   s = min(s, cuff);
-  s += 1.8 * sin(q.z * 0.045 + q.x * 0.02) * smoothstep(-200.0, -380.0, q.z);
-  return s * 0.58;
+  // slack: soft horizontal creases where the sleeve hangs, and a twist at the elbow
+  s += 1.7 * sin(q.z * 0.047 + q.x * 0.03) * smoothstep(-220.0, -380.0, q.z);
+  s += 1.1 * sin(q.z * 0.11 + 1.3) * smoothstep(-420.0, -520.0, q.z) * (1.0 - smoothstep(-560.0, -620.0, q.z));
+  return s * 0.64;
 }
 float sdCollar(vec3 p) {
   vec3 q = p - vec3(0.0, 4.0, 0.0);
@@ -91,14 +114,14 @@ float sdCollar(vec3 p) {
   float stand = sdBox(vec2(rad, q.z + 36.0), vec2(3.2, 15.0)) - 1.4;
   // the fall: the outer leaf round the back and sides, folded down over the stand
   float th = atan(q.x, -q.y);
-  float leaf = max(abs(rad - 6.5) - 2.2, max(q.z + 17.0, -50.0 - q.z));
+  float leaf = max(abs(rad - 6.5) - 2.4, max(q.z + 17.0, -52.0 - q.z));
   leaf = max(leaf, (0.55 - abs(th)) * 40.0);
-  // the two points lying on the chest
-  float s = sign(p.x);
+  // the two points lying on the chest, their tips lifted a little off it
   vec2 xz = vec2(abs(p.x), p.z);
-  float tri = sdTri(xz, vec2(12.0, -38.0), vec2(80.0, -48.0), vec2(50.0, -124.0)) - 1.5;
-  float yf = -htAt(p.z) - 3.0 + folds(p) * 0.0;
-  float pts = max(tri, abs(p.y - yf) - 2.2);
+  float tri = sdTri(xz, vec2(12.0, -36.0), vec2(82.0, -46.0), vec2(48.0, -128.0)) - 1.5;
+  float lift = 5.0 * smoothstep(-70.0, -128.0, p.z);
+  float yf = -htAt(p.z) - 4.0 - lift;
+  float pts = max(tri, abs(p.y - yf) - 2.6);
   return min(min(stand, leaf), pts);
 }
 float sdHanger(vec3 p) {
@@ -116,49 +139,56 @@ float sdClips(vec3 p) {
   vec3 q = vec3(abs(p.x) - 222.0, p.y - (BAG_Y + 3.0), p.z - (BAG_Z0 + 3.0));
   float body = sdBox3(q, vec3(12.0, 5.0, 10.0)) - 1.2;
   vec3 hq = vec3(abs(q.x) - 7.5, q.y, q.z);
-  float hd = rcap(hq, vec3(0.0, 0.0, 10.0), vec3(-3.0, 0.0, -58.0 - BAG_Z0 - 3.0), 1.1, 1.1);
+  float hd = rcap(hq, vec3(0.0, 0.0, 10.0), vec3(-3.0, 0.0, -118.0 - BAG_Z0 - 3.0), 1.1, 1.1);
   return min(body, hd);
 }
 // ---------------------------------------------------------------- the shirt folded in the sealed bag (mode 1)
+const vec3 FC = vec3(70.0, -72.0, -511.0);
+const float COLZ = -295.0;
 float sdFolded(vec3 p) {
-  vec3 c = vec3(0.0, -72.0, -418.0);
-  float slab = sdBox3(p - c, vec3(198.0, 12.0, 270.0)) - 14.0;
-  slab += 1.5 * sin(p.x * 0.035 + 0.8) * sin(p.z * 0.02) * smoothstep(-250.0, -330.0, p.z);
-  vec3 q = p - vec3(0.0, -98.0, -182.0);
-  float e = length(vec2(q.x / 66.0, q.z / 30.0));
-  float band = sdBox(vec2((e - 1.0) * 40.0, q.y + 8.0), vec2(3.0, 9.0)) - 1.2;
-  vec2 xz = vec2(abs(p.x), p.z);
-  float tri = sdTri(xz, vec2(16.0, -228.0), vec2(92.0, -222.0), vec2(58.0, -300.0)) - 1.5;
-  float pts = max(tri, abs(p.y + 101.0) - 2.0);
+  vec3 r = p - FC;
+  // a soft folded bundle: pillowed in the middle, the sleeves folded in behind (two grooves), lumpy
+  float pil = 7.0 * max(1.0 - r.x * r.x / (165.0 * 165.0), 0.0) * max(1.0 - r.z * r.z / (270.0 * 270.0), 0.0);
+  float slab = sdBox3(r, vec3(165.0, 12.0, 270.0)) - 14.0 - pil;
+  slab += 1.6 * snoise(p.xz * 0.012 + 3.0) + 2.4 * exp(-pow(abs(r.x) - 108.0, 2.0) / 40.0) * step(p.y, FC.y);
+  slab += 1.4 * exp(-pow(p.z + 563.0 + 0.03 * p.x, 2.0) / 60.0);
+  // the collar, squashed flat by the bag: the fall round the back (an arch), and its two points lying down the front
+  vec2 c = vec2(p.x - 75.0, p.z - COLZ);
+  c.y += 0.07 * c.x + 1.2 * snoise(c * 0.02 + 1.0);
+  float eo = length(c / vec2(86.0, 38.0)), ei = length(c / vec2(64.0, 22.0));
+  float arch = max(max((eo - 1.0) * 36.0, (1.0 - ei) * 22.0), -(c.y + 4.0));
+  float yTop = FC.y - 26.0 - pil;
+  float band = max(arch, abs(p.y - (yTop - 5.0)) - 5.5) - 1.0;
+  float s = sign(p.x - 75.0);
+  vec2 xz = vec2(abs(p.x - 75.0), p.z - COLZ);
+  vec2 tip = vec2(50.0 + 6.0 * s, -84.0 + 9.0 * s);
+  float tri = sdTri(xz, vec2(13.0, -10.0), vec2(86.0, -2.0), tip) - 1.5;
+  float pts = max(tri, abs(p.y - (yTop - 2.5)) - 2.4);
   return min(slab, min(band, pts));
 }
 
 float mapS(vec3 p, out int m) {
   float d; m = 1;
-  if (mode < 0.5) d = smin(min(sdTorso(p), sdCollar(p)), sdSleeves(p), 16.0);
+  if (mode < 0.5) d = smin(min(sdTorso(p), sdCollar(p)), sdSleeves(p), 6.0);
   else d = sdFolded(p);
   float h = sdHanger(p); if (h < d) { d = h; m = 2; }
   float c = sdClips(p); if (c < d) { d = c; m = 3; }
   return d;
 }
 float mapSD(vec3 p) { int m; return mapS(p, m); }
-// the shadow casters (the clips left out: their small shadows read as smudges on the cloth)
-float mapShD(vec3 p) {
-  float d = mode < 0.5 ? smin(min(sdTorso(p), sdCollar(p)), sdSleeves(p), 16.0) : sdFolded(p);
-  return min(d, sdHanger(p));
-}
+float mapAO(vec3 p) { return mode < 0.5 ? smin(min(sdTorso(p), sdCollar(p)), sdSleeves(p), 6.0) : sdFolded(p); }
 float marchS(vec3 ro, vec3 rd, out int m) {
   m = -1;
   vec2 bh = boxHit(ro, rd, SLO, SHI);
   if (bh.x > bh.y || bh.y < 0.0) return 1e9;
   float t = max(bh.x, 0.0);
-  for (int i = 0; i < 140; i++) {
+  for (int i = 0; i < 150; i++) {
     if (t > bh.y) break;
     int mm;
     vec3 p = ro + rd * t;
     float h = mapS(p, mm);
     if (h < 0.06 + t * 0.00025) { m = mm; return t; }
-    t += h * 0.78;
+    t += h * 0.75;
   }
   return 1e9;
 }
@@ -166,21 +196,15 @@ vec3 nrmS(vec3 p) {
   const vec2 k = vec2(1.0, -1.0); const float e = 0.25;
   return normalize(k.xyy * mapSD(p + k.xyy * e) + k.yyx * mapSD(p + k.yyx * e) + k.yxy * mapSD(p + k.yxy * e) + k.xxx * mapSD(p + k.xxx * e));
 }
-// the hard key's shadow (the shirt, hanger and clips)
-float keyShadow(vec3 P) {
-  vec3 L = normalize(KEYP - P);
-  vec2 bh = boxHit(P, L, SLO, SHI);
-  if (bh.x > bh.y || bh.y < 0.0) return 1.0;
-  float t = max(bh.x, 1.2), res = 1.0;
-  for (int i = 0; i < 36; i++) {
-    if (t > bh.y) break;
-    float h = mapShD(P + L * t);
-    res = min(res, 30.0 * h / t);
-    if (res < 0.02) break;
-    t += clamp(h, 1.5, 45.0);
+// the cloth's occlusion (the creases, the sleeves against the body, under the collar)
+float aoS(vec3 P, vec3 N) {
+  float o = 0.0, w = 1.0;
+  for (int i = 0; i < 4; i++) {
+    float h = 4.0 + 18.0 * float(i * i);
+    o += w * clamp((h - mapAO(P + N * h)) / h, 0.0, 1.0);
+    w *= 0.6;
   }
-  res = clamp(res, 0.0, 1.0);
-  return res * res * (3.0 - 2.0 * res);
+  return clamp(1.0 - 0.62 * o, 0.04, 1.0);
 }
 
 // ---------------------------------------------------------------- the hands
@@ -234,75 +258,82 @@ vec3 nrmH(vec3 q) {
   return normalize(k.xyy * sdHq(q + k.xyy * e) + k.yyx * sdHq(q + k.yyx * e) + k.yxy * sdHq(q + k.yxy * e) + k.xxx * sdHq(q + k.xxx * e));
 }
 
-// ---------------------------------------------------------------- light
-vec3 bloomW() { return mode < 0.5 ? vec3(110.0, -58.0, -280.0) : vec3(100.0, -100.0, -300.0); }
-vec2 bloomBag() { vec3 b = bloomW(); return vec2(b.x, b.z - BAG_Z0); }
-float keyCone(vec3 P) { return smoothstep(0.968, 0.976, dot(normalize(P - KEYP), normalize(KEYAIM - KEYP))); }
+// ---------------------------------------------------------------- light: the ambient and the reaction, nothing else
+vec3 bloomW() { return mode < 0.5 ? vec3(110.0, -55.0, -335.0) : vec3(128.0, -104.0, -369.0); }
 float ggx(vec3 N, vec3 H, float rough) {
   float a2 = rough * rough * rough * rough, nh = max(dot(N, H), 0.0);
   float dd = nh * nh * (a2 - 1.0) + 1.0;
   return a2 / (3.14159 * dd * dd);
 }
-// irradiance from the key (with its shadow), the glow (as a soft blue source at the bloom) and the flash
-vec3 lightAt(vec3 P, vec3 N, vec3 V, float sh) {
-  vec3 L = normalize(KEYP - P);
-  vec3 E = vec3(0.93, 0.97, 1.0) * keyK * keyCone(P) * max(dot(N, L), 0.0) * sh;
-  vec3 G = bloomW() - P; float gd = length(G);
-  E += T_LUMINOL * glowK * 0.7 * max(dot(N, G / max(gd, 1.0)), 0.0) / (1.0 + gd * gd / (150.0 * 150.0));
-  vec3 fv = P - camPos;
-  E += vec3(flashK * 1.2 * max(dot(N, V), 0.0) * min(1.3e6 / dot(fv, fv), 1.5));
-  return E;
+vec3 amb(vec3 N, float o) { return AMBC * AMBK * (0.3 + 0.7 * (0.5 + 0.5 * N.z)) * o; }
+// the reaction as a small soft area source lying on the cloth (wrapped: it is a patch, not a point)
+vec3 glowL(vec3 P, vec3 N) {
+  vec3 G = bloomW() - P; float d = max(length(G), 1.0);
+  return T_LUMINOL * glowK * 0.85 * clamp(dot(N, G / d) * 0.8 + 0.2, 0.0, 1.0) / (1.0 + d * d / (105.0 * 105.0));
 }
-// the luminol: one soft bloom soaked into the cloth (no lobes, no edges): a core, a wider wicked fringe, the weave
+vec3 glowSpec(vec3 P, vec3 N, vec3 V, float rough) {
+  vec3 G = bloomW() - P; float d = max(length(G), 1.0);
+  vec3 L = G / d, H = normalize(L + V);
+  return T_LUMINOL * glowK * ggx(N, H, rough) * max(dot(N, L), 0.0) / (1.0 + d * d / (105.0 * 105.0));
+}
+// the stain: one irregular patch soaked into the weave over the left chest (~150 x 175 mm), broken by the threads and
+// the folds, with a faint wicked fringe; fixed in place, only its brightness changes
 float bloomMask(vec3 P) {
-  vec2 bc = bloomW().xz;
-  vec2 d = (P.xz - bc) / (vec2(56.0, 68.0) * glowR);
-  float r2 = dot(d, d) * (1.0 + 0.11 * snoise(P.xz * 0.0085 + 3.1));
-  return exp(-0.5 * r2) + 0.2 * exp(-0.5 * r2 / 2.8);
+  vec2 d = P.xz - bloomW().xz;
+  vec2 w = d + 17.0 * vec2(snoise(d * 0.009 + 1.3), snoise(d * 0.009 + 7.7));
+  float r = length(w / (vec2(76.0, 88.0) * glowR));
+  float n = 0.6 * snoise(w * 0.019 + 2.0) + 0.3 * snoise(w * 0.047 + 5.0) + 0.07 * snoise(w * 0.12 + 9.0);
+  float e = r + 0.3 * n;
+  float core = 1.0 - smoothstep(0.74, 1.0, e);
+  // a faint tide line where the soak stopped, and a little wicking past it along the threads
+  float tide = exp(-pow((e - 0.94) / 0.05, 2.0)) * 0.22;
+  float wick = (1.0 - smoothstep(0.95, 1.3, e)) * 0.08;
+  return core * (0.62 + 0.38 * (1.0 - smoothstep(0.0, 0.95, r))) + tide + wick;
 }
 
 vec3 shadeShirt(vec3 P, vec3 N, vec3 V) {
   float pxmm = length(P - camPos) * pxAng;
-  float front = smoothstep(0.1, -0.35, N.y);
-  // the weave (faded out where it would alias) and the cotton's slight unevenness
+  float front = smoothstep(0.15, -0.35, N.y);
+  // the weave (faded out where it would alias) and the cotton's slub
   float wv = sin(P.x * 2.4 + 0.7 * sin(P.z * 0.31)) * sin(P.z * 2.4);
   wv *= 1.0 - smoothstep(0.22, 0.6, pxmm);
   float tw = snoise(P.xz * vec2(0.9, 0.12)) * (1.0 - smoothstep(0.6, 1.6, pxmm));
-  float soak = 0.5 + 0.5 * snoise(P.xz * 0.018 + 7.0);
-  vec3 alb = T_HALIDE * 0.62 * (0.94 + 0.04 * wv + 0.03 * tw);
-  // the placket's seams and the buttons (front only)
-  float zTop = mode < 0.5 ? -120.0 : -236.0;
-  float sx = abs(abs(P.x) - 17.0);
+  vec3 alb = mix(T_SILVER, T_FILM2, 0.3) * 0.46 * (0.93 + 0.05 * wv + 0.04 * tw);
+  // the placket's stitch lines and the buttons
+  float zTop = zb0();
+  float sx = abs(abs(P.x - pkX()) - 17.0);
   float seam = (1.0 - smoothstep(0.0, 0.7 + pxmm, sx)) * step(P.z, zTop + 40.0) * front;
-  alb *= 1.0 - 0.32 * seam;
-  float zb = zTop - 30.0 - 95.0 * floor((zTop - 30.0 - P.z + 47.5) / 95.0);
-  float br = length(vec2(P.x, P.z - zb));
-  float bt = (1.0 - smoothstep(5.2, 5.9 + pxmm, br)) * front * step(P.z, zTop);
-  float rim = smoothstep(3.0, 5.0, br) * bt;
-  float sh = keyShadow(P + N * 1.5);
-  vec3 E = lightAt(P, N, V, sh);
-  // the glow bleeding into the cloth round the bloom
+  alb *= 1.0 - 0.4 * seam;
+  float br = btnDist(P);
+  float bt = (1.0 - smoothstep(5.0, 5.8 + pxmm, br)) * front;
+  // the inside of the folded collar's arch (mode 1): the back of the neck, in shadow
+  if (mode > 0.5) {
+    vec2 c = vec2(P.x - 75.0, P.z - COLZ); c.y += 0.07 * c.x + 1.2 * snoise(c * 0.02 + 1.0);
+    alb *= 1.0 - 0.6 * step(length(c / vec2(64.0, 22.0)), 1.0) * step(-4.0, c.y);
+  }
+  float o = aoS(P, N);
+  vec3 E = amb(N, o) + glowL(P, N) * (0.4 + 0.6 * o);
+  vec3 col = alb * E;
+  col = mix(col, T_HALIDE * 0.06 * E, bt * 0.8);
+  // a faint cotton sheen from the dome at grazing angles (shapes the folds' edges)
+  float nv = max(dot(N, V), 0.0);
+  col += AMBC * AMBK * 0.02 * pow(1.0 - nv, 3.0) * o * (0.5 + 0.5 * N.z);
+  col += glowSpec(P, N, V, 0.55) * 0.012 + glowSpec(P, N, V, 0.25) * 0.02 * bt;
+  // the luminol, in the cloth: crests brighter than the valleys, the threads breaking it up
   float bm = bloomMask(P);
-  E += T_LUMINOL * glowK * 0.1 * smoothstep(0.0, 0.6, bm) * front;
-  vec3 col = alb * (E + 0.0025);
-  col = mix(col, T_HALIDE * 0.5 * (E + 0.003) * (1.0 - 0.3 * rim), bt);
-  // a little sheen on the cotton under the key
-  vec3 L = normalize(KEYP - P), H = normalize(L + V);
-  col += vec3(0.012) * ggx(N, H, 0.6) * keyK * keyCone(P) * sh;
-  // the luminol
-  float wvB = 0.8 + 0.2 * wv + 0.12 * (soak - 0.5);
-  col += T_LUMINOL * glowK * bm * wvB * front * (1.0 - 0.8 * bt) * 1.55;
+  float fv = folds(P);
+  float brk = (0.62 + 0.38 * smoothstep(2.5, -2.5, fv)) * (0.78 + 0.22 * wv) * (0.88 + 0.12 * snoise(P.xz * 0.11 + 4.0));
+  col += T_LUMINOL * glowK * bm * brk * front * (1.0 - 0.85 * bt) * (0.6 + 0.4 * o) * 1.15;
   return col;
 }
 
 vec3 shadeGlove(vec3 P, vec3 N, vec3 V, float o) {
-  vec3 L = normalize(KEYP - P), Hh = normalize(L + V);
-  vec3 E = lightAt(P, N, V, 1.0);
-  float nv = max(dot(N, V), 0.0);
+  // matte nitrile (the match plate's glove): a dark diffuse body, a broad soft sheen where the glow catches it
   vec3 alb = T_SILVER * 0.09;
-  float spec = ggx(N, Hh, 0.62) * (0.04 + 0.2 * pow(1.0 - nv, 5.0)) * 0.6 * keyK * keyCone(P);
-  // the glow behind catches the glove's edges a little (cool, matte)
-  return (alb * (E * 1.25 + 0.004) + T_LIGHTBOX * spec) * mix(1.0, o, 0.5);
+  vec3 E = amb(N, o) + glowL(P, N);
+  float nv = max(dot(N, V), 0.0);
+  vec3 sp = glowSpec(P, N, V, 0.62) * (0.05 + 0.2 * pow(1.0 - nv, 5.0));
+  return alb * E * 1.3 + sp * 0.5 + alb * AMBC * AMBK * 0.25 * pow(1.0 - nv, 4.0) * o;
 }
 vec3 shadePenHand(vec3 P, vec3 rd, int m) {
   vec3 q = toH(P);
@@ -318,64 +349,67 @@ vec3 shadePenHand(vec3 P, vec3 rd, int m) {
   for (int i = 1; i <= 4; i++) { float h = 1.1 * float(i * i); o += w * (h - sdHq(q + nl * h)); w *= 0.55; }
   o = clamp(1.0 - 0.09 * o, 0.0, 1.0);
   if (m == 0) return shadeGlove(P, N, V, o);
-  vec3 L = normalize(KEYP - P), Hh = normalize(L + V);
-  vec3 E = lightAt(P, N, V, 1.0);
-  float kc = keyK * keyCone(P);
-  if (m == 3) return T_SILVER * (0.9 + 0.1 * sin(q.x * 9.0)) * (ggx(N, Hh, 0.32) * 0.45 * kc + 0.45 * E + 0.003);
-  if (m == 2) return T_HALIDE * 0.8 * (ggx(N, Hh, 0.2) * 0.5 * kc + 0.06 * E + 0.002);
-  if (m == 1) return T_FILM * (E * 0.8 + 0.01) + T_LIGHTBOX * ggx(N, Hh, 0.45) * 0.03 * kc;
-  return T_FILM2 * 1.6 * (E + 0.01);
+  vec3 E = amb(N, o) + glowL(P, N);
+  vec3 R = reflect(rd, N);
+  float env = AMBK * (0.1 + 0.9 * smoothstep(-0.2, 0.9, R.z));
+  if (m == 3) return T_SILVER * (0.9 + 0.1 * sin(q.x * 9.0)) * (0.35 * E + env * 0.25) + glowSpec(P, N, V, 0.3) * 0.25;
+  if (m == 2) return T_HALIDE * 0.8 * (0.1 * E + env * 0.2) + glowSpec(P, N, V, 0.2) * 0.3;
+  if (m == 1) return T_FILM * E * 0.8 + glowSpec(P, N, V, 0.45) * 0.03;
+  return T_FILM2 * 0.9 * E;
 }
 vec3 shadeSprayHand(vec3 P, vec3 rd, int m) {
   vec3 q = toQ(P);
   vec3 nl = nrmQ(q);
   vec3 N = fromQ(nl), V = -rd;
   if (m == 0) return shadeGlove(P, N, V, 1.0);
-  vec3 L = normalize(KEYP - P), Hh = normalize(L + V);
-  vec3 E = lightAt(P, N, V, 1.0);
-  float kc = keyK * keyCone(P);
-  if (m == 4) return T_FILM2 * 1.6 * (E + 0.01);
-  if (m == 6) return T_FILM * (E + 0.01);
+  vec3 E = amb(N, 1.0) + glowL(P, N);
+  if (m == 4) return T_FILM2 * 0.9 * E;
+  if (m == 6) return T_FILM * E;
   // white HDPE: diffuse, a broad soft sheen; the cap ribbed
   float rib = (q.z < -32.0 && q.z > -54.0) ? 0.85 + 0.15 * sin(atan(q.y, q.x + 42.0) * 60.0) : 1.0;
-  return T_HALIDE * 0.7 * rib * (E + 0.003) + vec3(0.05) * ggx(N, Hh, 0.35) * kc;
+  return T_HALIDE * 0.38 * rib * E + glowSpec(P, N, V, 0.35) * 0.05;
 }
 
-// ---------------------------------------------------------------- the bag
+// ---------------------------------------------------------------- the bag: thin polyethylene, crinkled
 float bagH(vec2 b) {
-  float h = 1.5 * snoise(b * 0.0052 + 1.7) + 0.45 * snoise(b * 0.016 + 4.2);
+  float h = 1.4 * snoise(b * 0.0052 + 1.7) + 0.45 * snoise(b * 0.016 + 4.2);
+  // the crinkles: soft ridges at two scales
+  h += 0.9 * (1.0 - abs(snoise(b * vec2(0.012, 0.017) + 9.1))) + 0.12 * (1.0 - abs(snoise(b * 0.05 + 3.3)));
   // two storage creases (the bag was folded in half, then in half again)
   h -= 1.1 * exp(-pow(b.y + 330.0 + 0.04 * b.x, 2.0) / 40.0);
   h -= 0.8 * exp(-pow(b.x - 12.0 + 0.03 * b.y, 2.0) / 30.0);
   return h;
 }
 vec3 bagN(vec2 b) {
-  float e = 1.5;
+  float e = 1.2;
   float h0 = bagH(b);
   vec2 g = vec2(bagH(b + vec2(e, 0.0)) - h0, bagH(b + vec2(0.0, e)) - h0) / e;
-  return normalize(vec3(-g.x * 0.5, -1.0, -g.y * 0.5));
+  return normalize(vec3(-g.x * 0.85, -1.0, -g.y * 0.85));
 }
-float bagIb(vec2 b) { vec2 d = b - bloomBag(); return glowK * exp(-dot(d, d) / (2.0 * 175.0 * 175.0)); }
-// a clear polyethylene panel over what is behind it: transmission, a little haze lit by the glow, the frosted heat
-// seals, the key's crisp crinkled reflection
-vec3 panel(vec3 behind, vec3 P, vec2 b, vec3 rd, float topOpen) {
+// the bag's outline: soft, not ruled (the film is thin and hangs from two clips; the open top sags between them)
+float bagEdge(vec2 b, float topOpen) {
+  float hw = ${f(BAG.hw)} + 3.0 * sin(b.y * 0.021 + 1.0) + 1.8 * sin(b.y * 0.047);
+  float bot = b.y + ${f(BAG.h)} - 4.0 * sin(b.x * 0.017 + 0.5);
+  float top = -b.y - topOpen * 11.0 * max(1.0 - b.x * b.x / (222.0 * 222.0), 0.0);
+  return min(min(hw - abs(b.x), bot), top);
+}
+// how much of the reaction's light reaches a point of the bag (it hangs ~90 mm in front of the stain)
+float bagIb(vec3 P) { vec3 G = bloomW() - P; return glowK / (1.0 + dot(G, G) / (150.0 * 150.0)); }
+// a clear polyethylene panel over what is behind it: transmission, the glow scattered in its crinkles and heat seals,
+// the dim dome reflected in the crinkles (soft highlights, no key)
+vec3 panel(vec3 behind, vec3 P, vec2 b, vec3 rd, float de) {
   vec3 N = bagN(b);
   vec3 V = -rd;
   float nv = abs(dot(N, V));
   float F = 0.04 + 0.96 * pow(1.0 - nv, 5.0);
-  float de = min(${f(BAG.hw)} - abs(b.x), b.y + ${f(BAG.h)});
-  de = min(de, mix(1e3, -b.y, topOpen));
-  float frost = 1.0 - smoothstep(5.0, 7.5, de);
-  float Ib = bagIb(b);
-  vec3 L = normalize(KEYP - P), H = normalize(L + V);
-  float kc = keyK * keyCone(P);
-  float sp = (pow(max(dot(N, H), 0.0), 1600.0) * 7.0 + pow(max(dot(N, H), 0.0), 120.0) * 0.08) * (0.3 + F) * kc * 2.2;
-  sp += flashK * pow(nv, 900.0) * 1.2;
-  sp = min(sp, 0.8);
-  vec3 col = behind * (0.87 - 0.3 * frost) * (1.0 - F);
-  col += T_LUMINOL * Ib * (0.012 + 0.06 * frost);
-  col += vec3(0.02 + 0.05 * frost) * (kc * max(dot(vec3(0.0, -1.0, 0.0), L), 0.0) + flashK);
-  col += vec3(sp) * vec3(0.92, 0.96, 1.0);
+  float frost = 1.0 - smoothstep(4.0, 7.0, de);
+  float Ib = bagIb(P);
+  float crk = clamp(length(N.xz) * 3.5, 0.0, 1.0);
+  vec3 R = reflect(rd, N * sign(-dot(N, rd)));
+  float env = AMBK * (0.02 + 1.4 * smoothstep(0.45, 0.95, R.z));
+  vec3 col = behind * (0.88 - 0.3 * frost) * (1.0 - F);
+  col += T_LUMINOL * Ib * (0.004 + 0.045 * frost + 0.03 * crk);
+  col += AMBC * env * F * 0.8 + AMBC * AMBK * 0.03 * frost;
   return col;
 }
 
@@ -414,81 +448,71 @@ vec3 shade(vec2 px) {
     vec2 o = ro.yz - vec2(0.0, 62.0), d = rd.yz;
     float a = dot(d, d), bb = dot(o, d), c = dot(o, o) - 13.0 * 13.0, h = bb * bb - a * c;
     if (h > 0.0) { float t = (-bb - sqrt(h)) / a; if (t > 0.0) tR = t; }
-    o = ro.yz - vec2(BAG_Y + 3.0, -58.0); bb = dot(o, d); c = dot(o, o) - 1.6 * 1.6; h = bb * bb - a * c;
+    o = ro.yz - vec2(BAG_Y + 3.0, -118.0); bb = dot(o, d); c = dot(o, o) - 1.6 * 1.6; h = bb * bb - a * c;
     if (h > 0.0) { float t = (-bb - sqrt(h)) / a; if (t > 0.0) tWi = t; }
   }
-  float tWall = rd.y > 1e-4 ? (900.0 - ro.y) / rd.y : 1e9;
-  float tO = min(min(min(tS, tH), min(tQ, tR)), min(tWi, tWall));
+  float tO = min(min(min(tS, tH), tQ), min(tR, tWi));
   vec3 V = -rd;
-  vec3 col = vec3(0.0);
-  if (tO > 1e8) col = vec3(0.0);
+  // the room: film-black
+  vec3 col = T_FILM;
+  if (tO > 1e8) col = T_FILM;
   else if (tO == tS) {
     vec3 P = ro + rd * tS; vec3 N = nrmS(P);
     if (ms == 1) col = shadeShirt(P, N, V);
     else {
-      vec3 L = normalize(KEYP - P), H = normalize(L + V);
-      vec3 E = lightAt(P, N, V, keyShadow(P + N * 1.0));
-      float kc = keyK * keyCone(P);
-      col = ms == 2 ? T_SILVER * 0.35 * (E + 0.003) + T_LIGHTBOX * ggx(N, H, 0.22) * 0.05 * kc
-                    : T_FILM2 * (E + 0.005) + T_LIGHTBOX * ggx(N, H, 0.3) * 0.04 * kc;
+      vec3 E = amb(N, 1.0) + glowL(P, N);
+      vec3 R = reflect(rd, N);
+      float env = AMBK * (0.1 + 0.9 * smoothstep(-0.2, 0.9, R.z));
+      col = ms == 2 ? T_SILVER * (0.25 * E + 0.2 * env) + glowSpec(P, N, V, 0.22) * 0.15
+                    : T_FILM2 * E + glowSpec(P, N, V, 0.3) * 0.05;
     }
   } else if (tO == tH) col = shadePenHand(ro + rd * tH, rd, mh);
   else if (tO == tQ) col = shadeSprayHand(ro + rd * tQ, rd, mq);
-  else if (tO == tR || tO == tWi) {
+  else {
     vec3 P = ro + rd * tO;
-    vec2 c = tO == tR ? vec2(0.0, 62.0) : vec2(BAG_Y + 3.0, -58.0);
+    vec2 c = tO == tR ? vec2(0.0, 62.0) : vec2(BAG_Y + 3.0, -118.0);
     vec3 N = normalize(vec3(0.0, P.yz - c));
-    vec3 L = normalize(KEYP - P), H = normalize(L + V);
-    vec3 E = lightAt(P, N, V, 1.0);
-    col = T_SILVER * 0.3 * (E + 0.003) + T_LIGHTBOX * ggx(N, H, 0.18) * 0.06 * keyK * keyCone(P);
-  } else {
-    // the far wall: matte, dark; the key's hard pool on it with the shirt's shadow
-    vec3 P = ro + rd * tWall;
-    vec3 N = vec3(0.0, -1.0, 0.0);
-    float kc = keyCone(P);
-    float sh = kc > 0.001 ? keyShadow(P) : 0.0;
-    vec3 alb = vec3(0.022, 0.024, 0.03) * (0.9 + 0.1 * snoise(P.xz * 0.004));
-    col = alb * lightAt(P, N, V, sh) + T_FILM * 0.12;
+    vec3 R = reflect(rd, N);
+    float env = AMBK * (0.05 + 0.95 * smoothstep(0.0, 0.95, R.z));
+    col = T_SILVER * (0.2 * (amb(N, 1.0) + glowL(P, N)) + 0.25 * env) + glowSpec(P, N, V, 0.18) * 0.1;
   }
 
   // ---- the bag's back panel, then its printed front panel, then the seal flap
   float tBk = rd.y > 1e-4 ? ((mode < 0.5 ? BAG_Y + 14.0 : -40.0) - ro.y) / rd.y : -1.0;
   if (tBk > 0.0 && tBk < tO) {
     vec3 P = ro + rd * tBk; vec2 b = vec2(P.x, P.z - BAG_Z0);
-    if (abs(b.x) < ${f(BAG.hw)} && b.y < 0.0 && b.y > -${f(BAG.h)}) col = panel(col, P, b + 37.0, rd, 0.0);
+    float de = bagEdge(b, 1.0 - mode);
+    if (de > 0.0) col = panel(col, P, b + 37.0, rd, de);
   }
-  bool onBag = tF > 0.0 && tF < tO && abs(bv.x) < ${f(BAG.hw)} && bv.y < 0.0 && bv.y > -${f(BAG.h)};
+  float deF = bagEdge(bv, 1.0 - mode);
+  bool onBag = tF > 0.0 && tF < tO && deF > 0.0;
   if (onBag) {
-    col = panel(col, PF, bv, rd, 1.0 - mode);
-    float Ib = bagIb(bv);
-    vec3 L = normalize(KEYP - PF);
-    float kf = keyK * keyCone(PF) * max(-L.y, 0.0);
-    // the printed lyric: white ink, lit from behind by the glow (rose in wax)
+    col = panel(col, PF, bv, rd, deF);
+    float Ib = bagIb(PF);
+    // the printed lyric: white ink, lit only from behind by the glow (rose in wax)
     vec4 st = vec4(0.0);
-    vec4 rr = vec4(0.0);
     for (int k = 0; k < 4; k++) {
       vec4 r = wR[k];
       if (bv.x > r.x && bv.x < r.z && bv.y < r.y && bv.y > r.w) { st = wS[k]; }
     }
     float a = smoothstep(st.y - caa, st.y + caa, cov) * st.x;
-    vec3 inkC = mix(mix(T_LIGHTBOX, T_LUMINOL, 0.28), T_WAX, st.w);
-    vec3 ink = inkC * min(0.8, (0.2 + 0.45 * Ib) * st.z + 0.5 * kf + 0.55 * flashK);
+    vec3 inkC = mix(mix(T_LIGHTBOX, T_LUMINOL, 0.3), T_WAX, st.w);
+    vec3 Gk = bloomW() - PF; float Ik = glowK / (1.0 + dot(Gk, Gk) / (118.0 * 118.0));
+    vec3 ink = inkC * min(0.85, (0.02 + 0.85 * Ik) * st.z);
     col = mix(col, ink, a * 0.94);
-    // the label: opaque paper, front-lit by the key, the glow faintly through it
+    // the label: opaque paper (the dome on its face), the glow coming through it from behind: the print in silhouette
     float la = step(0.0, luv.x) * step(luv.x, 1.0) * step(0.0, luv.y) * step(luv.y, 1.0);
     vec3 lab = pow(labC, vec3(2.2));
-    vec3 labCol = lab * (0.85 * kf + 0.8 * flashK + 0.004) + lab * T_LUMINOL * Ib * 0.06;
+    vec3 labCol = lab * (AMBC * AMBK * 0.13 + mix(T_LUMINOL, T_LIGHTBOX, 0.25) * Ib * 0.5);
     col = mix(col, labCol, la);
   }
   if (tFl > 0.0 && tFl < tO && abs(PFl.x) < ${f(FLAP.hw)} && fs > 0.0 && fs < ${f(FLAP.h)}) {
     vec3 N = fn; if (dot(N, rd) > 0.0) N = -N;
-    vec3 L = normalize(KEYP - PFl);
-    float kf = keyK * keyCone(PFl) * max(dot(N, L), 0.0);
     vec3 alb = pow(sealC, vec3(2.2)) * 0.82;
-    vec3 sc = alb * (kf + 0.9 * flashK * max(dot(N, V), 0.0) + 0.004) + alb * T_LUMINOL * bagIb(vec2(PFl.x, PFl.z - BAG_Z0)) * 0.05;
-    // the tape's own slight sheen
-    vec3 H = normalize(L + V);
-    sc += vec3(0.03) * ggx(N, H, 0.35) * keyK * keyCone(PFl);
+    vec3 sc = alb * (amb(N, 1.0) * 0.3 + glowL(PFl, N) * 0.8);
+    // the tape's own slight sheen, from the dome
+    vec3 R = reflect(rd, N);
+    sc += AMBC * AMBK * 0.025 * smoothstep(0.0, 0.9, R.z);
     col = sc;
   }
   return col;

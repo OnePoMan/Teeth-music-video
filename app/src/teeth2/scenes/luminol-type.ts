@@ -19,7 +19,7 @@ export const APPM = 1.6;
 export const TILE_W = BAG.hw * 2 * APPM, TILE_H = BAG.h * APPM;
 export const ATLAS_C = 4, ATLAS_R = 2;
 /** The label (bag mm): left, top, width, height. */
-export const LABEL = { u0: -225, v0: -78, w: 140, h: 85 };
+export const LABEL = { u0: -150, v0: -78, w: 140, h: 85 };
 const LPPM = 8;
 /** NAME's blank line on the label (label mm from its top-left): x0, x1, y. */
 export const NAME_LINE = { x0: 33, x1: 128, y: 36 };
@@ -40,29 +40,29 @@ interface Row { ws: number[]; cap: number; fam: 'row' | 'hero' | 'serif'; x: num
  *  sits behind (110, -190), so the heroes are set over it. */
 const SPEC: [number, number[], number, Row[]][] = [
   [0, [0, 1, 2, 3], 3, [
-    { ws: [0, 1, 2], cap: 25, fam: 'row', x: -55, base: -122 },
-    { ws: [3], cap: 108, fam: 'hero', x: 40, base: -265, align: 'center', maxW: 420 }]],
+    { ws: [0, 1, 2], cap: 25, fam: 'row', x: 0, base: -122 },
+    { ws: [3], cap: 108, fam: 'hero', x: 62, base: -280, align: 'center', maxW: 340 }]],
   [0, [4, 5, 6, 7], 4, [
-    { ws: [0], cap: 150, fam: 'serif', x: 45, base: -262, align: 'center', maxW: 400 },
-    { ws: [1, 2, 3], cap: 25, fam: 'row', x: -70, base: -318 }]],
+    { ws: [0], cap: 150, fam: 'serif', x: 70, base: -262, align: 'center', maxW: 330 },
+    { ws: [1, 2, 3], cap: 25, fam: 'row', x: -10, base: -322 }]],
   [1, [0, 1, 2, 3], -1, [
-    { ws: [0, 1], cap: 30, fam: 'row', x: -200, base: -190 },
-    { ws: [2, 3], cap: 30, fam: 'row', x: -200, base: -240 }]],
+    { ws: [0, 1], cap: 28, fam: 'row', x: -60, base: -205 },
+    { ws: [2, 3], cap: 28, fam: 'row', x: -60, base: -252 }]],
   [1, [4, 5, 6, 7], -1, [
-    { ws: [0, 1], cap: 26, fam: 'row', x: -10, base: -104 },
-    { ws: [2, 3], cap: 26, fam: 'row', x: -10, base: -146 }]],
+    { ws: [0, 1], cap: 26, fam: 'row', x: 6, base: -104 },
+    { ws: [2, 3], cap: 26, fam: 'row', x: 6, base: -146 }]],
   [1, [8, 9, 10], 8, [
-    { ws: [0], cap: 96, fam: 'hero', x: -10, base: -175, maxW: 245 },
-    { ws: [1, 2], cap: 26, fam: 'row', x: -10, base: -221 }]],
+    { ws: [0], cap: 96, fam: 'hero', x: 8, base: -190, maxW: 222 },
+    { ws: [1, 2], cap: 26, fam: 'row', x: 8, base: -236 }]],
   [2, [0, 1, 2, 3], -1, [
-    { ws: [0, 1], cap: 36, fam: 'row', x: -60, base: -170 },
-    { ws: [2, 3], cap: 36, fam: 'row', x: -60, base: -226 }]],
+    { ws: [0, 1], cap: 32, fam: 'row', x: -4, base: -178 },
+    { ws: [2, 3], cap: 32, fam: 'row', x: -4, base: -228 }]],
   [2, [4, 5, 6, 7], 4, [
-    { ws: [0], cap: 108, fam: 'hero', x: 55, base: -255, align: 'center', maxW: 420 },
-    { ws: [1, 2, 3], cap: 25, fam: 'row', x: -60, base: -310 }]],
+    { ws: [0], cap: 108, fam: 'hero', x: 62, base: -280, align: 'center', maxW: 340 },
+    { ws: [1, 2, 3], cap: 25, fam: 'row', x: -10, base: -334 }]],
   [3, [0, 1], 1, [
-    { ws: [0], cap: 28, fam: 'row', x: -195, base: -190 },
-    { ws: [1], cap: 84, fam: 'hero', x: 0, base: -292, align: 'center', maxW: 440 }]],
+    { ws: [0], cap: 28, fam: 'row', x: -60, base: -205 },
+    { ws: [1], cap: 84, fam: 'hero', x: 62, base: -305, align: 'center', maxW: 350 }]],
 ];
 
 const FAM = { row: () => F.archivo(125, 300), hero: () => F.archivo(62, 900), serif: () => F.serif(600, true) };
