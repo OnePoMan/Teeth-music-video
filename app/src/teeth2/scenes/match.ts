@@ -86,6 +86,7 @@ export default class Match extends Scene {
   private lyrCv!: HTMLCanvasElement; private lyrTex!: THREE.CanvasTexture; private lyrKey = '';
   private labCv!: HTMLCanvasElement; private labTex!: THREE.CanvasTexture; private labKey = -1;
   private labBase!: HTMLCanvasElement;
+  private labSuspect!: THREE.CanvasTexture;
 
   override init() {
     this.tt = new TeethTex(HIS);
@@ -97,7 +98,9 @@ export default class Match extends Scene {
     this.labCv = labelCanvas();
     drawLabel(this.labCv, this.labBase, 0);
     this.labTex = dataTex(this.labCv);
-    const labBlank = dataTex(this.labBase);
+    // the suspects' prints carry their own files' labels (another case, other fine print); his arrives with the last cast
+    this.labSuspect = dataTex(buildLabelBase('07-41', 'REF 07-41/3 · TYPE III STONE · TRIMMED'));
+    const labBlank = this.labSuspect;
     const stamp = dataTex(buildStamp());
     this.pass = new FSPass(MAIN_FRAG, {
       invVP: { value: new THREE.Matrix4() }, camPos: { value: new THREE.Vector3() }, res: { value: new THREE.Vector2() },
@@ -105,7 +108,7 @@ export default class Match extends Scene {
       labTex: { value: this.labTex }, labBlank: { value: labBlank }, stampTex: { value: stamp },
       prA: { value: new THREE.Vector4() }, prB: { value: new THREE.Vector4() },
       flush: { value: 0 }, redGlow: { value: 0 }, stamp: { value: new THREE.Vector4() },
-      keyPos: { value: new THREE.Vector3(329, 318, 560) }, lampK: { value: 1 }, cone: { value: new THREE.Vector2() }, ring: { value: new THREE.Vector4() },
+      keyPos: { value: new THREE.Vector3(230, 240, 900) }, lampK: { value: 1 }, cone: { value: new THREE.Vector2() }, ring: { value: new THREE.Vector4() },
       hTip: { value: new THREE.Vector3() }, hE1: { value: new THREE.Vector3() }, hE2: { value: new THREE.Vector3() }, hE3: { value: new THREE.Vector3() },
       handOn: { value: 0 }, ssTap: SS_TAP,
     });
@@ -298,7 +301,7 @@ export default class Match extends Scene {
     }
     // the wrist pivots a little as the pen travels across the label
     const head = 0.8 + (x - sx) * 0.0035;
-    return { x, y, z, head, tilt: 1.08 + (y - sy) * 0.002 };
+    return { x, y, z, head, tilt: 0.96 + (y - sy) * 0.002 };
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget) {
@@ -316,6 +319,7 @@ export default class Match extends Scene {
     setPr(u.prB!.value as THREE.Vector4, i);
     setPr(u.prA!.value as THREE.Vector4, i - 1);
     u.photoB!.value = i >= 0 ? this.photo(this.evs[i]!.seed).texture : null;
+    u.labTex!.value = i >= 0 && this.evs[i]!.seed === 0 ? this.labTex : this.labSuspect;
     u.photoA!.value = i >= 1 ? this.photo(this.evs[i - 1]!.seed).texture : u.photoB!.value;
     if (i < 0) (u.prB!.value as THREE.Vector4).w = 0;
 
@@ -327,9 +331,9 @@ export default class Match extends Scene {
     const lockK = t < T_LOCK ? 0 : ease.outCubic(clamp((t - T_LOCK) / 0.05));
     u.lampK!.value = 0.86 + 0.28 * lockK + (t < T_LOCK ? 0 : 0.35 * pulse(t, T_LOCK, 0.08));
     const deg = Math.PI / 180;
-    (u.cone!.value as THREE.Vector2).set(Math.cos(lerp(4, 5, lockK) * deg), Math.cos(lerp(9, 10.5, lockK) * deg));
-    // ...and pulled lower and closer: every shadow (the hand, the prints, the acetate edge) snaps harder and longer
-    (u.keyPos!.value as THREE.Vector3).set(lerp(329, 310, lockK), lerp(318, 305, lockK), lerp(560, 520, lockK));
+    (u.cone!.value as THREE.Vector2).set(Math.cos(lerp(5.0, 5.2, lockK) * deg), Math.cos(lerp(10.5, 9.2, lockK) * deg));
+    // ...and pulled lower and closer: every shadow (the hand, the prints, the acetate edge) snaps harder
+    (u.keyPos!.value as THREE.Vector3).set(lerp(230, 215, lockK), lerp(240, 225, lockK), lerp(900, 840, lockK));
     // the examiner's ring round the chip, drawn as the red reaches #8 (it stays until the end of the plate)
     const [rx, ry] = chipPoint();
     (u.ring!.value as THREE.Vector4).set(rx - 1.0, ry - 1.5, 8.0, clamp((t - 165.31) / 0.16) * 1.06);

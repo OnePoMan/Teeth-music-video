@@ -1,6 +1,6 @@
 // Plate 13 `match`: shaders.
 //  PHOTO_FRAG  the photograph on each print: an upper stone cast (GLSL_TEETH, the kit's SDF) standing teeth-up on a
-//              grey card, shot straight down on a copy stand (key lamp upper left, fill right), developed as a print:
+//              grey card, shot straight down on a copy stand (key lamp upper right, fill left), developed as a print:
 //              output = the print's reflectance (linear), rendered once per cast into a target (match.ts caches it).
 //  MAIN_FRAG   the frame: a dark light-table, the stack of prints (photo, white border, the cast label), the clear
 //              acetate over them (the lamp reflected in it, its cut edge, tape, the ink: tracing and lyric), the
@@ -53,16 +53,17 @@ float shadow(vec3 ro, vec3 rd, float k) {
 }
 float ao(vec3 p, vec3 n) {
   float o = 0.0, w = 1.0;
-  for (int i = 1; i <= 5; i++) { float h = 0.25 * float(i * i) * 0.5; o += w * (h - mapD(p + n * h)); w *= 0.6; }
-  return clamp(1.0 - 1.0 * o, 0.0, 1.0);
+  for (int i = 1; i <= 5; i++) { float h = 0.24 * float(i * i); o += w * (h - mapD(p + n * h)); w *= 0.62; }
+  return clamp(1.0 - 0.6 * o, 0.0, 1.0);
 }
 void main() {
   vec2 uv = gl_FragCoord.xy / rtRes;
   vec2 a = vec2(${f(PHOTO.x0)} + uv.x * ${f(PHOTO.x1 - PHOTO.x0)}, ${f(PHOTO.y0)} + (1.0 - uv.y) * ${f(PHOTO.y1 - PHOTO.y0)});
   vec3 ro = CAMP, rd = normalize(vec3(a.x, 0.0, a.y) - CAMP);
-  // the copy stand's lamps: the key from the upper left of the picture, a weaker fill from the right
-  vec3 L = normalize(vec3(-0.5, 0.8, -0.36));
-  vec3 L2 = normalize(vec3(0.75, 0.55, 0.36));
+  // the copy stand's lamps: the key from the upper right of the picture (it leaves the cut-away #8 fracture, which
+  // faces up and to the left, in shadow: a notch, not a knob), a weaker fill from the lower left
+  vec3 L = normalize(vec3(0.72, 0.42, -0.55));
+  vec3 L2 = normalize(vec3(-0.75, 0.5, 0.4));
   float tC = (CARD - ro.y) / rd.y;
   vec2 bh = boxHit(ro, rd, BLO, BHI);
   float t = max(bh.x, 0.0), tEnd = min(bh.y, tC);
@@ -102,7 +103,8 @@ void main() {
     float pore = smoothstep(0.84, 0.9, snoise(P * 2.4 + seedF * 3.7)) * 0.3;
     float grain = 0.95 + 0.05 * snoise(P * 6.5) + 0.025 * snoise(P * 21.0);
     vec3 alb = T_STONE * grain * (1.0 - pore);
-    col = alb * (0.72 * wrap * mix(0.45, 1.0, sh) + 0.36 * wrap2 * mix(0.5, 1.0, sh2) + 0.26 * mix(o, 1.0, 0.35) * (0.6 + 0.4 * N.y) + 0.05);
+    // the occlusion darkens every light, so pockets (the cut-away fracture on #8, the embrasures) sit in shade
+    col = alb * (0.72 * wrap * mix(0.45, 1.0, sh) + 0.36 * wrap2 * mix(0.5, 1.0, sh2) + 0.3 * (0.6 + 0.4 * N.y) + 0.06) * mix(1.0, o, 0.5);
     vec3 V = -rd, Hh = normalize(L + V);
     col += T_LIGHTBOX * 0.025 * pow(max(dot(N, Hh), 0.0), 16.0) * sh;
     // a floor of light from the copy stand's diffusers: no crease in the stone goes to black (it would read as a drawn line)
@@ -150,7 +152,9 @@ float sdPen(vec3 p, out int m) {
   return d;
 }
 const vec3 W0 = vec3(138.0, -18.0, 2.0), W1 = vec3(205.0, -12.0, 6.0);
+const float GRIP = 7.0;
 float sdGlove(vec3 p) {
+  p.x -= GRIP;   // the grip sits back up the barrel: the steel nib and the rubber grip show ahead of the fingertips
   float th = finger(p, vec3(30.0, 8.0, 0.6), vec3(47.0, 14.0, 3.0), vec3(70.0, 19.0, -2.0), vec3(98.0, 14.0, -9.0), vec4(6.4, 7.5, 9.2, 11.0));
   float ix = finger(p, vec3(24.0, -1.4, 9.9), vec3(40.0, -3.0, 13.0), vec3(54.0, -5.0, 21.0), vec3(80.0, -11.0, 16.0), vec4(5.9, 6.7, 7.5, 9.3));
   float mi = finger(p, vec3(26.0, -8.6, -3.0), vec3(40.0, -14.0, -6.0), vec3(55.0, -22.0, -2.0), vec3(84.0, -27.0, 8.0), vec4(6.1, 6.9, 7.7, 9.5));
@@ -172,6 +176,7 @@ float sdGlove(vec3 p) {
   return max(d, along - 3.0);   // the glove ends at the roll
 }
 float sdSleeve(vec3 p) {
+  p.x -= GRIP;
   vec3 ax = normalize(W1 - W0);
   return max(rcap(p, W0 + ax * 50.0, W0 + ax * 190.0, 29.0, 33.0), -dot(p - W0 - ax * 52.0, ax));
 }
@@ -188,6 +193,7 @@ float sdHandD(vec3 p) { int m; return sdHand(p, m); }
 // creases in the nitrile at the joints (a height field for the shading normal)
 float jn(vec3 q, vec3 c, float r2) { vec3 d = q - c; return exp(-dot(d, d) / r2); }
 float wrinkle(vec3 q) {
+  q.x -= GRIP;
   float mk = jn(q, vec3(40.0, -3.0, 13.0), 30.0) + jn(q, vec3(54.0, -5.0, 21.0), 45.0) + jn(q, vec3(80.0, -11.0, 18.0), 70.0)
     + jn(q, vec3(47.0, 14.0, 3.0), 40.0) + jn(q, vec3(70.0, 21.0, -2.0), 60.0) + jn(q, vec3(40.0, -14.0, -6.0), 30.0)
     + jn(q, vec3(55.0, -22.0, -2.0), 45.0) + 0.6 * jn(q, vec3(84.0, -27.0, 8.0), 80.0);
@@ -212,7 +218,7 @@ uniform vec2 cone;              // its beam: cos of the inner and outer half-ang
 uniform vec3 hTip, hE1, hE2, hE3; uniform float handOn;
 
 const float Z_PAPER = 0.4, Z_AC = 1.3;
-const vec3 AIM = vec3(24.0, 28.0, 0.0);   // where the lamp points (world)
+const vec3 AIM = vec3(42.0, 26.0, 0.0);   // where the lamp points (world)
 vec2 TB(vec3 p) { return vec2(p.x, -p.y); }   // world -> table (y down)
 float sdBox2(vec2 p, vec2 c, vec2 h, float r) { vec2 q = abs(p - c) - h + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
 vec2 toPrint(vec2 tp, vec4 pr) { vec2 d = tp - pr.xy; float c = cos(pr.z), s = sin(pr.z); return vec2(c * d.x + s * d.y, -s * d.x + c * d.y); }
@@ -318,25 +324,22 @@ vec3 shadeHand(vec3 P, vec3 rd, int m) {
   vec3 R = reflect(rd, N);
   // the bright print below bounces into the undersides; the room above is dark
   float env = mix(0.006, 0.22, 1.0 - smoothstep(-0.6, 0.05, R.z)) * o;
-  float lr = lampRefl(P, rd, N);
+  float lr = 0.0;
   vec3 col;
   if (m == 0) {
-    // black nitrile: almost no diffuse, a satin clear sheen, the lamp's highlight smeared along the fingers
-    vec3 alb = T_FILM * 0.9;
-    // satin nitrile: a broad soft lobe over a faint tighter one (no glossy blobs)
-    float spec = ggx(N, Hh, 0.4) * fres * 0.15 + ggx(N, Hh, 0.68) * fres * 0.08;
-    // a cool rim on the silhouette: the grazing edge picks up the lit print and the pale card around it, so the glove
-    // separates from its own black shadow
-    float rim = pow(1.0 - nv, 3.2);
-    col = alb * (E + 0.02) + T_LIGHTBOX * (spec * E * 2.0 + fres * (env + lr * 0.03) + 0.004 * o)
-        + T_HALIDE * vec3(0.85, 0.95, 1.1) * rim * 0.26 * mix(o, 1.0, 0.5);
+    // matte black nitrile: a dark diffuse body the lamp lights on its top planes, a broad soft sheen (no glossy blobs,
+    // no all-round fresnel rim), and a little bounce from the lit print into the planes that face down onto it
+    vec3 alb = T_SILVER * 0.09;
+    float spec = ggx(N, Hh, 0.62) * (0.04 + 0.2 * pow(1.0 - nv, 5.0)) * 0.6;
+    float bounce = max(-N.z, 0.0) * 0.16 * o;
+    col = alb * (E * 1.25 + bounce + 0.015) + T_LIGHTBOX * spec * E;
   } else if (m == 2) {
     vec3 alb = T_HALIDE * 0.8;
     col = alb * (ggx(N, Hh, 0.2) * 0.5 * E + env * 1.4 + lr * 0.05 + 0.06 * E);
   } else if (m == 3) {
     // satin silver barrel: brushed along its length
     vec3 alb = T_SILVER * (0.9 + 0.1 * sin(q.x * 9.0 + snoise(q * 2.0)));
-    col = alb * (ggx(N, Hh, 0.32) * 0.48 * E + 0.18 * E * max(dot(N, L), 0.0) + env * 1.2 + lr * 0.04 + 0.01);
+    col = alb * (ggx(N, Hh, 0.32) * 0.48 * E + 0.45 * E + env * 1.2 + lr * 0.04 + 0.02);
   } else if (m == 1) {
     col = T_FILM * (E * 0.8 + 0.02) + T_LIGHTBOX * (ggx(N, Hh, 0.45) * fres * 0.25 * E + fres * env * 0.5);
   } else {
@@ -461,7 +464,7 @@ vec3 shade(vec2 px) {
     col *= 1.0 - 0.16 * inkAt(sp + vec2(0.15, 0.12)).x;
   }
   // the glossy print or glass: the lamp's reflection
-  col += T_LIGHTBOX * lampRefl(P, rd, vec3(0.0, 0.0, 1.0)) * gloss;
+  // (the prints are semi-gloss: no mirror image of the lamp in them; only the acetate reflects it, additively)
   // the acetate
   vec3 PA = ro + rd * tA;
   vec2 ta = TB(PA);
@@ -476,7 +479,7 @@ vec3 shade(vec2 px) {
     vec2 wv = vec2(snoise(ta * 0.011 + 3.0), snoise(ta * 0.011 + 9.0)) * 0.012 + vec2(snoise(ta * 0.05), snoise(ta * 0.05 + 4.0)) * 0.002;
     vec3 nA = normalize(vec3(wv, 1.0));
     float fres = 0.045 + 0.955 * pow(1.0 - abs(dot(-rd, nA)), 5.0);
-    float lr = lampRefl(PA, rd, nA);
+    float lr = 0.0;   // (no mirror image of the lamp: at these angles it read as an object on the board, not a reflection)
     float smudge = smoothstep(0.2, 0.9, snoise(ta * 0.02 + 21.0));
     vec2 ink = inkAt(ta);
     vec3 acol = col * vec3(0.9, 0.92, 0.94) + T_LIGHTBOX * lr * fres * (1.0 + 0.25 * smudge) * (1.0 - ink.x);

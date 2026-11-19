@@ -123,8 +123,9 @@ export function buildStamp(): HTMLCanvasElement {
 }
 
 // ------------------------------------------------------------------------------------------------ the label
-/** The label's printed part (white sticker, film ink): small lab text (unreadable at frame scale) and the NAME field. */
-export function buildLabelBase(): HTMLCanvasElement {
+/** The label's printed part (white sticker, film ink): small lab text (unreadable at frame scale) and the NAME field.
+ *  `ref` / `exhibit`: the fine print (his cast is 08-32, EXHIBIT 8; the suspects' prints come from other files). */
+export function buildLabelBase(ref = '08-32', exhibit = 'EXHIBIT 8 · TYPE IV STONE · TRIMMED · BAGGED'): HTMLCanvasElement {
   const k = LABEL.ppm * SCALE;
   const cv = mkCanvas(LABEL.w * k, LABEL.h * k);
   const c = cv.getContext('2d')!;
@@ -139,9 +140,9 @@ export function buildLabelBase(): HTMLCanvasElement {
   c.font = font(F.mono(500), 1.25);
   c.textBaseline = 'alphabetic';
   c.globalAlpha = 0.5;
-  c.fillText('08-32 · STONE CAST · MAX · PHOTO 1:1', 2.6, 4.6);
+  c.fillText(`${ref} · STONE CAST · MAX · PHOTO 1:1`, 2.6, 4.6);
   c.font = font(F.mono(400), 1.0);
-  c.globalAlpha = 0.42; c.fillText('EXHIBIT 9 · TYPE IV STONE · TRIMMED · BAGGED', 2.6, 37.0);
+  c.globalAlpha = 0.42; c.fillText(exhibit, 2.6, 37.0);
   c.globalAlpha = 1;
   // NAME: the one readable field
   c.font = font(F.mono(600), 3.6);
