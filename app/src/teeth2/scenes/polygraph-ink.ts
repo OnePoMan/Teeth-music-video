@@ -14,8 +14,8 @@ import { Script, T0, T_DROP, T_LIE, T_TEAR, PEN_OX, handShake, type PhraseS, typ
 
 export interface InkWin { x0: number; y0: number; w: number; h: number; rho: number }
 const LY: [number, number, number] = [1, 0, 0], TR: [number, number, number] = [0, 1, 0], BL: [number, number, number] = [0, 0, 1];
-/** The faint line the pen draws while it travels between strokes. */
-const CON: [number, number, number] = [0, 0.34, 0];
+/** How fast the recorded paper ran past the pens before a landing (world units / s): the history that fills the fresh paper. */
+const HIST_V = 420;
 
 /** World position of the cardio pen's nib at t, and whether it is in the lyric. */
 export function cardioPen(S: Script, t: number): { x: number; y: number; writing: boolean } {
@@ -77,27 +77,38 @@ export function drawInk(lb: LineBatch, S: Script, t: number, W: InkWin) {
   };
   // pen widths in screen px (the camera's width changes between setups)
   const pxw = S.camW(t) / 1920;
-  const wTr = 2.6 * pxw;
+  const wTr = 3.1 * pxw;
   // ---- the traces: sampled on an absolute time grid so that the ink never shimmers between frames
   const dt = 1 / 360;
   for (let i = 0; i < 4; i++) {
-    const tA = Math.max(t - 3.2, i < 3 ? T_DROP : T0);
+    const tA = Math.max(t - 3.2, i < 3 ? T_DROP : T0 - 3.2);
+    // the paper on which the pens have been recording: before the first drop and before each whip's landing the paper ran past
+    // the pens at a steady speed, so that fresh paper arrives with its traces already across it
+    let hL = T0, hS: 1 | -1 = 1, pre = -1;
+    S.landings.forEach((lw, k) => { if (t >= lw) { hL = lw; hS = S.landS[k]!; } else if (t >= S.landW[k]!) pre = k; });
+    // (while a whip is in flight both the paper it leaves and the paper it brings are drawn)
+    const run = (hLx: number, hSx: number, all: boolean) => {
     let pvx = NaN, pvy = NaN, pOk = false;
     const sample = (tau: number) => {
-      const ok = S.penDown(i, tau) && (i < 3 || !S.cardioWriting(tau));
+      const hist = all || tau < hLx;
+      const ok = S.penDown(i, tau) && (i < 3 || hist || !S.cardioWriting(tau));
       if (!ok) { pOk = false; return; }
-      const x = S.rack(tau) + PEN_OX[i]!, y = i < 3 ? S.penY(i, tau) : S.cardioY(tau);
-      if (pOk) seg(pvx, pvy, x, y, i === 3 ? wTr * 1.1 : wTr, TR);
+      const xr = hist ? S.rack(hLx) - hSx * HIST_V * (hLx - tau) : S.rack(tau);
+      const x = xr + PEN_OX[i]!, y = i < 3 ? S.penY(i, tau) : S.cardioY(tau);
+      if (pOk) seg(pvx, pvy, x, y, wTr, TR);
       pvx = x; pvy = y; pOk = true;
     };
     for (let n = Math.ceil(tA / dt); n * dt <= t; n++) sample(n * dt);
     sample(t);
+    };
+    run(hL, hS, false);
+    if (pre >= 0) run(S.landings[pre]!, S.landS[pre]!, true);
   }
   // ---- the blots where the pens land (T_DROP)
   if (t >= T_DROP && t - T_DROP < 3.2) {
     for (let i = 0; i < 3; i++) {
       const x = S.rack(T_DROP) + PEN_OX[i]!, y = S.penY(i, T_DROP);
-      seg(x, y, x + 0.01, y, 4 * pxw, BL);
+      seg(x, y, x + 0.01, y, 4.5 * pxw, BL);
     }
   }
   // ---- the cardio pen, word by word: climb, letters, drop
@@ -115,11 +126,10 @@ export function drawInk(lb: LineBatch, S: Script, t: number, W: InkWin) {
       }
     }
     // the letters, and the line the pen draws travelling between one stroke and the next
-    let pe: { x: number; y: number } | null = null;
+    // (no connector between one stroke and the next, or between words: the pen is up there and leaves no line)
     for (const si of u.sIdx) {
       const sk = p.strokes[si]!;
       if (sk[0]!.t > t) break;
-      if (pe) seg(pe.x, pe.y, sk[0]!.x, sk[0]!.y, wTr, CON);
       for (let j = 0; j + 1 < sk.length; j++) {
         const a = sk[j]!, b = sk[j + 1]!;
         if (a.t > t) break;
@@ -128,20 +138,18 @@ export function drawInk(lb: LineBatch, S: Script, t: number, W: InkWin) {
         if (b.t > t) { const v = (t - a.t) / Math.max(1e-6, b.t - a.t); bx = lerp(a.x + ax, b.x + bx0, v); by = lerp(a.y + ay, b.y + by0, v); }
         seg(a.x + ax, a.y + ay, bx, by, w, LY);
       }
-      const e = sk[sk.length - 1]!;
-      pe = t >= e.t ? e : null;
     }
-    // between two words that run on: "lie" -> the jump of a channel in one jagged stroke, otherwise the line itself
-    if (u.joinNext && t > u.t1) {
+    // between two words that run on: only "lie" -> the jump of a channel in one jagged stroke (the event); any other pen-up leaves no line
+    if (u.joinNext && t > u.t1 && u.p === 4 && S.units[k - 1]?.p !== 4) {
       const nx = S.units[k + 1]!;
       const v1 = clamp((t - u.t1) / Math.max(1e-6, nx.t0 - u.t1));
-      const lie = u.p === 4 && S.units[k - 1]?.p !== 4;
+      const lie = true;
       let ax = u.last.x, ay = u.last.y;
       for (let n = 1; n <= 9; n++) {
         const v = (n / 9) * v1;
         const jag = lie && n < 9 ? (n % 2 ? 1 : -1) * 16 * Math.sin(v * Math.PI) : 0;
         const bx = lerp(u.last.x, nx.first.x, v) + jag, by = lerp(u.last.y, nx.first.y, lie ? ease.outQuad(v) : v) + (lie && n < 9 ? 24 * Math.sin(v * Math.PI) : 0);
-        seg(ax, ay, bx, by, lie ? 3 * pxw : wTr, lie ? LY : TR); ax = bx; ay = by;
+        seg(ax, ay, bx, by, 3 * pxw, LY); ax = bx; ay = by;
       }
     }
     // the drop back to the line

@@ -15,8 +15,7 @@ uniform sampler2D hdrTex; uniform vec4 hdrWin;
 uniform float tNow, shiv, vel, pxu, soft;
 uniform vec4 penT[4];       // world tip (x, y, z), w = 1 when the pen is on the paper
 uniform vec4 armS[4];       // projected tip and far end, logical px, y up
-uniform vec3 armDir;
-uniform float armLen;
+uniform vec4 pivW[4];       // the arms' pivots (world)
 uniform vec4 tearP[15];     // x, y, time the tip passed, rag seed
 uniform float tearOn, tearOpen;
 uniform float exposure;
@@ -31,8 +30,8 @@ float hgt(vec2 p) {
   }
   return h;
 }
-float gridL(float c, float per, float wd) {
-  float fw = max(fwidth(c), 1e-4);
+float gridL(float c, float per, float wd, float bl) {
+  float fw = max(fwidth(c), 1e-4) * bl;
   float d = abs(fract(c / per + 0.5) - 0.5) * per;
   float a = 1.0 - smoothstep(wd * 0.5, wd * 0.5 + fw, d);
   return a * clamp(wd / fw, 0.0, 1.0);
@@ -72,29 +71,35 @@ void main() {
   // formation: the paper's fibres (visible as cloudiness, strongest seen against light)
   float fib = 0.5 * snoise(ws * 0.045) + 0.28 * snoise(ws * 0.13 + 3.0) + 0.16 * snoise(ws * 0.41 + 9.0);
   float grn = hash12(floor(ws * 1.4)) - 0.5;
-  vec3 paper = T_LIGHTBOX * 0.93;
-  paper *= 1.0 + (back ? 0.05 : 0.020) * fib + 0.008 * grn;
-  if (back) paper *= 1.07 + 0.06 * smoothstep(1.2, 0.0, length(ndc));
-  paper *= 1.0 + 0.8 * (diff - 1.0);
-  // a soft fall-off of the lightbox beneath: brightest where the camera looks
-  paper *= 1.0 - 0.11 * smoothstep(0.1, 1.5, length(ndc));
+  vec3 paper = T_LIGHTBOX * (back ? 1.05 : 0.93);
+  paper *= 1.0 + (back ? 0.13 : 0.020) * fib + (back ? 0.004 : 0.008) * grn;
+  if (back) {
+    // backlit: the light is behind the sheet, so it is a lamp seen through it: a hot centre, falling away to dim paper at the edges,
+    // the fibres' formation showing as cloud; the key's raking falls away (nothing lights the face we see)
+    float lamp = smoothstep(1.35, 0.05, length(ndc * vec2(0.78, 1.0)));
+    paper *= mix(0.34, 1.0, lamp) * (1.0 + 0.5 * (diff - 1.0) * 0.25);
+  } else {
+    paper *= 1.0 + 0.8 * (diff - 1.0);
+    // a soft fall-off of the lightbox beneath: brightest where the camera looks
+    paper *= 1.0 - 0.11 * smoothstep(0.1, 1.5, length(ndc));
+  }
   // ---- the printed chart: fine grid, major grid, the channels' own lines
   float mot = clamp(1.0 / (1.0 + vel * vel * 1.2e-5 * 0.01), 0.0, 1.0);
   float bx = 1.0 / (1.0 + vel * 0.012 / 10.0);
   float bX = 1.0 / (1.0 + vel * 0.012 / 50.0);
-  float gw = back ? 2.2 : 1.0;
-  float gx = gridL(ws.x, 10.0, 0.7 * gw) * 0.09 * bx + gridL(ws.x, 50.0, 1.1 * gw) * 0.20 * bX;
-  float gy = gridL(ws.y, 10.0, 0.7 * gw) * 0.09 + gridL(ws.y, 50.0, 1.1 * gw) * 0.20;
+  float gw = back ? 2.0 : 1.0, gb = back ? 4.0 : 1.0;
+  float gx = gridL(ws.x, 10.0, 0.7 * gw, gb) * 0.09 * bx + gridL(ws.x, 50.0, 1.1 * gw, gb) * 0.20 * bX;
+  float gy = gridL(ws.y, 10.0, 0.7 * gw, gb) * 0.09 + gridL(ws.y, 50.0, 1.1 * gw, gb) * 0.20;
   float chl = 0.0;
   for (int i = 0; i < 4; i++) {
     float cy = float(i == 0 ? ${CH[0]} : i == 1 ? ${CH[1]} : i == 2 ? ${CH[2]} : ${CH[3]});
-    float fw = max(fwidth(ws.y), 1e-4);
-    chl = max(chl, (1.0 - smoothstep(0.7, 0.7 + fw, abs(ws.y - cy))) * 0.22);
-    chl = max(chl, (1.0 - smoothstep(0.55, 0.55 + fw, abs(abs(ws.y - cy) - 88.0))) * 0.12);
+    float fw = max(fwidth(ws.y), 1e-4) * gb;
+    chl = max(chl, (1.0 - smoothstep(0.7, 0.7 + fw, abs(ws.y - cy))) * (back ? 0.14 : 0.40));
+    chl = max(chl, (1.0 - smoothstep(0.55, 0.55 + fw, abs(abs(ws.y - cy) - 88.0))) * (back ? 0.07 : 0.16));
   }
-  float grid = clamp(max(gx, gy) + chl, 0.0, 0.3);
+  float grid = clamp(max(gx, gy) + chl, 0.0, 0.34);
   vec3 print = mix(T_SILVER, T_HALIDE, 0.35);
-  paper = mix(paper, print * 0.86, grid * (back ? 0.75 : 1.0));
+  paper = mix(paper, print * 0.86, grid * (back ? 0.5 : 1.0));
   // fan-fold: a crease and a line of perforations every 1300 units (a scrolling reference, and paper's own physics)
   {
     float sd = (fract(ws.x / 1300.0 + 0.5) - 0.5) * 1300.0;
@@ -116,22 +121,26 @@ void main() {
   vec3 ink = vec3(0.0);
   if (iu.x > 0.0 && iu.x < 1.0 && iu.y > 0.0 && iu.y < 1.0) {
     if (back) {
-      // seen through the paper: it has bled in a little, softer and less black
-      float r = 1.6 / inkWin.z;
-      vec3 a = texture(inkTex, iu).rgb * 0.36;
-      a += texture(inkTex, iu + vec2(r, 0.0)).rgb * 0.16 + texture(inkTex, iu - vec2(r, 0.0)).rgb * 0.16;
-      a += texture(inkTex, iu + vec2(0.0, 2.2 * r)).rgb * 0.16 + texture(inkTex, iu - vec2(0.0, 2.2 * r)).rgb * 0.16;
-      ink = a * 0.95;
+      // seen through the paper: the lyric has bled in a little (soft but still dark: it has to read from beneath); the other
+      // channels' traces and the blots are only softened shadows of themselves
+      vec2 r = vec2(5.0 / inkWin.z, 5.0 / inkWin.w);
+      vec3 sh = texture(inkTex, iu + r * vec2(1.0, 0.7), 2.8).rgb + texture(inkTex, iu + r * vec2(-1.0, 0.7), 2.8).rgb
+              + texture(inkTex, iu + r * vec2(1.0, -0.7), 2.8).rgb + texture(inkTex, iu + r * vec2(-1.0, -0.7), 2.8).rgb;
+      sh *= 0.25;
+      vec2 q = vec2(1.5 / inkWin.z, 1.5 / inkWin.w);
+      float ly = texture(inkTex, iu, 0.4).r * 0.5 + 0.125 * (texture(inkTex, iu + vec2(q.x, 0.0)).r + texture(inkTex, iu - vec2(q.x, 0.0)).r
+               + texture(inkTex, iu + vec2(0.0, q.y)).r + texture(inkTex, iu - vec2(0.0, q.y)).r);
+      ink = vec3(min(1.0, ly * 0.94 + sh.r * 0.2), sh.g * 0.8, sh.b * 0.6);
     } else ink = texture(inkTex, iu).rgb;
   }
-  float cov = clamp(max(max(ink.r, ink.g * 0.92), ink.b), 0.0, 1.0);
+  float cov = clamp(max(max(ink.r, ink.g), ink.b), 0.0, 1.0);
   vec3 inkC = mix(T_FILM * 1.7, T_FILM2 * 1.6, 0.35 * fib);
   paper = mix(paper, inkC, cov);
   // ---- the pens' shadows on the paper (the key rakes from the upper left, so they fall lower right)
   float shade = 0.0;
   for (int i = 0; i < 4; i++) {
     vec3 T = penT[i].xyz;
-    vec3 B = T + armDir * armLen;
+    vec3 B = pivW[i].xyz;
     vec2 sa = T.xy + SOFF * T.z, sb = B.xy + SOFF * B.z;
     float u; float d = segD(w, sa, sb, u);
     float z = mix(T.z, B.z, u);
@@ -141,6 +150,8 @@ void main() {
     // the tip's contact: a small darker bead where the nib meets the paper
     float dc = length(w - sa);
     shade = max(shade, (1.0 - smoothstep(0.0, 8.0 + 0.2 * T.z, dc)) * 0.22 * (1.0 - clamp(T.z / 80.0, 0.0, 1.0)));
+    // the pivot's housing
+    shade = max(shade, (1.0 - smoothstep(10.0, back ? 40.0 : 24.0, length(w - sb))) * (back ? 0.3 : 0.24));
   }
   paper *= 1.0 - shade;
   // ---- the tear: a narrow ragged slit along the pen's path, the paper's white fibres curling up at its edges, a thin gap
@@ -174,22 +185,42 @@ void main() {
       col = mix(col, gap, inside);
     }
   }
-  if (back) col *= 1.04;
-  // ---- the pen arms (above the paper: seen through it from beneath as soft darks)
+  // ---- the pen arms and their pivots (above the paper; seen through it from beneath as soft dark shadows against the lamp)
   vec2 fp = gl_FragCoord.xy / PX_SCALE;
   for (int i = 0; i < 4; i++) {
     vec2 a = armS[i].xy, b = armS[i].zw;
     float u; float d = segD(fp, a, b, u);
-    float s = u * length(b - a);
-    float hw = (s < 26.0 ? mix(1.2, 2.4, s / 26.0) : s < 90.0 ? mix(2.4, 5.8, smoothstep(26.0, 60.0, s)) : 5.8 - 3.0 * smoothstep(380.0, 560.0, s)) * (pxu / 1.0);
+    float L = length(b - a);
+    float s = u * L;
+    float tip = s < 26.0 ? mix(1.2, 2.4, s / 26.0) : mix(2.4, 5.4, smoothstep(26.0, 60.0, s));
+    float hw = (s < 60.0 ? tip : mix(5.4, 4.2, smoothstep(60.0, max(L, 120.0), s))) * pxu;
     vec2 dir = normalize(b - a + 1e-5);
     float side = dot(fp - a, vec2(-dir.y, dir.x)) / max(hw, 0.5);
-    float aa = back ? 7.0 : max(fwidth(d), 0.6);
-    float cover = 1.0 - smoothstep(hw - aa * 0.5, hw + aa * 0.5, d);
-    vec3 ac = mix(T_FILM2 * 1.5, T_SILVER * 0.9, 0.55 * smoothstep(-0.1, 0.9, side));
-    ac += T_LIGHTBOX * 0.22 * (1.0 - smoothstep(0.0, 0.25, abs(side - 0.5)));
-    if (s < 26.0) ac = T_FILM * 1.4;
-    col = mix(col, ac, cover * (back ? 0.16 : 1.0));
+    float cover;
+    vec3 ac;
+    if (back) {
+      float hb = hw * 1.7;
+      float aa = 18.0 * pxu;
+      cover = (1.0 - smoothstep(hb - aa * 0.5, hb + aa * 0.5, d)) * 0.34;
+      float hub = 1.0 - smoothstep(18.0 * pxu, 18.0 * pxu + aa, length(fp - b));
+      cover = max(cover, hub * 0.32);
+      ac = T_FILM2 * 1.2;
+    } else {
+      float aa = max(fwidth(d), 0.6);
+      cover = 1.0 - smoothstep(hw - aa * 0.5, hw + aa * 0.5, d);
+      ac = mix(T_FILM2 * 1.5, T_SILVER * 0.9, 0.55 * smoothstep(-0.1, 0.9, side));
+      ac += T_LIGHTBOX * 0.22 * (1.0 - smoothstep(0.0, 0.25, abs(side - 0.5)));
+      if (s < 26.0) ac = T_FILM * 1.4;
+      col = mix(col, ac, cover); cover = 0.0;
+      // the pivot: a round housing, a lighter bearing ring, a dark pin
+      float rb = length(fp - b), R = 18.0 * pxu;
+      float disc = 1.0 - smoothstep(R - 1.0, R + 0.6, rb);
+      vec3 hc = mix(T_FILM2 * 1.5, T_SILVER * 0.8, 0.5 * smoothstep(-R, R, dot(fp - b, vec2(-0.55, 0.83))));
+      hc = mix(hc, T_SILVER * 0.95, (1.0 - smoothstep(0.7, 1.7, abs(rb - R * 0.6))) * 0.6);
+      hc = mix(hc, T_FILM * 1.3, 1.0 - smoothstep(R * 0.2, R * 0.3, rb));
+      col = mix(col, hc, disc);
+    }
+    col = mix(col, ac, cover);
   }
   fragColor = vec4(col * exposure, 1.0);
 }`;

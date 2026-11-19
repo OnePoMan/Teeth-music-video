@@ -32,6 +32,9 @@ export const JUMP = 180;
 /** Text baseline below the cardio line. */
 export const BASE_OFF = -30;
 export const PEN_UP = 70;
+/** The pens' arm pivots: height (y) of each pen's pivot, its offset right of the pen's x, and its height above the paper (z). */
+export const PIV_Y = [500, 470, 440, 410] as const;
+export const PIV_DX = 15, PIV_Z = 150;
 /** Whip: how far the paper is fed to flush a line (clear of anything a raking view could see), and the feed's creep while a hero is held. */
 const FLUSH = 3500;
 const HOLD_V = 36;
@@ -72,21 +75,21 @@ export interface CamState { w: number; cy: number; roll: number; tilt: number; r
 /** Phrases (the words of a line that are written together), the camera width they are written under (their size follows
  *  from it) and where the pen stands on screen (rs, px right of centre). Rows: the paper is whipped only between rows. */
 const PH_DEFS: { line: number; words: number[]; hero?: boolean; mirror?: boolean; w: number; rs: number }[] = [
-  { line: 0, words: [0, 1, 2], w: 2250, rs: 640 }, // CALL ME IN
-  { line: 0, words: [3, 4, 5], w: 2250, rs: 640 }, // THE MORNING TO
-  { line: 0, words: [6], hero: true, w: 2150, rs: 750 }, // APOLOGIZE
+  { line: 0, words: [0, 1, 2], w: 1600, rs: 640 }, // CALL ME IN
+  { line: 0, words: [3, 4, 5], w: 1600, rs: 640 }, // THE MORNING TO
+  { line: 0, words: [6], hero: true, w: 1600, rs: 750 }, // APOLOGIZE
   { line: 1, words: [0, 1], w: 1200, rs: 480 }, // EVERY LITTLE
-  { line: 1, words: [2, 3, 4], w: 2100, rs: 700 }, // LIE GIVES ME
-  { line: 1, words: [5], hero: true, w: 2500, rs: 750 }, // BUTTERFLIES
-  { line: 2, words: [0, 1], w: 2400, rs: 650 }, // SOMETHING IN
-  { line: 2, words: [2, 3], w: 2400, rs: 650 }, // THE WAY
-  { line: 2, words: [4, 5], w: 2400, rs: 650 }, // YOU'RE LOOKING (written before the swing: not mirrored)
-  { line: 2, words: [6, 7], mirror: true, w: 2250, rs: 700 }, // THROUGH MY (written on the paper reversed: it reads from beneath)
-  { line: 2, words: [8], hero: true, mirror: true, w: 2250, rs: 750 }, // EYES
-  { line: 3, words: [0, 1, 2], w: 1200, rs: 480 }, // DON'T KNOW IF
-  { line: 3, words: [3, 4, 5], w: 1200, rs: 480 }, // I'M GONNA MAKE
-  { line: 3, words: [6, 7], w: 1200, rs: 480 }, // IT OUT
-  { line: 3, words: [8], hero: true, w: 2100, rs: 750 }, // ALIVE
+  { line: 1, words: [2, 3, 4], w: 1650, rs: 700 }, // LIE GIVES ME
+  { line: 1, words: [5], hero: true, w: 1800, rs: 750 }, // BUTTERFLIES
+  { line: 2, words: [0, 1], w: 1600, rs: 650 }, // SOMETHING IN
+  { line: 2, words: [2, 3], w: 1600, rs: 650 }, // THE WAY
+  { line: 2, words: [4, 5], w: 1600, rs: 650 }, // YOU'RE LOOKING (written before the swing: not mirrored)
+  { line: 2, words: [6, 7], mirror: true, w: 1600, rs: 700 }, // THROUGH MY (written on the paper reversed: it reads from beneath)
+  { line: 2, words: [8], hero: true, mirror: true, w: 1600, rs: 750 }, // EYES
+  { line: 3, words: [0, 1, 2], w: 1600, rs: 700 }, // DON'T KNOW IF
+  { line: 3, words: [3, 4, 5], w: 1600, rs: 700 }, // I'M GONNA MAKE
+  { line: 3, words: [6, 7], w: 1600, rs: 700 }, // IT OUT
+  { line: 3, words: [8], hero: true, w: 1500, rs: 750 }, // ALIVE
 ];
 const ROWS = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10], [11, 12, 13, 14]];
 const LINE_T = [34.638, 38.422, 41.745, 45.272];
@@ -121,11 +124,15 @@ export class Script {
   units: Unit[] = [];
   /** The moments the paper lands after a whip (rows 1..4); the last is the cut back over the paper. */
   landings: number[] = [];
+  /** The feed direction of the row each landing opens (+1 / -1). */
+  landS: (1 | -1)[] = [];
+  /** When each whip starts. */
+  landW: number[] = [];
   private segs: Seg[] = [];
   private moves: { te: number; d: number; p: CamState }[] = [];
-  private cam0: CamState = { w: 2600, cy: 20, roll: -0.02, tilt: 0.05, rs: 600, phi: 0 };
+  private cam0: CamState = { w: 1760, cy: 105, roll: -0.02, tilt: 0.03, rs: 640, phi: 0 };
   /** Cardio phase and pneumo phases (tables, 480 Hz). */
-  private tab0 = T0 - 0.1;
+  private tab0 = T0 - 3.4;
   private cardioTab: Float64Array;
   private breathTab: Float64Array;
   /** Tear path (world), the slit ragged line: x, y, time the tip passed. */
@@ -197,7 +204,7 @@ export class Script {
           w1 = cand.length ? cand[cand.length - 1]! : t0w - 0.005;
           w0 = w1 - (r === 4 ? 0.012 : 0.09);
         }
-        this.landings.push(w1);
+        this.landings.push(w1); this.landS.push(s); this.landW.push(w0);
       }
       // --- write windows (letters spring up 45 ms ahead of the word; the pen finishes a word early, the ink waits whole)
       const wins: { a: number; b: number }[][] = [];
@@ -464,24 +471,28 @@ export class Script {
   private buildCam() {
     const M = (te: number, d: number, p: CamState) => this.moves.push({ te, d, p });
     const cut = this.landings[3]!;
-    // 1 wide on the four channels, the pen arms in; pushes in to the pens' drop on 34.91
-    M(34.912, 0.27, { w: 2250, cy: 0, roll: -0.012, tilt: 0.02, rs: 640, phi: 0 });
-    // 2 APOLOGIZE: a little closer and higher on the downbeat 36.64
-    M(36.64, 0.6, { w: 2150, cy: -90, roll: 0.02, tilt: -0.02, rs: 750, phi: 0 });
-    // 3 macro on the cardio nib, whipped in with the paper on 38.37
-    M(38.37, 0.1, { w: 1200, cy: -190, roll: 0.02, tilt: 0.03, rs: 480, phi: 0 });
+    // wide on the four channels: the frame is filled top to bottom (the skin-conductance line at the top, the text under the
+    // cardio line at the foot), the pens' arms and pivots in
+    const WIDE = { w: 1600, cy: 105, roll: -0.012, tilt: 0.02, rs: 640, phi: 0 };
+    // 1 wide, pushes in to the pens' drop on 34.91
+    M(34.912, 0.27, WIDE);
+    // 2 APOLOGIZE: a macro on the cardio nib, pushed in to land on the downbeat 36.64, easing back out to the whole word
+    M(36.64, 0.34, { w: 900, cy: -110, roll: 0.02, tilt: -0.02, rs: 560, phi: 0 });
+    M(37.5, 0.55, { w: 1600, cy: 105, roll: -0.01, tilt: 0.02, rs: 750, phi: 0 });
+    // 3 macro on the cardio nib, whipped in with the paper on 38.37 (three channels and the nib)
+    M(38.37, 0.1, { w: 1200, cy: -110, roll: 0.02, tilt: 0.03, rs: 480, phi: 0 });
     // 4 low raking angle along the paper for the lie and the butterflies, eased into 40.09
-    M(40.09, 0.22, { w: 2100, cy: -100, roll: 0.03, tilt: 0.1, rs: 700, phi: 0.6 });
-    // 5 wide again on four channels, eased into 41.82
-    M(41.82, 0.22, { w: 2400, cy: -120, roll: -0.016, tilt: -0.03, rs: 650, phi: 0 });
-    // 6 the swing under the paper, landing on 43.55
-    M(SW1, SW1 - SW0, { w: 2250, cy: -130, roll: 0.02, tilt: 0, rs: 740, phi: Math.PI });
-    // 7 the cut back over the paper on 45.27: macro on the nib again
-    M(cut, 0.0001, { w: 1200, cy: -150, roll: -0.02, tilt: 0.04, rs: 480, phi: 0 });
-    // 8 ALIVE: pulled back and up on 47.00
-    M(47.0, 0.3, { w: 2100, cy: -120, roll: -0.03, tilt: 0, rs: 750, phi: 0 });
+    M(40.09, 0.22, { w: 1650, cy: -100, roll: 0.03, tilt: 0.1, rs: 700, phi: 0.6 });
+    // 5 wide again on four channels, eased into 41.82 (the lie lifts every later setup by a channel: cy is written for the paper before it)
+    M(41.82, 0.22, { w: 1600, cy: -75, roll: -0.016, tilt: -0.03, rs: 650, phi: 0 });
+    // 6 the swing under the paper, landing on 43.55: seen from beneath, tilted up about 12 degrees
+    M(SW1, SW1 - SW0, { w: 1600, cy: -95, roll: 0.02, tilt: -0.21, rs: 740, phi: Math.PI });
+    // 7 the cut back over the paper on 45.27
+    M(cut, 0.0001, { w: 1600, cy: -75, roll: -0.02, tilt: 0.04, rs: 700, phi: 0 });
+    // 8 ALIVE: a little closer on 47.00
+    M(47.0, 0.3, { w: 1500, cy: -60, roll: -0.03, tilt: 0, rs: 750, phi: 0 });
     // 9 the tear: a slow push as the pen goes through
-    M(T1, 0.5, { w: 1800, cy: -40, roll: -0.05, tilt: 0, rs: 690, phi: 0 });
+    M(T1, 0.5, { w: 1400, cy: -20, roll: -0.05, tilt: 0, rs: 690, phi: 0 });
   }
   /** Camera state at t. */
   cam(t: number): CamState {

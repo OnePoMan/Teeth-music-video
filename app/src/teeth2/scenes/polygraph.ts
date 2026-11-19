@@ -15,11 +15,9 @@ import { LineBatch } from '../../engine/lines';
 import { clamp, ease, pulse } from '../../engine/util';
 import { POLY_FRAG } from './polygraph-glsl';
 import { drawInk, buildHeader, cardioPen, type InkWin } from './polygraph-ink';
-import { Script, PEN_OX, CH, T0, T1, T_DROP, T_TEAR } from './polygraph-script';
+import { Script, PEN_OX, CH, T0, T1, T_DROP, T_TEAR, PIV_Y, PIV_DX, PIV_Z } from './polygraph-script';
 
 const TANV = Math.tan((12 * Math.PI) / 180), TANH = TANV * (16 / 9);
-const ARM_DIR = new THREE.Vector3(0.05, 0.93, 0.36).normalize();
-const ARM_LEN = 1500;
 /** World window of the ink target. */
 const WIN = { w: 3800, h: 1500, y0: -750 };
 
@@ -59,9 +57,9 @@ export default class Polygraph extends Scene {
       camPos: { value: new THREE.Vector3() }, camR: { value: new THREE.Vector3() }, camU: { value: new THREE.Vector3() }, camF: { value: new THREE.Vector3() },
       tanHV: { value: new THREE.Vector2(TANH, TANV) },
       inkTex: { value: this.inkRT.texture }, inkWin: V4(),
-      hdrTex: { value: this.hdr }, hdrWin: { value: new THREE.Vector4(-1460, 200, h.w, h.h) },
+      hdrTex: { value: this.hdr }, hdrWin: { value: new THREE.Vector4(-1190, 200, h.w, h.h) },
       tNow: { value: 0 }, shiv: { value: 0 }, vel: { value: 0 }, pxu: { value: 1 }, soft: { value: 0 },
-      penT: vecs(4), armS: vecs(4), armDir: { value: ARM_DIR.clone() }, armLen: { value: ARM_LEN },
+      penT: vecs(4), armS: vecs(4), pivW: vecs(4),
       tearP: vecs(15), tearOn: { value: 0 }, tearOpen: { value: 0 }, exposure: { value: 1 },
     });
   }
@@ -120,7 +118,7 @@ export default class Polygraph extends Scene {
 
     // ---- the pens: tips, arms
     const rack = S.rack(t);
-    const arms = u.armS!.value as THREE.Vector4[], tips = u.penT!.value as THREE.Vector4[];
+    const arms = u.armS!.value as THREE.Vector4[], tips = u.penT!.value as THREE.Vector4[], pivs = u.pivW!.value as THREE.Vector4[];
     for (let i = 0; i < 4; i++) {
       let x: number, y: number, z = S.penZ(i, t);
       if (i < 3) {
@@ -142,7 +140,8 @@ export default class Polygraph extends Scene {
         }
       }
       tips[i]!.set(x, y, z, z < 1 ? 1 : 0);
-      const T = new THREE.Vector3(x, y, z), B = T.clone().addScaledVector(ARM_DIR, ARM_LEN);
+      const T = new THREE.Vector3(x, y, z), B = new THREE.Vector3(rack + PEN_OX[i]! + PIV_DX + (i === 3 ? 1 : 0.55) * (x - rack - PEN_OX[i]!), PIV_Y[i]!, PIV_Z);
+      pivs[i]!.set(B.x, B.y, B.z, 0);
       const [ax, ay] = this.project(T), [bx, by] = this.project(B);
       arms[i]!.set(ax, ay, bx, by);
     }
