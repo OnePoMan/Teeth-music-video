@@ -16,8 +16,9 @@ export const CLOTH = { x0: -380, x1: 380, y0: -255, y1: 255 };
 export const TPPM = 5;
 export const TW = (CLOTH.x1 - CLOTH.x0) * TPPM;
 export const TH = (CLOTH.y1 - CLOTH.y0) * TPPM;
-/** The dried patch the swab works on (under HANDS): centre, radii (mm). */
-export const PATCH = { x: 210, y: -126, rx: 86, ry: 11 };
+/** The evidence tag (EXHIBIT 5, the plate's one label): lying on the hem near the open end; centre, half size (mm),
+ *  rotation (rad). */
+export const TAG = { x: 214, y: -120, hx: 30, hy: 13, rot: 0.12 };
 
 export interface TWord {
   id: number; text: string; start: number; end: number; hero: boolean; serif?: boolean;
@@ -41,7 +42,7 @@ const BLOCKS: BlockSpec[] = [
   { line: 1, x0: -330, base: 30, row: [0, 1, 3, 4], hero: 2 },
   { line: 1, x0: 100, base: 30, row: [5, 6], hero: 7 },
   { line: 2, x0: -330, base: -90, row: [0, 1], hero: 2 },
-  { line: 2, x0: 100, base: -90, row: [3, 4], hero: 5, after: [6, 7], maxW: 160 },
+  { line: 2, x0: 100, base: -90, row: [3, 4, 6, 7], hero: 5, maxW: 190 },
   { line: 3, x0: -335, base: -215, row: [0], hero: 1, cap: 40, maxW: 150 },
   { line: 3, x0: -80, base: -215, row: [], hero: 2, cap: 40, maxW: 150 },
   { line: 3, x0: 125, base: -215, row: [], hero: 3, after: [4], cap: 40, maxW: 140 },
@@ -56,6 +57,20 @@ const PHRASES: [number, number[], number][] = [
 ];
 
 const clean = (s: string) => s.replace(/[,.!?]/g, '');
+
+/** The tag's face: manila card, the label in Plex Mono (lab text lives only inside objects). */
+export function bakeTag(): THREE.CanvasTexture {
+  const cv = document.createElement('canvas'); cv.width = 544; cv.height = 240;
+  const c = cv.getContext('2d')!;
+  c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
+  c.fillStyle = '#000'; c.textBaseline = 'middle'; c.textAlign = 'center';
+  c.font = font(F.mono(500), 62);
+  c.fillText('EXHIBIT 5', cv.width / 2 + 34, cv.height / 2 - 6);
+  c.fillRect(150, 162, 300, 4);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.NoColorSpace; t.anisotropy = 8; t.needsUpdate = true;
+  return t;
+}
 
 export interface Baked { words: TWord[]; phrases: TPhrase[]; cov: THREE.CanvasTexture; id: THREE.CanvasTexture }
 
