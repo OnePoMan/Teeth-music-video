@@ -122,7 +122,7 @@ void main() {
 /** Hand-local frame: s along the pen from the tip toward the back, u lateral (+ the thumb's side, the writer's
  *  left), w up from the pen (perpendicular to it, toward the camera). mm. A right hand in a tripod grip: the pen
  *  pinched between the thumb's pad, the index pad on top and the side of the middle finger's last joint. */
-const GLSL_HAND = /* glsl */ `
+export const GLSL_HAND = /* glsl */ `
 float rcap(vec3 p, vec3 a, vec3 b, float ra, float rb) {
   vec3 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
   return length(pa - ba * h) - mix(ra, rb, h);

@@ -4,14 +4,12 @@
 // its source taken from that file so there is one glove; lit here by the light table under it.
 import { GLSL_TEETH_PALETTE } from '../palette';
 import { SS_TAP_GLSL } from '../../engine/gl';
-import matchSrc from './match-glsl.ts?raw';
+import { GLSL_HAND as MATCH_HAND } from './match-glsl';
 import { SHEET, MK } from './chart-form';
 import { LYR } from './chart-lyric';
 
-const m = /const GLSL_HAND = \/\* glsl \*\/ `([\s\S]*?)\n`;/.exec(matchSrc);
-if (!m) throw new Error('chart: the glove (GLSL_HAND) was not found in match-glsl.ts');
 // the glove as it is, its sleeve run on into an arm (the plate 13 frame ends the sleeve a hand's length from the cuff)
-const GLSL_HAND = m[1]!.replace('ax * 190.0', 'ax * 1100.0');
+const GLSL_HAND = MATCH_HAND.replace('ax * 190.0', 'ax * 1100.0');
 const f = (x: number) => x.toFixed(3);
 
 export const HAND_SCALE = 0.8;
