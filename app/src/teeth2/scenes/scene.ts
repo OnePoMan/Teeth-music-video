@@ -21,29 +21,35 @@ const TANH = Math.tan((32 * RAD) / 2);
 
 // ---- the camera: keyed poses, eased into the beats (t, at x, at z, dist, tilt from vertical, phi = screen-up heading) ----
 type CamRow = [t: number, ax: number, az: number, d: number, tilt: number, phi: number, ease?: (u: number) => number];
-const CAM: CamRow[] = [
-  [21.10, 0, 4, 250, 0, -90],
-  [21.30, 0, 4, 250, 0, -90],
-  [21.80, -8, 31, 108, 7, -90],
-  [22.42, -8, 31, 108, 7, -90],
-  [22.83, -12, 22, 200, 50, -90],
-  [23.50, -12, 22, 200, 50, -90],
-  [24.55, -2, 24, 140, 8, -90],
-  [25.42, -2, 24, 136, 10, -84],
-  [26.28, 0, 24, 122, 20, -98],
-  [27.08, 32, 32, 92, 14, -88],
-  [27.75, 32, 32, 92, 14, -88],
-  [28.01, 16, 28, 70, 62, -180],
-  [29.00, 14, 28, 65, 62, -180],
-  [29.26, -6, 30, 66, 58, -90],
-  [29.73, -6, 28, 62, 58, -90],
-  [30.59, -6, 28, 62, 58, -90],
-  [31.46, 0, 16, 135, 18, -92],
-  [32.17, -4, 31, 80, 20, -90],
-  [33.19, -4, 32, 68, 30, -94],
-  [34.64, -4, 34, 60, 34, -93],
-  [34.80, -4, 34, 60, 34, -93],
-];
+const CUT2 = 29.30; // the second "push": a hard cut to a deeper framing
+let CAM: CamRow[] = makeCam(CUT2);
+function makeCam(cut: number): CamRow[] {
+  return [
+    [21.10, -22, 14, 168, 12, -90],
+    [21.30, -22, 14, 168, 12, -90],
+    [21.80, -8, 31, 108, 18, -90],
+    [22.42, -8, 31, 108, 18, -90],
+    [22.83, -14, 22, 170, 45, -90],
+    [23.50, -14, 22, 170, 45, -90],
+    [24.55, -2, 24, 140, 16, -90],
+    [25.42, -2, 24, 136, 22, -84],
+    [26.28, 0, 24, 122, 28, -98],
+    [27.08, 32, 32, 92, 21, -88],
+    [27.75, 32, 32, 92, 21, -88],
+    [28.01, 16, 28, 70, 62, -180],
+    [cut - 0.001, 14, 28, 65, 62, -180],
+    [cut, -14, 20, 76, 66, -90],
+    [29.73, -14, 19, 74, 66, -90],
+    [30.59, -14, 17, 70, 66, -90],
+    [31.46, 0, 16, 135, 18, -92],
+    [32.17, -4, 31, 80, 20, -90],
+    [33.40, -4, 32, 70, 28, -93],
+    [33.519, -4, 32, 69, 28, -93],
+    [33.52, -6, 30, 76, 46, -88],
+    [34.64, -6, 30, 70, 48, -88],
+    [34.80, -6, 30, 70, 48, -88],
+  ];
+}
 interface Cam { pos: THREE.Vector3; f: THREE.Vector3; r: THREE.Vector3; u: THREE.Vector3; at: THREE.Vector3; phi: number }
 function camAt(t: number): Cam {
   let i = 1;
@@ -77,51 +83,52 @@ interface Card {
   tApp: number; tLand: number; tLeave: number; snap: [number, number][]; // times at which the weight state steps to heavy (with a light dip before)
 }
 const STR = { x: -8, z: 30 }, LOV = { x: -30, z: 30 }, DED = { x: 32, z: 34 }, STY = { x: -4, z: 30 };
-const TAGP = { x: -42, z: 6 };
+const TAGP = { x: -36, z: 8 };
 
 /** Small-card groups: [line, word indices], the time to read the camera from, the screen anchor, the size, the leave time
  *  (the next beat after the group's last word ends). */
 interface Group { line: number; idx: number[]; anchor: number; sx: number; sy: number; sc: number; leave: number }
 const GROUPS: Group[] = [
-  { line: 0, idx: [0, 1, 2], anchor: 21.80, sx: 0.5, sy: 0.82, sc: 1.4, leave: 22.39 },
+  { line: 0, idx: [0, 1, 2], anchor: 21.80, sx: 0.5, sy: 0.7, sc: 1.4, leave: 22.39 },
   { line: 0, idx: [4, 5, 6], anchor: 22.83, sx: 0.5, sy: 0.82, sc: 2.0, leave: 23.26 },
   { line: 1, idx: [0, 1, 2, 3], anchor: 24.55, sx: 0.5, sy: 0.82, sc: 1.2, leave: 25.42 },
   { line: 1, idx: [5, 6, 7, 8], anchor: 26.28, sx: 0.5, sy: 0.82, sc: 1.2, leave: 26.71 },
   { line: 1, idx: [9], anchor: 27.08, sx: 0.5, sy: 0.82, sc: 1.2, leave: 27.57 },
-  { line: 2, idx: [1, 2], anchor: 28.44, sx: 0.38, sy: 0.3, sc: 1.7, leave: 29.30 },
-  { line: 2, idx: [4, 5], anchor: 29.73, sx: 0.5, sy: 0.3, sc: 1.7, leave: 30.59 },
+  { line: 2, idx: [1, 2], anchor: 28.44, sx: 0.38, sy: 0.26, sc: 1.7, leave: 29.30 },
+  { line: 2, idx: [4, 5], anchor: 29.73, sx: 0.5, sy: 0.36, sc: 1.7, leave: 30.59 },
   { line: 3, idx: [0, 1, 2, 3], anchor: 32.17, sx: 0.5, sy: 0.82, sc: 1.1, leave: 32.75 },
   { line: 3, idx: [5, 6, 7], anchor: 33.19, sx: 0.5, sy: 0.82, sc: 1.1, leave: 34.05 },
-  { line: 3, idx: [9], anchor: 34.64, sx: 0.5, sy: 0.82, sc: 1.1, leave: 99 },
+  { line: 3, idx: [9], anchor: 34.2, sx: 0.5, sy: 0.82, sc: 1.1, leave: 99 },
 ];
 
 const clean = (w: string) => w.replace(/[,.!?]+$/g, '');
-const WARM_POS = V(-125, 48, -92);
+const WARM_POS = V(-100, 42, 8);
 
 /** Word onsets the light and the focus are scripted to (read from the lyric data in init). */
 const WT = { love: 25.42, dead: 27.14, push1: 28.01, push2: 29.30, stay1: 32.22, stay2: 33.52 };
 
 function lightPose(t: number) {
-  // the cold work light on its arm: [t, aim x, aim z, alpha (deg, heading of the lamp from the aim), pool radius]
+  // the cold work light on its arm, low and raking: [t, aim x, aim z, s (deg: where it stands relative to the camera, + = camera right), pool radius]
   type LR = [number, number, number, number, number, ((u: number) => number)?];
   const swing = (u: number) => 1 - Math.cos((Math.PI / 2) * u); // released from rest, fastest at the bottom of the arc
   const rows: LR[] = [
-    [21.10, 10, 6, -35, 135],
-    [21.80, STR.x, STR.z, -12, 64],
-    [22.83, -30, 10, -5, 110],
-    [23.50, -25, 10, 0, 110],
-    [24.55, -4, 26, -25, 105],
-    [WT.love, LOV.x, LOV.z, -10, 52],
-    [WT.love + 0.53, LOV.x - 22, LOV.z, 12, 54],
-    [WT.dead, DED.x, DED.z, -45, 56, swing],
-    [27.57, DED.x, DED.z, -45, 56],
-    [WT.push1, 4, 28, -75, 98],
-    [WT.push2 - 0.04, 4, 28, -75, 98],
-    [WT.push2, -5, 30, 0, 92],
-    [30.59, -5, 30, 5, 92],
-    [WT.stay1 - 0.65, STY.x + 67, STY.z + 17, -20, 72],
+    [21.10, -10, 10, 45, 165],
+    [21.80, STR.x, STR.z, 28, 78],
+    [22.83, -30, 14, 22, 120],
+    [23.50, -25, 14, 18, 120],
+    [24.55, -4, 26, 26, 118],
+    [WT.love, LOV.x, LOV.z, 34, 62],
+    [WT.love + 0.53, LOV.x - 22, LOV.z, 14, 64],
+    [WT.dead, DED.x, DED.z, -34, 66, swing],
+    [27.57, DED.x, DED.z, -34, 66],
+    [WT.push1, 4, 28, 20, 112],
+    [WT.push2 - 0.04, 4, 28, 20, 112],
+    [WT.push2, -12, 20, 30, 120],
+    [30.59, -12, 20, 34, 120],
+    [WT.stay1 - 0.65, STY.x + 67, STY.z + 17, 30, 82],
   ];
-  let ax: number, az: number, al: number, R: number;
+  const phi = camAt(t).phi;
+  let ax: number, az: number, sdeg: number, R: number;
   const t0 = WT.stay1 - 0.65;
   if (t >= t0) {
     const u0 = clamp((t - t0) / 0.65), u1 = clamp((t - WT.stay1) / (WT.stay2 - WT.stay1));
@@ -130,26 +137,23 @@ function lightPose(t: number) {
     if (t >= WT.stay2) m = 6 * Math.exp(-(t - WT.stay2) / 0.2) * Math.sin((2 * Math.PI * (t - WT.stay2)) / 0.3);
     const dir = V(1, 0, 0.25).normalize();
     ax = STY.x + dir.x * m; az = STY.z + dir.z * m;
-    al = -40 + 0.25 * m;
-    R = lerp(72, 46, smoothstep(t0, WT.stay1, t));
+    sdeg = 36 - 0.35 * m;
+    R = lerp(82, 56, smoothstep(t0, WT.stay1, t));
   } else {
     let i = 1;
     while (i < rows.length - 1 && t > rows[i]![0]) i++;
     const a = rows[i - 1]!, b = rows[i]!;
     const u = (b[5] ?? ease.inOutCubic)(clamp((t - a[0]) / (b[0] - a[0])));
     const L = (n: number) => lerp(a[n] as number, b[n] as number, u);
-    ax = L(1); az = L(2); al = L(3); R = L(4);
+    ax = L(1); az = L(2); sdeg = L(3); R = L(4);
     if (t >= WT.dead) { // DEAD: the arm overshoots and settles
       const o = 7 * Math.exp(-(t - WT.dead) / 0.3) * Math.sin((Math.PI * (t - WT.dead)) / 0.42);
-      ax += o; al += o * 0.8;
+      ax += o; sdeg += o * 0.8;
     }
   }
-  const ang = al * RAD;
-  const pos = V(ax + 130 * Math.cos(ang), 78, az + 130 * Math.sin(ang));
-  const aim = V(ax, 0, az);
-  const dir = aim.clone().sub(pos);
-  const dist = dir.length(); dir.normalize();
-  return { pos, dir, aim, cosOut: Math.cos(Math.atan(R / dist)), cosIn: Math.cos(Math.atan((0.62 * R) / dist)) };
+  const ang = (phi + 180 - sdeg) * RAD;
+  const pos = V(ax + 120 * Math.cos(ang), 54, az + 120 * Math.sin(ang));
+  return { pos, aim: V(ax, 0, az), R };
 }
 
 export default class BedPlate extends Scene {
@@ -162,6 +166,7 @@ export default class BedPlate extends Scene {
   private rectsHero!: Record<string, Rect>;
   private rectsSmall!: Record<string, Rect>;
   private pushFar: [THREE.Vector3, THREE.Vector3] = [V(-40, 0, 28), V(-40, 0, 28)];
+  private farEdge: THREE.Vector3 = V(-14, 0, -55);
   private pushNear: [THREE.Vector3, THREE.Vector3] = [V(30, 0, 28), V(0, 0, 30)];
 
   override init() {
@@ -173,6 +178,7 @@ export default class BedPlate extends Scene {
     const L = lines.map((l) => l.words);
     const [l1, l2, l3, l4] = [L[0]!, L[1]!, L[2]!, L[3]!];
     WT.love = l2[4]!.start; WT.dead = l2[10]!.start; WT.push1 = l3[0]!.start; WT.push2 = l3[3]!.start; WT.stay1 = l4[4]!.start; WT.stay2 = l4[8]!.start;
+    CAM = makeCam(WT.push2);
     const wordsOf = (ws: typeof l1, idx: number[]) => idx.map((i) => ws[i]!);
     const linesOf = [l1, l2, l3, l4];
     const smallWords = new Set<string>();
@@ -186,9 +192,9 @@ export default class BedPlate extends Scene {
     this.cards.push(mk(0, 'STAY', 4, STY.x, STY.z, -90, -2 * RAD, 1, l4[4]!.start, 99, [l4[4]!.start, l4[8]!.start]));
     // PUSH: set down near the lens on each "push", lifted between (read from the camera of that moment)
     const c1 = camAt(l3[0]!.start), c2 = camAt(l3[3]!.start);
-    const p1 = ground(c1, 0.5, 0.64, 0.5), p2 = ground(c2, 0.42, 0.66, 0.5);
-    this.cards.push(mk(0, 'PUSH', 3, p1.x, p1.z, c1.phi, 3 * RAD, 0.8, l3[0]!.start, 29.0));
-    this.cards.push(mk(0, 'PUSH', 3, p2.x, p2.z, c2.phi, -3 * RAD, 0.8, l3[3]!.start, 30.59));
+    const p1 = ground(c1, 0.5, 0.78, 0.5), p2 = ground(c2, 0.42, 0.76, 0.5);
+    this.cards.push(mk(0, 'PUSH', 3, p1.x, p1.z, c1.phi, 3 * RAD, 0.6, l3[0]!.start, 29.0));
+    this.cards.push(mk(0, 'PUSH', 3, p2.x, p2.z, c2.phi, -3 * RAD, 0.6, l3[3]!.start, 30.59));
     this.pushNear = [p1, p2];
     this.cards.push(mk(2, 'TAG', 5, TAGP.x, TAGP.z, -90, 8 * RAD, 1, 20.0, 99, [20.0]));
     // supporting words: small folded cards in a row, anchored to the camera of the moment
@@ -219,8 +225,9 @@ export default class BedPlate extends Scene {
       });
     }
     // the far edge where the focus is racked to: the centres of the "me away" rows
-    const rowC = (anchor: number) => ground(camAt(anchor), 0.5, 0.3, 1.0);
-    this.pushFar = [rowC(28.44), rowC(29.73)];
+    const rowC = (anchor: number) => ground(camAt(anchor), 0.5, 0.26, 1.0);
+    this.pushFar = [rowC(28.44), ground(camAt(29.73), 0.5, 0.36, 1.0)];
+    this.farEdge = ground(camAt(29.73), 0.5, 0.14, 1.0);
 
     this.hfPass = new FSPass(HF_FRAG, { hfLo: { value: new THREE.Vector2(...HF.lo) }, hfSize: { value: new THREE.Vector2(...HF.size) } });
     this.hfPass.render(renderer, this.hfRT);
@@ -230,7 +237,7 @@ export default class BedPlate extends Scene {
       hfTex: { value: this.hfRT.texture }, heroA: { value: hero.A }, heroB: { value: hero.B }, smallTex: { value: sm.tex },
       hfLo: { value: new THREE.Vector2(...HF.lo) }, hfSize: { value: new THREE.Vector2(...HF.size) },
       camPos: { value: V(0, 0, 0) }, camR: { value: V(0, 0, 0) }, camU: { value: V(0, 0, 0) }, camF: { value: V(0, 0, 0) }, tanH: { value: TANH },
-      cPos: { value: V(0, 0, 0) }, cDir: { value: V(0, -1, 0) }, cCol: { value: V(1, 1, 1) }, cCone: { value: new THREE.Vector2(0.9, 0.8) },
+      cPos: { value: V(0, 0, 0) }, cAim: { value: V(0, 0, 0) }, cCol: { value: V(1, 1, 1) }, cRad: { value: 80 },
       wPos: { value: WARM_POS }, wCol: { value: V(1, 0.5, 0.15) },
       PA: { value: zero4() }, PX: { value: zero4() }, PD: { value: zero4() }, PE: { value: zero4() }, PS: { value: zero4() },
       atlasW: { value: 2048 },
@@ -280,11 +287,11 @@ export default class BedPlate extends Scene {
     // lights
     const lp = lightPose(t);
     (m.cPos!.value as THREE.Vector3).copy(lp.pos);
-    (m.cDir!.value as THREE.Vector3).copy(lp.dir);
-    (m.cCone!.value as THREE.Vector2).set(lp.cosIn, lp.cosOut);
-    (m.cCol!.value as THREE.Vector3).set(0.9, 0.98, 1.08).multiplyScalar(3.0);
-    const tl = T_LIN.tungsten;
-    (m.wCol!.value as THREE.Vector3).set(tl[0], tl[1], tl[2]).multiplyScalar(1.7);
+    (m.cAim!.value as THREE.Vector3).copy(lp.aim);
+    m.cRad!.value = lp.R;
+    (m.cCol!.value as THREE.Vector3).set(0.92, 1.0, 1.1).multiplyScalar(1.7);
+    const tl = T_LIN.tungsten; // warm light, desaturated a little toward white: illumination only
+    (m.wCol!.value as THREE.Vector3).set(lerp(tl[0], 1, 0.45), lerp(tl[1], 1, 0.45), lerp(tl[2], 1, 0.45)).multiplyScalar(2.4);
 
     // markers
     const PA = m.PA!.value as THREE.Vector4[], PX = m.PX!.value as THREE.Vector4[], PD = m.PD!.value as THREE.Vector4[], PE = m.PE!.value as THREE.Vector4[], PS = m.PS!.value as THREE.Vector4[];
@@ -313,17 +320,22 @@ export default class BedPlate extends Scene {
     // far edge of the bed, then pulled back for the next
     let fp = cam.at.clone().setY(2);
     let aper = 55;
-    if (focusCard) { fp = V(focusCard.x, 4, focusCard.z); aper = focusCard.key === 'STAY' ? lerp(60, 120, smoothstep(32.2, 33.6, t)) : 62; }
+    if (focusCard) { fp = V(focusCard.x, 4, focusCard.z); aper = focusCard.key === 'STAY' ? lerp(60, 90, smoothstep(32.2, 33.6, t)) : 62; }
     if (t < 21.8) aper = 30;
     if (t >= 22.5 && t < 24.4 && !focusCard) { fp = V(TAGP.x, 1, TAGP.z); aper = 40; }
     if (t >= 28.01 && t < 30.6) {
-      const a = this.pushNear[0].clone().setY(3), b = this.pushFar[0].clone().setY(1), a2 = this.pushNear[1].clone().setY(3), b2 = this.pushFar[1].clone().setY(1);
       aper = 220; this.dof.u.maxCoc!.value = 46;
-      if (t < 29.3) {
+      if (t < WT.push2 - 0.001) {
+        // the first rack: from the near marker out to the chips on the far part of the bed, and back
+        const a = this.pushNear[0].clone().setY(3), b = this.pushFar[0].clone().setY(1);
         const k = t < 28.44 ? ease.inOutCubic(clamp((t - 28.01) / 0.43)) : t < 29.0 ? 1 : 1 - ease.inOutCubic(clamp((t - 29.0) / 0.3));
-        fp = a.clone().lerp(b, k);
+        fp = a.lerp(b, k);
       } else {
-        fp = a2.clone().lerp(b2, ease.inOutCubic(clamp((t - 29.3) / 0.43)));
+        // the second rack, deeper: near marker, the chips as they are sung, then past them to the bed's far edge
+        const a = this.pushNear[1].clone().setY(3), c = this.pushFar[1].clone().setY(1), e = this.farEdge.clone().setY(3);
+        if (t < 29.73) fp = a.lerp(c, ease.inOutCubic(clamp((t - WT.push2) / 0.43)));
+        else if (t < 30.05) fp = c;
+        else fp = c.lerp(e, ease.inOutCubic(clamp((t - 30.05) / 0.42)));
       }
     }
     const d = this.dof.u;

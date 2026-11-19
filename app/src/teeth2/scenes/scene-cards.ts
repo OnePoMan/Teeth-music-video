@@ -5,13 +5,13 @@
 import * as THREE from 'three';
 import { F, font } from '../../engine/type';
 
-export const HERO_D = 26, HERO_H = 7.5;
-export const HERO_LS = Math.hypot(0.78 * HERO_D, HERO_H);
-export const SMALL_D = 6.5, SMALL_H = 2.6;
-export const SMALL_LS = Math.hypot(0.78 * SMALL_D, SMALL_H);
+// A-frame tent markers: a folded card, each face leaning at ~58 degrees (heroes) or 52 (chips) from the table.
+export const HERO_LS = 21.6, HERO_ANG = (58 * Math.PI) / 180;
+export const HERO_D = 2 * HERO_LS * Math.cos(HERO_ANG), HERO_H = HERO_LS * Math.sin(HERO_ANG);
+export const SMALL_LS = 5.7, SMALL_ANG = (52 * Math.PI) / 180;
+export const SMALL_D = 2 * SMALL_LS * Math.cos(SMALL_ANG), SMALL_H = SMALL_LS * Math.sin(SMALL_ANG);
 export const SMALL_CAP = 2.8;
-export const TAG_D = 9, TAG_H = 0.35, TAG_W = 23;
-export const TAG_LS = Math.hypot(0.78 * TAG_D, TAG_H);
+export const TAG_D = 9, TAG_H = 0.3, TAG_W = 23, TAG_LS = 9;
 export const TAG_TEXT = '08-32 · EXHIBIT 2';
 
 export interface Rect { u0: number; vtop: number; du: number; dv: number; tpc: number; faceW: number }
