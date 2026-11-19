@@ -1,7 +1,7 @@
-// `scale` shaders: the ray-marched bite-mark photograph, shot as a BLACK-AND-WHITE forensic photograph (cold
-// silver/film greys; the only colour in the plate is SWEET's wax when it is bitten). An apple stands stem up (a leaf
-// still on the stem) on film-black velvet, ONE BITE taken out of its flank: a crescent scooped through the skin into the
-// white flesh, its rim scalloped by his incisal edges (the chip on #8 a notch in the scallop), his incisors' grooves
+// `scale` shaders: the ray-marched bite-mark photograph, in colour within palette 2A. A golden apple in dental-stone
+// yellow (shades of stone: russet, greener by the stem, a faint desaturated wax blush) stands stem up (a cold grey-green
+// leaf on the stem) on film-black velvet, ONE BITE taken out of its flank: a crescent scooped through the skin into the
+// pale cream flesh, its rim scalloped by his incisal edges (the chip on #8 a notch in the scallop), his incisors' grooves
 // dragged down the scoop's upper wall, the lowers' short scrapes on its lower wall. An ABFO No. 2 scale stands on the
 // cloth beside the apple. The hero words are bitten OUT of the apple's other flank: letter-shaped cavities in the flesh.
 // One hard flash per photograph; a depth-of-field gather. Units: mm, Y up, the cloth at Y = 0.
@@ -46,6 +46,20 @@ const float SCZ = ${f(LAY.SCZ)}, SCY = ${f(LAY.SCY)};
 const vec4 PATCHR = vec4(${f(PATCH.x0)}, ${f(PATCH.y0)}, ${f(1 / (PATCH.x1 - PATCH.x0))}, ${f(1 / (PATCH.y1 - PATCH.y0))});
 const float SL = ${f(LAY.SL)}, SWD = ${f(LAY.SWD)}, ST = ${f(LAY.ST)};
 
+float lumY(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+/** A mix of two palette tokens taken in display (sRGB-like) space: a shade between them as the eye sees it. */
+vec3 gmix(vec3 a, vec3 b, float t) { return pow(mix(pow(a, vec3(0.4545)), pow(b, vec3(0.4545)), t), vec3(2.2)); }
+// the golden apple's shades of the palette (2A): tints and shades of stone, with silver, halide, lightbox and wax
+#define STONE_G gmix(T_STONE, T_SILVER, 0.3)
+#define RUSS (T_STONE * T_STONE / 0.807 * 0.62)
+#define BLUSH gmix(T_STONE, gmix(T_WAX, T_HALIDE, 0.45), 0.6)
+#define CREAM gmix(T_STONE, T_LIGHTBOX, 0.64)
+#define OXID gmix(RUSS, T_SILVER, 0.3)
+#define LEAFC gmix(T_SILVER, T_STONE, 0.22)
+// (STONE_G: stone pulled toward silver, greener by the stem; RUSS: a darker, warmer shade of stone; BLUSH: the wax,
+// desaturated, faint; CREAM: the flesh, stone tinted toward lightbox; OXID: the cut's faint browning; LEAFC: a cold
+// green-grey between silver and stone)
+
 const float M_SKIN = 1.0, M_CLOTH = 2.0, M_SCALE = 3.0, M_BLOCK = 4.0, M_STEM = 5.0, M_LEAF = 6.0;
 
 vec2 opU(vec2 a, vec2 b) { return a.x < b.x ? a : b; }
@@ -76,10 +90,15 @@ float teethCut(float X, bool upper) {
   for (int i = 0; i < 6; i++) {
     vec4 t = upper ? upT[i] : loT[i];
     float u = (X - t.x) / max(t.y - t.x, 0.1);
-    if (u > -0.15 && u < 1.15) {
-      float sc = sat(1.0 - pow(abs(2.0 * u - 1.0) / 1.1, 2.0));
-      // #8: its mesial third is the chip, a small unbitten wedge between #9's scallop and #8's
-      float facet = t.w == 8.0 ? smoothstep(0.22, 0.48, u) : 1.0;
+    // a canine's cusp tip is a narrow span: its pit is drawn at least ~4 mm wide and shallower (a round dimple, never
+    // a slot or a fang)
+    float w = t.y - t.x, hw = max(0.5 * w, 2.0);
+    float uc = (X - 0.5 * (t.x + t.y)) / hw;
+    if (abs(uc) < 1.15) {
+      float sc = sat(1.0 - pow(abs(uc) / 1.1, 2.0)) * mix(0.5, 1.0, smoothstep(2.0, 4.5, w));
+      // #8: its mesial half is the chip: the corner is missing, so it bit a shallow diagonal shelf there, then a crisp step
+      // down to the full scallop (an unbitten wedge between #9 and #8 that reads as a notch in the rim)
+      float facet = t.w == 8.0 ? mix(0.12 + 0.4 * sat(u / 0.46), 1.0, smoothstep(0.46, 0.53, u)) : 1.0;
       g = max(g, sc * mix(0.75, 1.0, t.z) * facet);
     }
   }
@@ -99,13 +118,13 @@ float scoop(vec3 p) {
   // the incisors' edges: deeper scallops along the rim, their grooves dragged down the upper wall into the scoop; the
   // lowers' shorter scrapes on the lower wall
   // (only in a band at each rim: the teeth cut the rim and drag a few millimetres down the wall, not across the floor)
-  float up = smoothstep(5.0, 13.0, Y), lo = smoothstep(-6.0, -14.0, Y);
+  float up = smoothstep(3.0, 11.0, Y), lo = smoothstep(-6.0, -14.0, Y);
   // the upper incisors cut the rim (each its own scallop) and drag down the wall; the lowers mark the far wall faintly
   // (shallow, wide arcs meeting in small points of skin: a bitten edge, never fang shapes)
-  if (up > 0.0) s -= 1.4 * teethCut(X, true) * up;
+  if (up > 0.0) s -= 2.3 * teethCut(X, true) * up;
   if (lo > 0.0) s -= 0.4 * teethCut(X, false) * lo;
   // tooth drag: fine grooves running down the flesh from the upper rim (perpendicular to it), fading toward the floor
-  s += (0.035 + 0.05 * up) * snoise(vec2(X * 1.6, Y * 0.16)) + 0.02 * snoise(vec3(p * 2.0));
+  s += (0.02 + 0.03 * up) * snoise(vec2(X * 1.6, Y * 0.16)) + 0.02 * snoise(vec3(p * 2.0));
   return s * 0.8;
 }
 
@@ -330,25 +349,43 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   float fleshK = 0.0, waxK = 0.0; vec3 fleshC = vec3(0.0);
   if (m == M_SKIN) {
     vec3 q = toApple(P);
-    float hN = q.y / AH, phi = sPhi(q);
-    // the skin (in the photograph's greys): a dark blush, broken by fine lighter striations stem to calyx, the
-    // lighter ground toward the stem; lenticels as pale speckles; a waxy coat that takes the flash
-    float stri = snoise(vec2(phi * 18.0, hN * 0.8)) * 0.6 + snoise(vec2(phi * 48.0, hN * 1.2)) * 0.4;
-    float blush = sat(0.75 + 0.45 * fbm(vec2(phi * 1.6, hN * 1.8) + 4.0, 3) - 0.6 * smoothstep(0.55, 0.95, hN));
-    float lum = mix(0.06, 0.026, blush);
-    lum *= 1.0 + 0.18 * stri * blush + 0.12 * snoise(vec2(phi * 3.0, hN * 2.5));
-    alb = vec3(lum);
+    float hN = q.y / AH, phi = sPhi(q), cr = length(q.xz);
+    float az = atan(q.x, q.z);
+    // the skin: a golden apple in dental-stone yellow (a Golden Delicious): the stone ground, greener toward the stem
+    // (stone pulled toward silver), a soft mottle, russet freckles and lenticels (darker, warmer shades of stone), one
+    // faint wax blush on the cheek away from the bite and the word; a thin waxy coat that takes the flash
+    float mot = fbm(vec2(phi * 1.6, hN * 1.8) + 4.0, 3);
+    float k = 0.37 * (1.0 + 0.09 * mot + 0.04 * snoise(vec2(phi * 16.0, hN * 1.4)));
+    vec3 base = mix(T_STONE, T_STONE * T_STONE / 0.807, 0.12 + 0.14 * smoothstep(0.2, -0.6, hN));
+    base = mix(base, STONE_G, sat(smoothstep(0.3, 0.92, hN) * 0.75 + 0.1 * sat(0.4 - mot) + 0.08 * smoothstep(-0.4, -0.95, hN)));
+    float dAz = mod(az - 2.0 + PI, 2.0 * PI) - PI;
+    float cheek = exp(-dAz * dAz / 0.55) * smoothstep(-0.75, -0.1, hN) * smoothstep(0.75, 0.15, hN) * sat(0.6 + 0.8 * mot);
+    base = mix(base, BLUSH, 0.32 * cheek);
+    alb = base * k;
+    // freckles: sparse russet dots (~4 mm cells)
+    vec2 fc = vec2(phi * AR, q.y) / 4.3;
+    vec2 fi = floor(fc), ff = fract(fc) - 0.5 - (hash22(fi + 21.0) - 0.5) * 0.6;
+    float frk = (1.0 - smoothstep(0.015, 0.05, length(ff))) * step(0.7, hash12(fi + 9.0));
+    alb = mix(alb, RUSS * k * 0.9, frk * 0.4);
+    // lenticels: small russet points with a paler ring (~1.9 mm cells)
     vec2 sc = vec2(phi * AR, q.y) / 1.9;
     vec2 ci = floor(sc), cf = fract(sc) - 0.5;
     vec2 jo = (hash22(ci) - 0.5) * 0.6;
     float ang = hash12(ci + 11.0) * 6.2832;
     vec2 dl = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * (cf - jo);
-    dl.x *= 0.45 + 0.4 * hash12(ci + 5.0);
-    float lr = 0.035 + 0.05 * hash12(ci + 7.0);
-    float len = 1.0 - smoothstep(lr * 0.4, lr, length(dl));
-    float dens = mix(0.7, 0.4, smoothstep(-0.2, -0.85, hN));
-    alb = mix(alb, vec3(0.046), len * 0.55 * step(dens, hash12(ci + 3.0)));
-    rough = 0.6 + 0.05 * snoise(P * 0.4); f0 = 0.025; wrap = 0.2; coat = 1.0;
+    dl.x *= 0.55 + 0.4 * hash12(ci + 5.0);
+    float lr = 0.03 + 0.035 * hash12(ci + 7.0);
+    float on = step(mix(0.7, 0.55, smoothstep(-0.2, -0.85, hN)), hash12(ci + 3.0));
+    float len = (1.0 - smoothstep(lr * 0.35, lr, length(dl))) * on;
+    float ring = sat((1.0 - smoothstep(lr, lr * 1.9, length(dl))) * on - len);
+    alb = mix(alb, CREAM * k * 1.1, ring * 0.12);
+    alb = mix(alb, RUSS * k * 0.75, len * 0.7);
+    rough = 0.5 + 0.05 * snoise(P * 0.4); f0 = 0.03; wrap = 0.2; coat = 0.85;
+    // the stem well: russet netting in the cavity (rougher, warmer, darker)
+    float well = smoothstep(0.72, 0.9, hN) * smoothstep(12.0, 4.0, cr);
+    float net = well * smoothstep(-0.15, 0.35, fbm(q.xz * 0.55 + 2.0, 4) + 0.35 * well);
+    alb = mix(alb, RUSS * k * (0.75 + 0.3 * snoise(q * 1.3)), net * 0.85);
+    rough = mix(rough, 0.85, net); coat *= 1.0 - net;
     // the flesh: inside the bite (below the original skin) and in the word's cavities
     float inBite = smoothstep(-0.05, -0.35, body0) * step(cut, 1.0);
     float inWord = smoothstep(0.1, -0.25, ws) * wordAmt;
@@ -356,45 +393,43 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     if (flesh > 0.0) {
       float gr = 0.6 * snoise(P * 18.0) + 0.4 * snoise(P * 40.0);
       float wall = sat(0.5 - 0.5 * gr) * 0.5;
-      // white, a little translucent; browning (very desaturated) a millimetre or so in from the cut skin
-      float brown = inBite * (1.0 - smoothstep(-0.4, -2.2, body0)) + inWord * (1.0 - smoothstep(-0.05, -0.6, ws));
-      vec3 cream = vec3(0.27) * (1.0 - 0.2 * wall);
-      vec3 flc = mix(cream, mix(T_STONE, T_SILVER, 0.55) * 0.5, sat(brown) * 0.55);
-      // SWEET (the tender word): its flesh blushes wax, the one colour in the photograph
+      // pale cream (stone toward lightbox), a little translucent; faint oxidation a millimetre in from the cut skin
+      float brown = inBite * (1.0 - smoothstep(-0.4, -2.4, body0)) + inWord * (1.0 - smoothstep(-0.05, -0.6, ws));
+      vec3 cream = CREAM * 0.5 * (1.0 - 0.18 * wall);
+      vec3 flc = mix(cream, OXID * 0.5, sat(brown) * 0.4);
+      // SWEET (the tender word): its bitten flesh takes the wax pink
       waxK = inWord * wordWax;
       flc = mix(flc, T_WAX * 0.78, waxK);
       alb = mix(alb, flc, flesh);
-      rough = mix(rough, 0.55 + 0.15 * wall, flesh); f0 = mix(f0, 0.025, flesh); wrap = mix(wrap, 0.5, flesh); coat *= 1.0 - flesh;
+      rough = mix(rough, 0.55 + 0.15 * wall, flesh); f0 = mix(f0, 0.025, flesh); wrap = mix(wrap, 0.3, flesh); coat *= 1.0 - flesh;
       fleshK = flesh; fleshC = flc;
     }
-    float cr = length(q.xz);
     if (hN < -0.75) {
       float star = smoothstep(4.0, 1.0, cr + 1.1 * cos(5.0 * phi));
-      alb = mix(alb, vec3(0.02), star);
+      alb = mix(alb, RUSS * 0.06, star);
       rough = mix(rough, 0.85, star); coat *= 1.0 - star;
     }
-    // the stem well: the skin rougher, lighter (russet)
-    alb = mix(alb, vec3(0.16) * (0.8 + 0.4 * snoise(q * 0.9)), smoothstep(0.78, 0.92, hN) * smoothstep(9.0, 3.0, cr) * (1.0 - fleshK));
   } else if (m == M_STEM) {
     vec3 q = toApple(P);
-    alb = vec3(0.06) * (0.75 + 0.35 * snoise(vec3(q.x * 3.0, q.y * 0.6, q.z * 3.0)));
-    alb = mix(alb, vec3(0.14), smoothstep(42.0, 45.0, q.y));
+    alb = mix(T_STONE * 0.09, T_FILM2, 0.3) * (0.75 + 0.35 * snoise(vec3(q.x * 3.0, q.y * 0.6, q.z * 3.0)));
+    alb = mix(alb, gmix(T_SILVER, T_STONE, 0.4) * 0.3, smoothstep(42.0, 45.0, q.y));
     rough = 0.6;
   } else if (m == M_LEAF) {
-    // a leaf: darker than the skin, a waxy upper face, its midrib and veins lighter
+    // a leaf: a cold green-grey (between silver and stone), darker than the skin, a waxy upper face, its midrib and
+    // veins lighter
     vec3 l = leafL(P);
     float x = l.x - 6.0;
     float rib = 1.0 - smoothstep(0.25, 0.6, abs(l.y));
     float vu = abs(l.y) * 1.4 - x * 0.55;
     float vein = (1.0 - smoothstep(0.08, 0.3, abs(fract(vu / 5.0 + 0.5) - 0.5) * 5.0)) * smoothstep(1.0, 3.0, abs(l.y));
-    alb = vec3(0.045) * (0.85 + 0.25 * snoise(l.xy * 0.4));
-    alb = mix(alb, vec3(0.12), max(rib, vein * 0.55));
+    alb = LEAFC * 0.2 * (0.85 + 0.25 * snoise(l.xy * 0.4));
+    alb = mix(alb, LEAFC * 0.42, max(rib, vein * 0.55));
     rough = 0.32; f0 = 0.04; coat = 0.5; wrap = 0.3;
     if (dot(N, V) < 0.0) N = -N;
   } else if (m == M_CLOTH) {
     float fib = snoise(P.xz * 3.5) * 0.5 + snoise(P.xz * 0.9) * 0.5;
     float nap = snoise(P.xz * 1.6 + 3.0) * 0.5 + snoise(P.xz * 6.0) * 0.3 + snoise(P.xz * 0.25) * 0.4;
-    alb = vec3(0.011 * (1.0 + 0.35 * fib + 0.3 * nap)); rough = 1.0; f0 = 0.0; sheen = 0.16 + 0.06 * nap;
+    alb = mix(vec3(1.0), T_FILM / lumY(T_FILM), 0.4) * 0.008 * (1.0 + 0.35 * fib + 0.3 * nap); rough = 1.0; f0 = 0.0; sheen = 0.16 + 0.06 * nap;
   } else if (m == M_SCALE) {
     alb = T_LIGHTBOX * 0.66; rough = 0.55; f0 = 0.04;
     vec3 s = scaleL(P);
@@ -426,15 +461,10 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   }
   col += T_SILVER * sheen * pow(1.0 - NoV, 4.0) * fall * (0.3 + 0.7 * sh) * sat(NoL + 0.6);
   // apple flesh is translucent: the cut carries some of the light that reaches the fruit around it
-  if (fleshK > 0.0) col += fleshK * fleshC * T_LIGHTBOX * fall * 0.25 * sat(dot(normalize(P - AC), L) + 0.4);
+  // (in the narrow letter cavities the light scattered through the flesh keeps them cream, not grey)
+  if (fleshK > 0.0) col += fleshK * fleshC * T_LIGHTBOX * fall * (0.16 + 0.22 * step(ws, 0.0)) * sat(dot(normalize(P - AC), L) + 0.4);
   col += alb * T_LIGHTBOX * fillI * sat(0.35 + 0.65 * dot(N, fillDir)) * mix(0.3, 1.0, ao);
   col += alb * T_FILM2 * 0.4 * ao;
-  // the photograph is black and white, graded cold (silver toward film blue-black); only SWEET's wax keeps its colour
-  float y = dot(col, vec3(0.2126, 0.7152, 0.0722));
-  vec3 coldD = mix(vec3(1.0), T_FILM2 / max(dot(T_FILM2, vec3(0.2126, 0.7152, 0.0722)), 1e-4), 0.35);
-  vec3 coldL = mix(vec3(1.0), T_HALIDE / dot(T_HALIDE, vec3(0.2126, 0.7152, 0.0722)), 0.6);
-  vec3 cold = mix(coldD, coldL, sat(y * 3.0));
-  col = mix(y * cold, col, waxK);
   float depth = dot(P - ro, camF);
   col = min(col, vec3(0.95));
   return vec4(col, depth);

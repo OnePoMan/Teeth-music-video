@@ -1,12 +1,13 @@
 // Plate 5 `scale` — chorus 1, first half (48.73 – 62.54), docs/TEETH2.md. Bite-mark photography and the first stomp,
-// shot as a BLACK-AND-WHITE forensic photograph (cold silver and film greys, a hard flash, true blacks; the only
-// colour in the plate is SWEET's wax when it is bitten). An apple stands stem up, one leaf on the stem, on film-black
-// velvet, ONE BITE taken out of its flank (a crescent scooped into the white flesh, its rim scalloped by his incisal
+// shot in colour within palette 2A (a hard flash, true blacks). A GOLDEN apple in dental-stone yellow (a Golden
+// Delicious: russet freckles and lenticels, greener toward the stem, a faint wax blush; the bite and the cast he pours
+// in chorus 2 share the colour) stands stem up, one cold grey-green leaf on the stem, on film-black velvet, ONE BITE
+// taken out of its flank (a crescent scooped into the pale cream flesh, its rim scalloped by his incisal
 // edges with #8's chip a notch in the scallop, his incisors' grooves dragged down the scoop's wall, the lowers' short
 // scrapes below; teeth.ts biteMark(HIS)). An ABFO No. 2 scale stands on the cloth beside it, facing the copy camera,
 // its sticker the plate's one readable label (08-32 · EXHIBIT 4). The stomp is the shutter: every beat a flash, every
 // flash a new photograph, a new camera each time (the exhibit at 3/4, the bite in profile, macro on the bitten rim, the
-// ruler's edge, the scale's corner, the chip), never framing the bite frontally (two opposing arcs read as a mouth).
+// ruler's edge, the scale's corner, the chip). Bitten flesh is cream (SWEET's takes the wax pink); nothing blooms.
 //
 // The hero words are bitten OUT of the apple's other flank: letter-shaped cavities into the flesh, Archivo condensed
 // black built from tooth-width scallop bites, the letter over #8's position chipped; a 3/4 macro so the skin curves
