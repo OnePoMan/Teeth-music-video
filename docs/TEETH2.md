@@ -1,4 +1,4 @@
-# Teeth v2 — "Dental Records": treatment & style bible (draft 4, gate 1)
+# Teeth v2 — "Dental Records": treatment & style bible (draft 5, after the gate 2 calls)
 
 A code-rendered, word-synced music video for "Teeth" (5 Seconds of Summer) on the P(doom) engine (`docs/ENGINE.md`). Every frame is a pure function of song time; lyrics are aligned per word (`data/teeth/lyrics.json`); cuts and hits sit on the analysed grid (139.0 BPM, one bar = 1.727 s; `data/teeth/audio.json`). The quality bar is the P(doom) video: a different visual idiom per plate, ray-marched 3D where it earns it, adaptive motion blur, grain and halation, a true 4K60 render.
 
@@ -47,7 +47,8 @@ Fast and physical. The lab's instruments (camera flash, UV lamp, vibrator table,
 | **fluor** | `#CFF4FF` | fluorescent blue-white: what glows under UV (plate 6) |
 | **luminol** | `#3FA9FF` | luminol blue: plate 11 only |
 | **wax** | `#E58FA0` | baseplate-wax pink: the tender register ("sweet", "pretty", "rose", "wife") |
-| **stone** | `#E8C35A` | dental-stone yellow: the casts (plates 9, 10, 13) |
+| **stone** | `#E8C35A` | dental-stone yellow: the golden apple (plate 5) and the casts (plates 9, 10, 13): the bite and the cast share a colour |
+| **tungsten** | `#FFB46A` | warm lamp: plate 3 only (the bed), never near 165.16 |
 | **match** | `#FF2A1F` | red: first on "teeth" at 165.16; on the matched outline, the monogram and the stamp; drains as the folder closes (~186 s) |
 
 Light plates (polygraph, chart) invert to lightbox white with film-black ink. Only uv, fluor, luminol and match may glow. Values are tuned on the gate 2 stills.
@@ -65,7 +66,7 @@ Light plates (polygraph, chart) invert to lightbox white with film-black ink. On
 - A word appears or lights at its `start` (letters spring up ~45 ms ahead) and completes by its `end`; nothing shows more than 0.4 s early; no fade-in entrances.
 - One phrase on screen (1–4 words of the line being sung); a line leaves on the next beat after it ends.
 - One **hero word** per line at frame scale, readable at a glance, frontal, inside title-safe (96 px). Supporting words are physical things in the scene, never flat captions.
-- Default states (chosen from the gate 2 type sheet): unsung halide at ~35%, sung lightbox white, the hero in its plate's idiom.
+- States (client, gate 2: treatment A): unsung halide at ~35%, sung lightbox white, the hero in its plate's idiom; the hero word also snaps from light to heavy weight on its onset (borrowed from treatment B), with letter positions locked so nothing reflows.
 
 ## Song map and plates
 
@@ -93,13 +94,13 @@ A bank of steel filing cabinets under one cold overhead fluorescent tube. The lo
 A lightbox's tube strikes, two flickers on the first downbeat, then cold white behind a panoramic radiograph of a full set of teeth. The camera tracks slowly along the curve of the jaw, pushing in on downbeats. The sung words are **radiopaque**: bright silver in the film, as fillings are, each coming through as it is sung. Between the lines (9.3–10.8) a gloved hand clips a tag to the film's corner and signs it: **the monogram**, first sighting. "burning": the tube overexposes the film to white. "the nights grow cold": the tube cools and dims, the film going grey-blue, the teeth faint. "Can't look away, can't look away": a loupe pushes in to tooth #8 in two steps, one per phrase: the chip. "Beg you to stay, beg you to stay, yeah": each STAY comes through in a new filling as the camera snaps tooth to tooth along the arch, and on "yeah" the arch's fillings light one after another back to the last molar.
 
 ### 3 `scene` — "Sometimes you're a stranger in my bed" (21.10 – 34.64)
-A top-down shot of an empty, unmade bed under a raking work light, no one in it. It reads as *left*, not as harm: the covers thrown back on one side as by someone getting up, the other pillow bare (its case is already bagged: plate 6's exhibit), no body shape, no stain. Evidence markers are set down on the sheet on the bass notes, each a placard carrying the hero word, the words never in the sheet itself: **STRANGER** (marker 1, the biggest); "love me, or you want me dead": two placards, LOVE and DEAD, the work light swinging between them on its arm. "Push me away, push me away": on each "push" (28.01, 29.30) the focus is pulled away, racking from the near markers to the far edge of the bed, the near words dissolving into blur (an optical distance, nothing shoved). "beg me to stay": the work light's swing lands on the marker STAY, the only thing in focus. No flash here: the first flash in the video belongs to the chorus.
+A top-down shot of an empty, unmade bed, no one in it, the one warm plate in the video: the bed sits in a low tungsten glow (a bedside lamp, the memory of the room), and the investigation's cold work light rakes across it. It reads as *left*, not as harm: the covers thrown back on one side as by someone getting up, the other pillow bare (its case is already bagged: plate 6's exhibit), no body shape, no stain. Evidence markers are set down on the sheet on the bass notes, each a placard carrying the hero word, the words never in the sheet itself: **STRANGER** (marker 1, the biggest); "love me, or you want me dead": two placards, LOVE and DEAD, the work light swinging between them on its arm. "Push me away, push me away": on each "push" (28.01, 29.30) the focus is pulled away, racking from the near markers to the far edge of the bed, the near words dissolving into blur (an optical distance, nothing shoved). "beg me to stay": the work light's swing lands on the marker STAY, the only thing in focus. No flash here: the first flash in the video belongs to the chorus.
 
 ### 4 `polygraph` — pre-chorus 1 (34.64 – 48.73)
 Light plate. The cut lands on 34.64; the paper starts scrolling and the pens drop on the synths' downbeat at 34.91. Four pens (two pneumo, cardio, skin conductance). The lyric is written by the cardio pen in a single-stroke hand, the trace climbing out of its line into letters. "Every little lie gives me butterflies": on "lie" the cardio pen jumps a full channel high and stays a jagged trace; on "butterflies" all four pens tremble at once, a fast nervous flutter across every channel, the paper shivering under them (the butterflies as the body's tell, no wing shapes). "looking through my eyes": the camera goes under the paper and looks *through* it, the trace reversed against light. "make it out alive": the cardio pen races, the trace tightens, and on the downbeat into chorus 1 the pen tears through the paper. The header, small: SUBJECT, left blank.
 
 ### 5 `scale` — chorus 1, first half (48.73 – 62.54)
-Bite-mark photography, and the first stomp. A bitten apple on a black cloth, an L-shaped ABFO No. 2 scale beside the bite, a camera on a copy stand. **The stomp is the shutter: every beat a flash**, every flash a new photograph, cutting on every beat, varied in distance and lens (wide on the stand, macro on the arc, the ruler's edge, the bite in profile), never cycling. Each hero word is **bitten into the apple**: its letters are the tooth marks, landing on the raking-light frames so their relief reads: DIRTY, SWEET (wax pink, Cormorant), PRETTY, TEETH; DEVIL, HANDS, NEVER, GO. The chip on #8 shows in every bite as a small gap in the arc. One label in frame: 08-32 · EXHIBIT 4.
+Bite-mark photography, and the first stomp. A bitten **golden apple** (stone yellow: the same colour as the cast he pours in chorus 2) on black velvet, the bite photographed face-on as bite marks are, a white L-shaped ABFO No. 2 scale lying beside it in the bite's plane, the camera on a tripod. **The stomp is the shutter: every beat a flash**, every flash a new photograph, cutting on every beat, varied in distance and lens (the wide exhibit, macro on the arc, the ruler's edge, the bite in profile, the chip), never cycling. The supporting words are bitten small and shallow as they are sung; the hero words deep. Each hero word is **bitten into the apple's flank** (Archivo condensed black, the letter rims scalloped at tooth width with slightly torn skin), landing on the raking-light frames so their relief reads: DIRTY, SWEET (wax pink, Cormorant), PRETTY, TEETH; DEVIL, HANDS, NEVER, GO. The chip on #8 shows in every bite as a small unbitten wedge in the scalloped rim (and as a notch in the T over #8's position). One label in frame: 08-32 · EXHIBIT 4.
 
 ### 6 `uv` — chorus 1, second half (62.54 – 76.35)
 A different exhibit: the pillowcase from the bed, laid out on the bench in the dark. A gloved hand sweeps a UV lamp across it on the beat, and where the violet beam passes the dried saliva fluoresces fluor-white, each sung word revealed by the beam and sinking back into dark behind it, the camera tracking with the lamp. "put your hands on me": the glove swabs the glowing trace, one stroke per word, and each stroke lifts the glow onto the swab. "never, never, never ever": three sweeps, faster each time; on "let go" the beam holds still on GO and its glow decays slowly into the dark (the one plate where the word fades by itself). The only violet in the video.
@@ -155,12 +156,20 @@ Real engine renders at 1080p, before any plate is built:
 
 ## Taste calls: the client's answers (2026-11-17)
 
-1. **The monogram's letters**: **T.F.**
+1. **The monogram's letters**: **T.F.**, drawn with its full stops (client, gate 2).
 2. **Apple or peach**: the **apple**.
 3. **The red**: as written, on the matched outline, the monogram and the stamp; no full-frame flood.
-4. **The cold palette**: kept as written for now; the gate 2 colour sheet shows a warm-lamp variant beside it for the final call.
+4. **The cold palette**: cold everywhere except plate 3 (the bed), which is warm under the cold work light (client, gate 2).
 5. **CSI-familiar exhibits**: keep the mix.
 6. **First viewing or second**: kept as written; judged again on the rough cut.
 7. **The stakes**: implied, never "he killed her". The intended reading is **Eden reversed**: he builds a case that she is the late-night devil who tempted and wounded him, and the bite in the apple turns out to be his; he is the one with teeth, the one who will not let go, and the loop sends him back to the file. The stakes guards in rule 5 keep the crime-scene grammar (the bed, the markers, the luminol) from tipping into violence; the bed's DEAD placard is the image to watch on the contact sheet.
 8. **The voicemail's splice**: a **clue**. The gloved hand makes the cut itself (plate 8), so the lie is his.
 9. **The silent ending**: kept.
+
+## Gate 2 calls: the client's answers (2026-11-19)
+
+1. **Lyric colour**: treatment A, plus the hero word snapping from light to heavy on its onset (letter positions locked).
+2. **Lamp**: warm in plate 3 (the bed) only; cold everywhere else.
+3. **The apple**: golden, in the palette's stone yellow (replacing the black-and-white photograph), linking the bite to the cast.
+4. **Bitten letters**: the middle way: scalloped tooth-width edges with slightly torn skin, the word legible at a glance.
+5. **The signature**: the angular T.F. mark, with its two full stops.

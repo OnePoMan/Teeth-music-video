@@ -64,3 +64,6 @@ Lead rulings from review 3 (settled):
 - The maxillary pour fills the palate with stone (it becomes the full upper cast seen at 165).
 - TEETH on the cast's base matches HEART's weight (Archivo condensed black relief).
 Fix round 3 applied (2026-11-19): apple bite face-on with the scale in its plane, a scalloped rim with the #8 wedge, FIGHT bitten small, crisp speculars, flash-lit TEETH with bitten edges; kit with tight anterior contacts, raised papillae, a concave #8 fracture, 1.15:1 lower roots; film-black pano and the signed tag on a spring clip at 10.60; the cast on a lit bench with TEETH matching HEART and the palate poured; the match's chip under a raking copy-stand key, no lamp disc, a matte nitrile glove with the pen visible, EXHIBIT 8 and suspect labels. The gauntlet stopped here (four-round cap); remaining items went to the client with the set.
+
+## Gate 2 client calls (2026-11-19, settled)
+Lyric treatment A plus a light-to-heavy snap on the hero word; warm (tungsten) light in plate 3 only; the apple golden in stone yellow (supersedes the B&W ruling); bitten letters the middle way; the T.F. signature with its two full stops (monogram.ts strokes 3–4, tapped as the signing completes). Gate 3 runs on the economy plan in the handoff.

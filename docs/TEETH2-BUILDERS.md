@@ -7,7 +7,7 @@ Read first: `docs/TEETH2.md` (the treatment: binding rules, palette, type, karao
 - Tools: `source "C:/Users/ethan/AppData/Local/Temp/claude/cfad46517603a052/9cd82c25-3044-40fa-8ee0-94249aa1e680/scratchpad/env.sh"` puts bun and ffmpeg on PATH. (If that file is gone: bun and ffmpeg are under `%LOCALAPPDATA%/Microsoft/WinGet/Packages/`.)
 - Stills: `cd app && bun scripts/render.ts stills --song teeth --t 55.0,55.3 --only scale --out ../out/gate2/scale`, then **look at the PNGs** with the Read tool. Give `--out` an absolute path to a fresh folder (an existing or relative one fails with EEXIST on this machine), and pass `--url http://localhost:5193` (a dead port) so render.ts starts its own server without live reload: other builders' edits then cannot reload your page mid-render. A board (not part of the edit): `--query board=typesheet --only typesheet`.
 - Typecheck your files: `cd app && bun x tsc --noEmit -p tsconfig.json 2>&1 | grep teeth2/` (`bunx` is not on PATH here).
-- One GPU (AMD RX 9070 XT) is shared by up to three builders: render stills, not videos, and don't run `perf` on long ranges.
+- One GPU (AMD RX 9070 XT) is shared by up to two builders: render stills and short low-res clips only, and don't run `perf` on long ranges. Be economical: few, purposeful renders; look at each one.
 
 ## Files
 

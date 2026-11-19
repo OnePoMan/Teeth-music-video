@@ -23,13 +23,23 @@ Read this first in every new session ("Continue Teeth v2 from the handoff"), the
 
 ## Team and models
 
+**Economy plan from gate 3 on (client-approved 2026-11-19).** Gate 2 used about half a week of the Pro limit; these rules bring gate 3 to roughly one to one and a half weeks:
+
+1. **A fresh builder per plate** with a short brief (`docs/TEETH2-BUILDERS.md` + the plate's paragraph + the relevant ledger rulings). Never resume a builder whose history is past ~300k tokens; start a new one.
+2. **Models by plate type**: Sonnet 5.5 (high) builds the graphic plates (`polygraph`, `chart`, `voice`, `acetate`, `scene`); Opus 5.5 (high) builds the 3D/lighting plates (`uv`, `articulator`, `luminol`, `filed`) and extends the five gate 2 plates (`drawer`, `lightbox`, `scale`, `pour`, `match`) past their stills.
+3. **At most two review rounds per plate**: the lead checks the frames between rounds; one fresh Opus reviewer per batch, judging a contact sheet (not every still).
+4. **Gate 3 at block-in quality**: full motion and timing for every plate, judged on contact sheets plus a few short low-res clips of the hard moments; final polish waits for gate 4, on what reads in motion.
+5. **Two builders at a time** (fewer 5-hour stalls).
+6. **A new lead session per gate**, and the gate spread over about two weekly resets. Check usage after the first batch and adjust.
+
 | role | model / effort |
 |---|---|
-| orchestrator (lead session) | Opus 5.5, high |
-| kit builder, plate builders (≤3 at once, own worktrees) | Opus 5.5, high |
-| plate reviewer (fresh each round) | Opus 5.5, high |
-| cut-level reviewer (at gates) | Opus 5.5, xhigh |
-| chores (offsets, encodes, sheets) | Sonnet 5.5, low |
+| orchestrator (lead session, new per gate) | Opus 5.5, high |
+| builders, 3D/lighting plates and the gate 2 plates (≤2 at once, fresh per plate) | Opus 5.5, high |
+| builders, graphic plates (fresh per plate) | Sonnet 5.5, high |
+| batch reviewer (fresh, a contact sheet per batch) | Opus 5.5, high |
+| cut-level reviewer (gate 4) | Opus 5.5, xhigh |
+| chores (encodes, sheets) | Sonnet 5.5, low |
 
 The client has no Fable access; don't assign it. The lead owns the render queue (one GPU: AMD RX 9070 XT). Report usage at each gate.
 

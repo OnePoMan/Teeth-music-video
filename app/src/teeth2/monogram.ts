@@ -9,8 +9,9 @@
 //   2. the F: a landing tick on the bar, straight down the stem to the foot, a quick retrace back up the stem to
 //      mid-height, a short stub out to the left, and back across the stem as the middle bar, turning down as the pen
 //      lifts.
-// The client's letters are T.F.; the full stops are not drawn (they would be two more pen lifts, and the mark has to
-// read as one shape at a glance).
+// The client's letters are T.F., full stops included (client, 2026-11-19): after the two strokes the pen taps a
+// short full stop after each letter (strokes 3 and 4, a quick tick each). The taps land as the signing completes:
+// written lengths in strokes 3 and 4 are reached only at the end of [t0, t1].
 //
 // API (all coordinates in the UNIT BOX: x right 0..1, y down 0..MONO_H; the ink spans the whole box):
 //   MONO_H                         the box's height (its width is 1)
@@ -49,6 +50,9 @@ const T_STROKE: Pts[] = [
   [[0.236, 0.13], [0.16, 0.131], [0.09, 0.132], [0.045, 0.134]], // a sharp turn at the head: out along the bar's left arm
   [[0.045, 0.134], [0.11, 0.138], [0.24, 0.137], [0.42, 0.126], [0.6, 0.11], [0.78, 0.09], [0.93, 0.071], [1.0, 0.063]], // back across the stem: one long rising bar, flicked out
 ];
+/** The two full stops: a short tapped tick after the T's foot and after the F's foot. */
+const DOT_T: Pts[] = [[[0.296, 0.601], [0.304, 0.607], [0.311, 0.614]]];
+const DOT_F: Pts[] = [[[0.672, 0.584], [0.68, 0.59], [0.687, 0.597]]];
 const F_STROKE: Pts[] = [
   [[0.628, 0.105], [0.623, 0.2], [0.614, 0.33], [0.604, 0.47], [0.596, 0.598]], // a landing tick on the bar, down the F's stem
   [[0.596, 0.598], [0.602, 0.5], [0.607, 0.41], [0.61, 0.368]], // back up the stem (a quick retrace) to mid-height
@@ -79,7 +83,7 @@ function catmull(pts: V2[], per = 24): V2[] {
 }
 
 function build() {
-  const raw = [T_STROKE, F_STROKE].map((pieces) => pieces.flatMap((pc, i) => catmull(pc.map(([x, y]) => ({ x, y }))).slice(i ? 1 : 0)));
+  const raw = [T_STROKE, F_STROKE, DOT_T, DOT_F].map((pieces) => pieces.flatMap((pc, i) => catmull(pc.map(([x, y]) => ({ x, y }))).slice(i ? 1 : 0)));
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   const slanted = raw.map((s) => s.map((p) => ({ x: p.x + SLANT * (0.6 - p.y), y: p.y })));
   for (const s of slanted) for (const p of s) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
