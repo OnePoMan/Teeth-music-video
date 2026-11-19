@@ -67,3 +67,16 @@ Fix round 3 applied (2026-11-19): apple bite face-on with the scale in its plane
 
 ## Gate 2 client calls (2026-11-19, settled)
 Lyric treatment A plus a light-to-heavy snap on the hero word; warm (tungsten) light in plate 3 only; the apple golden in stone yellow (supersedes the B&W ruling); bitten letters the middle way; the T.F. signature with its two full stops (monogram.ts strokes 3–4, tapped as the signing completes). Gate 3 runs on the economy plan in the handoff.
+
+## Gate 3
+
+### Batch 1 review (fresh reviewer, Opus high): polygraph and uv, builder pass 1 → fix round 1
+Verdicts: polygraph REWORK (keep the event script), uv REWORK of light and framing (keep the timing script). Full review: `docs/gate3/review1.md`. Top threats: polygraph phrases never read whole, lyric typeset instead of grown from the trace, an ink-blot tear; uv a saturated violet flood, printed-looking traces, one top-down composition, a zebra swab strip.
+
+Lead rulings from batch 1 (settled):
+- A drip, blot or blob shape anywhere is a stakes-guard breach, ink included. Paper tears are slits, never holes.
+- UV light is a beam pool: the uv token covers under ~30% of any plate 6 frame; the rest stays film or film2.
+- GO's decay in plate 6 is compressed into its 0.43 s (about 25% left at the 76.35 cut); the window is not extended.
+- Plate 6 avoids the top-down view (plate 3 owns fabric from above) and frontal centred heroes (plate 5 owns them).
+- The polygraph owns the scrolling machine trace; plate 7 (chart) does not scroll the paper or write the lyric with its pen.
+- Lead calls for the client at gate 3: *sweet* in plate 6 is fluor-white Cormorant (a pink glow on a pillowcase reads as a stain); the polygraph's under view keeps THROUGH MY EYES readable from beneath.
