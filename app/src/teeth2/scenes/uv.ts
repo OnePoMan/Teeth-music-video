@@ -107,7 +107,7 @@ export default class UvPlate extends Scene {
     for (const [pi, p] of P.entries()) {
       for (const w of p.words) {
         const gap = prevT < 0 ? 1 : w.start - prevT;
-        if (pi === 7 || pi === 8) this.beamKeys.push({ t: w.start + 0.02, d: Math.min(0.85 * gap, 0.4), v: pi === 8 && !w.hero ? centre([hands, w]) : holdP });
+        if (pi === 7 || pi === 8) this.beamKeys.push({ t: w.start + 0.02, d: Math.min(0.85 * gap, 0.4), v: pi === 8 && !w.hero ? [lerp(hands.x, w.x, 0.45), lerp(hands.y, w.y, 0.45)] : holdP });
         else if (w.text === 'NEVER') {
           const s = sweep[nv++]!;
           this.beamKeys.push({ t: w.start - 0.04, d: Math.min(0.12, 0.6 * gap), v: [w.x - w.w * 0.75, w.y - 4] });
@@ -166,7 +166,7 @@ export default class UvPlate extends Scene {
       M: { value: Array.from({ length: NM }, () => new THREE.Vector4()) },
       sP: { value: V() }, sX: { value: V() }, sY: { value: V() }, sZ: { value: V() }, swabOn: { value: 0 }, swabGlow: { value: 0 },
       strokes: { value: Array.from({ length: 5 }, () => new THREE.Vector4()) }, strokeK: { value: [0, 0, 0, 0, 0] },
-      pxAng: { value: 0 }, wordBounce: { value: V() }, ssTap: SS_TAP,
+      pxAng: { value: 0 }, wordBounce: { value: V() }, gSide: { value: 1 }, ssTap: SS_TAP,
     });
     const st = this.pass.u.strokes!.value as THREE.Vector4[];
     for (let k = 0; k < 5; k++) st[k]!.set(this.swab.A[k]![0], this.swab.A[k]![1], this.swab.B[k]![0], this.swab.B[k]![1]);
@@ -193,9 +193,11 @@ export default class UvPlate extends Scene {
   private wordState(w: TWord, t: number, out: THREE.Vector4) {
     const gate = clamp((t - (w.start - 0.045)) / 0.06);
     const [e0, e1] = this.exitT.get(w)!;
-    let lvl = gate * (1 - clamp((t - e0) / (e1 - e0)));
-    // GO bleaches under the held beam: ~25% left at the plate's cut
-    if (w.text === 'GO' && t > w.start + 0.08) lvl *= Math.exp(-(t - w.start - 0.08) / 0.25);
+    const go = w.text === 'GO';
+    // GO does not exit (the plate's cut ends it): it bleaches under the held beam to ~25% to the eye at the cut
+    // (the glow is far over white at full level: ~28% to the eye at 76.30, ~22% at the cut is ~2-3% linear)
+    let lvl = gate * (go ? 1 : 1 - clamp((t - e0) / (e1 - e0)));
+    if (go && t > w.start + 0.08) lvl *= Math.exp((-(t - w.start - 0.08) / (this.ctx.end - w.start - 0.08)) * Math.log(1 / 0.016));
     if (lvl <= 0) { out.set(0, 0.5, 0, 0); return; }
     let thr = 0.45;
     if (w.hero) {
@@ -229,6 +231,7 @@ export default class UvPlate extends Scene {
     (u.lY!.value as THREE.Vector3).copy(lY); (u.lZ!.value as THREE.Vector3).copy(lZ);
     const lk = this.lampK(t);
     u.lampK!.value = lk;
+    u.gSide!.value = cam.hand < 0 ? -1 : 1;   // the glove's back and knuckles toward the camera
     (u.Q!.value as THREE.Vector2).set(Q[0], Q[1]);
     (u.pAx!.value as THREE.Vector2).set(lX.x, lX.y).normalize();
     u.pR!.value = cam.pr * cam.w;
@@ -306,7 +309,7 @@ export default class UvPlate extends Scene {
         }
       }
       const h = new THREE.Vector3().addScaledVector(right, 0.64).addScaledVector(away, -0.77);
-      const e = 11 * DEG;
+      const e = 24 * DEG;   // held like a pen (the match glove's grip)
       const sX = new THREE.Vector3(h.x * Math.cos(e), h.y * Math.cos(e), Math.sin(e)).normalize();
       const sZ = new THREE.Vector3(0, 0, 1).addScaledVector(sX, -sX.z).normalize();
       const sY = new THREE.Vector3().crossVectors(sZ, sX);

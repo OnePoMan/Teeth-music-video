@@ -28,7 +28,7 @@ export interface TWord {
 }
 export interface TPhrase { words: TWord[]; t0: number; t1: number; block: [number, number]; hero: TWord | null }
 
-interface BlockSpec { line: number; x0: number; base: number; row: number[]; hero: number; after?: number[]; cap?: number; maxW?: number; serif?: boolean }
+interface BlockSpec { line: number; x0: number; base: number; row: number[]; hero: number; after?: number[]; below?: number[]; cap?: number; maxW?: number; serif?: boolean }
 
 const ROW_CAP = 16, ROW_GAP = 12, HERO_CAP = 60;
 const ROW_FAM = () => F.archivo(100, 500);
@@ -42,7 +42,7 @@ const BLOCKS: BlockSpec[] = [
   { line: 1, x0: -330, base: 30, row: [0, 1, 3, 4], hero: 2 },
   { line: 1, x0: 100, base: 30, row: [5, 6], hero: 7 },
   { line: 2, x0: -330, base: -90, row: [0, 1], hero: 2 },
-  { line: 2, x0: 100, base: -90, row: [3, 4, 6, 7], hero: 5, maxW: 190 },
+  { line: 2, x0: 100, base: -90, row: [3, 4], hero: 5, below: [6, 7], maxW: 190 },   // "on me" under HANDS, clear of the tag's string
   { line: 3, x0: -335, base: -215, row: [0], hero: 1, cap: 40, maxW: 150 },
   { line: 3, x0: -80, base: -215, row: [], hero: 2, cap: 40, maxW: 150 },
   { line: 3, x0: 125, base: -215, row: [], hero: 3, after: [4], cap: 40, maxW: 140 },
@@ -137,6 +137,14 @@ export function bakeTraces(lines: Line[], beats: number[], plateEnd: number): Ba
     for (const wi of b.after ?? []) {
       const t = clean(L.words[wi]!.w);
       const r = place(b.line, wi, t, rfam, rsize, x, b.base, false);
+      idDraws.push(r);
+      x += r.tw.w + space;
+    }
+    // a line's tail set under its hero, left-aligned (reads "HANDS / on me")
+    x = b.x0;
+    for (const wi of b.below ?? []) {
+      const t = clean(L.words[wi]!.w);
+      const r = place(b.line, wi, t, rfam, rsize, x, b.base - 57, false);   // under the tag's string, which lies across -118..-123
       idDraws.push(r);
       x += r.tw.w + space;
     }
