@@ -80,3 +80,13 @@ Lead rulings from batch 1 (settled):
 - Plate 6 avoids the top-down view (plate 3 owns fabric from above) and frontal centred heroes (plate 5 owns them).
 - The polygraph owns the scrolling machine trace; plate 7 (chart) does not scroll the paper or write the lyric with its pen.
 - Lead calls for the client at gate 3: *sweet* in plate 6 is fluor-white Cormorant (a pink glow on a pillowcase reads as a stain); the polygraph's under view keeps THROUGH MY EYES readable from beneath.
+
+### Batch review 2 (fresh reviewer, Opus high): polygraph and uv round 2; scene and luminol round 1
+Verdicts: polygraph FIX, uv FIX (both: one last fix round, then the rest waits for gate 4); scene REWORK of bed, light and markers; luminol REWORK of light and materials (both keep their event scripts). Full review: `docs/gate3/review2.md`.
+
+Lead rulings from batch review 2 (settled):
+- **One glove** in every plate: a single matte film2 nitrile glove with readable fingers and a cuff, lit only by its plate's source; no sphere or blob parts (the drip ruling covers models too). The gate 2 glove in `match-glsl.ts` is the reference.
+- **Plate 3's tungsten is illumination, never surface colour**: the bedding stays white; no brown mottling or brown shadows (stakes guard).
+- **Plate 11 is lit only by the reaction** plus a constant dim cold ambient: no key light, no light changes between shots, no flash on the seal.
+- Writing a word between its `start` and `end` is correct karaoke; a word caught mid-write is not a defect.
+- Plate 6 and plate 11 keep apart: 6 is horizontal cloth, a moving beam, table-height oblique shots; 11 is a vertical hanging shirt, a circling camera, the glow fixed in place.
