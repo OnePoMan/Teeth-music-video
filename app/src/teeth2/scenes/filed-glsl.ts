@@ -88,6 +88,26 @@ bank = patch(bank, '  vec3 f = q - vec3(0.0, YR + lift08, -FZ0 - float(K0832) * 
 bank = patch(bank, '  if (metal > 0.0) f0 = mix(vec3(0.04), f0, metal);', `  if (m == 12.0) { alb = T_SILVER * 0.2; rough = 0.45; f0 = vec3(0.04); }
   else if (m == 13.0) { alb = T_FILM2 * 1.8 * (0.9 + 0.1 * snoise(P * vec3(300.0, 900.0, 900.0))); rough = 0.95; f0 = vec3(0.02); }
   if (metal > 0.0) f0 = mix(vec3(0.04), f0, metal);`);
+/** The glove's rim in the tube's light: its gain, and the throw (linear) above which it compresses, so the rim still
+ *  reads at the bank's dark end, where the louvred tube gives the folder little more than its bounce. */
+const RIM_K = 13, RIM_S = 0.015;
+// the glove and its cuff in the tube's light (review 5): matte nitrile and cotton turned from the camera catch the
+// tube's throw at P as a rim along the knuckles, the fingers' backs, the cuff and the forearm (the tube's own
+// unshadowed throw plus its bounce, the ambient every surface gets: no new source)
+bank = patch(bank, '  col *= mix(0.55, 1.0, ao);', `  col *= mix(0.55, 1.0, ao);
+  if (m > 11.5) {
+    vec3 E0 = vec3(0.0);
+    for (int i = 0; i < 4; i++) {
+      vec3 L = mix(TA, TB, (float(i) + 0.5) / 4.0) - P; float d2 = dot(L, L); L *= inversesqrt(d2);
+      E0 += T_LIGHTBOX * tubeI * difK * louvre(L) / d2;
+    }
+    E0 += mix(T_HALIDE, T_FILM2 * 6.0, 0.5) * ambK;
+    E0 *= ${f(RIM_S)} / (dot(E0, vec3(0.333)) + ${f(RIM_S)});
+    vec3 Lc = normalize(mix(TA, TB, 0.5) - P);
+    float fr = 1.0 - max(dot(N, V), 0.0);
+    float rim = (pow(fr, 2.0) * 0.8 + 0.06) * sat(dot(N, Lc) * 0.5 + 0.6);
+    col += (m == 12.0 ? T_HALIDE : T_SILVER) * E0 * rim * ${f(RIM_K)} * mix(0.5, 1.0, ao);
+  }`);
 export const BANK_FRAG = bank;
 
 export const DESK_FRAG = /* glsl */ `
