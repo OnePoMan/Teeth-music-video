@@ -19,7 +19,7 @@ const SPEC: { words: number[]; hero: number }[][] = [
   [{ words: [0, 1, 2], hero: -1 }, { words: [3, 4, 5], hero: 4 }, { words: [6, 7, 8], hero: -1 }],
   [{ words: [0, 1, 2, 3], hero: -1 }, { words: [4, 5, 6, 7], hero: -1 }, { words: [8, 9], hero: 9 }],
   [{ words: [0, 1, 2, 3], hero: -1 }, { words: [4, 5, 6, 7], hero: 4 }],
-  [{ words: [0, 1, 2, 3], hero: 2 }, { words: [4, 5, 6], hero: -1 }, { words: [7, 8], hero: 7 }],
+  [{ words: [0, 1, 2, 3, 4], hero: 2 }, { words: [5, 6, 7, 8], hero: 7 }],
 ];
 const clean = (s: string) => s.replace(/[,.!?]/g, '');
 const LEAD = 0.045;

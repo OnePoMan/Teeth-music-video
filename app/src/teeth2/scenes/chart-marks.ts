@@ -60,11 +60,12 @@ export function renderMark(c: CanvasRenderingContext2D | null, arch: Arch, kind:
   for (const q of enamel) { sMin = Math.min(sMin, q[0]); sMax = Math.max(sMax, q[0]); }
   if (kind === 'F') {
     // the patch: a neat rectangle on the occlusal third of the crown
-    const a = tp(cl, sMin * 0.6, pr.H * 0.5), b = tp(cl, sMax * 0.6, pr.H * 0.92);
+    const a = tp(cl, sMin * 0.74, pr.H * 0.4), b = tp(cl, sMax * 0.74, pr.H * 0.93);
     const x0 = Math.min(a[0], b[0]), x1 = Math.max(a[0], b[0]), y0 = Math.min(a[1], b[1]), y1 = Math.max(a[1], b[1]);
     if (pT > 0) {
       const o = clamp(pT / 0.18);
       if (c && o > 0) {
+        c.lineWidth = 0.4 * st.w;
         c.beginPath();
         const w = x1 - x0, h = y1 - y0, per = 2 * (w + h), L = per * o;
         // the outline is drawn as one stroke round the rectangle
@@ -77,8 +78,10 @@ export function renderMark(c: CanvasRenderingContext2D | null, arch: Arch, kind:
         c.stroke();
       }
       const nl = hatchCount(x0, y0, x1, y1, SP) * clamp((pT - 0.18) / 0.82);
-      if (c) c.lineWidth = LW * st.w * 0.9;
+      // the amalgam: hatched so close it is solid film-black (clipped to the patch)
+      if (c) { c.save(); c.beginPath(); c.rect(x0, y0, x1 - x0, y1 - y0); c.clip(); c.lineWidth = SP * 1.4 * st.w; c.lineCap = 'butt'; }
       const t = hatchRect(c, x0, y0, x1, y1, SP, 1, nl);
+      if (c) c.restore();
       tip = t ?? [x0, y0];
     }
   } else {
@@ -88,7 +91,7 @@ export function renderMark(c: CanvasRenderingContext2D | null, arch: Arch, kind:
       if (c) {
         // the cap: the crown outline, a touch heavier, and a cervical band
         c.save();
-        c.lineWidth = LW * st.w * 2.1;
+        c.lineWidth = 1.05 * st.w;
         c.beginPath();
         const o = clamp(pT / 0.2);
         const m = Math.max(2, Math.round(enamel.length * o));
@@ -116,7 +119,7 @@ export function renderMark(c: CanvasRenderingContext2D | null, arch: Arch, kind:
     const r = CIR_R, r0 = 1.3;
     if (kind === 'C') {
       if (c) {
-        c.save(); c.lineWidth = LW * st.w * 2.2;
+        c.save(); c.lineWidth = 0.75 * st.w;
         c.beginPath(); c.arc(cx, cy, r + 0.35, 0, Math.PI * 2 * clamp(pC / 0.3)); c.stroke(); c.restore();
         c.save(); c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.clip(); c.lineWidth = LW * st.w * 0.9;
       }
@@ -125,7 +128,7 @@ export function renderMark(c: CanvasRenderingContext2D | null, arch: Arch, kind:
     } else {
       // wedges: 0 = O (centre), 1 = M, 2 = D, 3 = B, 4 = L (the four side wedges at 90, 270, 0, 180 degrees)
       const ang = [0, Math.PI / 2, -Math.PI / 2, Math.PI, 0];
-      if (c) c.lineWidth = LW * st.w * 0.9;
+      if (c) { c.lineWidth = SP * 0.8 * 1.4 * st.w; c.lineCap = 'butt'; }
       let k = 0;
       for (const w of wedges) {
         const f = clamp(pC * wedges.length - k); k++;
@@ -177,17 +180,44 @@ export class Marks {
     };
     A.forEach(([n, k], i) => mk(n, k, wordStartsA[i]! - 0.01, 0.17));
     B.forEach(([n, k], i) => mk(n, k, beatsB[i]!, 0.27));
-    // C: the beats, in order (home tooth -> new tooth)
-    const byHome = (n: number) => this.insts.find((q) => q.home === n)!;
-    const C: [number, number][][] = [
-      [[2, 8]], [[3, 4], [5, 9]], [[7, 3], [12, 7]], [[10, 13]], [[14, 15], [15, 14]],
-      [[31, 30], [30, 29]], [[28, 27], [26, 25]], [[23, 21], [19, 20]], [[18, 24], [16, 12]],
-    ];
-    C.forEach((mvs, i) => {
-      const t = beatsC[i]!;
-      for (const [a, b] of mvs) byHome(a).moves.push({ t, dur: 0.24, to: b });
-    });
-    this.tMoveA = beatsC[0]!; this.tMoveB = beatsC[beatsC.length - 1]! + 0.24;
+    // C: three or four marks hop on every beat. Every mark hops twice (an in-between tooth, then its place on the chart
+    // that describes someone else: his chart's 3 4 7 8 9 12 13 14 above, 30 29 27 25 21 20 18 below).
+    const FINAL: Record<number, number> = { 0: 3, 1: 4, 2: 8, 3: 9, 4: 12, 5: 14, 6: 13, 7: 7, 8: 10, 9: 30, 10: 29, 11: 27, 12: 25, 13: 21, 14: 20, 15: 18 };
+    const PER = [4, 4, 3, 4, 3, 4, 4, 3, 3];                     // marks hopping on each of the nine beats (3-4)
+    const h1: number[] = [], h2: number[] = [];
+    PER.forEach((n, bi) => { for (let k = 0; k < n; k++) (h1.length < 16 ? h1 : h2).push(bi); });
+    for (let seed = 1; seed < 400; seed++) {
+      const rnd = (k: number) => { const x = Math.sin((k + seed * 17.3) * 127.1 + 31.7) * 43758.5453; return x - Math.floor(x); };
+      const order = this.insts.map((q) => q.id).sort((x, y) => rnd(x) - rnd(y));
+      const finals = new Set(Object.values(FINAL));
+      const occ = new Map<number, number>(); this.insts.forEach((q) => occ.set(q.home, q.id));
+      const cur = new Map<number, number>(); this.insts.forEach((q) => cur.set(q.id, q.home));
+      const mv: { id: number; bi: number; to: number }[] = [];
+      let ok = true;
+      for (let bi = 0; bi < PER.length && ok; bi++) {
+        const jobs: { id: number; hop: number }[] = [];
+        order.forEach((id, k) => { if (h1[k] === bi) jobs.push({ id, hop: 1 }); });
+        order.forEach((id, k) => { if (h2[k] === bi) jobs.push({ id, hop: 2 }); });
+        for (const j of jobs) {
+          const from = cur.get(j.id)!, up = from <= 16;
+          let to = -1;
+          if (j.hop === 2) to = FINAL[j.id]!;
+          else {
+            const cand: number[] = [];
+            for (let n = up ? 1 : 17; n <= (up ? 16 : 32); n++) if (!occ.has(n) && !finals.has(n) && Math.abs(n - from) >= 2 && Math.abs(n - from) <= 7) cand.push(n);
+            if (!cand.length) { ok = false; break; }
+            to = cand[Math.floor(rnd(j.id * 7 + bi) * cand.length)]!;
+          }
+          if (occ.has(to) && occ.get(to) !== j.id) { ok = false; break; }
+          occ.delete(from); occ.set(to, j.id); cur.set(j.id, to);
+          mv.push({ id: j.id, bi, to });
+        }
+      }
+      if (!ok) continue;
+      for (const m of mv) this.insts[m.id]!.moves.push({ t: beatsC[m.bi]!, dur: 0.26, to: m.to });
+      break;
+    }
+    this.tMoveA = beatsC[0]!; this.tMoveB = beatsC[beatsC.length - 1]! + 0.26;
     // D: one quadrant per push / away
     const qOf = (n: number) => (n <= 8 ? 0 : n <= 16 ? 1 : n >= 25 ? 2 : 3);
     const cnt = [0, 0, 0, 0];
@@ -229,7 +259,7 @@ export class Marks {
         const A = markCentre(this.arch, s.from), B = markCentre(this.arch, s.cur);
         const x = A[0] + (B[0] - A[0]) * e, y = A[1] + (B[1] - A[1]) * e;
         h = Math.sin(Math.PI * s.k);
-        ox = x - c0[0]; oy = y - c0[1] - h * 7; sc = 1 + 0.18 * h;
+        ox = x - c0[0]; oy = y - c0[1] - h * 16; sc = 1 + 0.5 * h; rot = 0.12 * h * (it.id % 2 ? 1 : -1);
         void fA;
       }
       if (it.lift && kL > 0) {
@@ -242,11 +272,11 @@ export class Marks {
       c.translate(c0[0] + ox, c0[1] + oy); c.rotate(rot); c.scale(sc, sc); c.translate(-c0[0], -c0[1]);
       renderMark(c, this.arch, it.kind, shapeN, p, it.wedges, { col: INK, w: 1, a });
       c.restore();
-      if (false && h > 0.02 && ground > 0) {
+      if (h > 0.02 && ground > 0) {
         // the shadow it casts on the paper: thicker lines at the ground position, fainter as it rises
         c.save();
-        c.translate(c0[0] + ox * 0.45 + 2.2 * h, c0[1] + oy * 0.2 + 2.6 * h);
-        renderMark(c, this.arch, it.kind, shapeN, p, it.wedges, { col: SILVER, w: 3.2, a: 0.28 * ground * (1 - 0.5 * h) });
+        c.translate(c0[0] + ox * 0.1 + 3.4 * h, c0[1] + oy * 0.05 + 4.4 * h);
+        renderMark(c, this.arch, it.kind, shapeN, p, it.wedges, { col: SILVER, w: 1, a: 1.0 * ground * (1 - 0.2 * h) });
         c.restore();
       }
     }

@@ -5,7 +5,7 @@
 import { GLSL_TEETH_PALETTE } from '../palette';
 import { SS_TAP_GLSL } from '../../engine/gl';
 import { GLSL_HAND as MATCH_HAND } from './match-glsl';
-import { SHEET, MK } from './chart-form';
+import { SHEET, MK, SCRAP } from './chart-form';
 import { LYR } from './chart-lyric';
 
 // the glove as it is, its sleeve run on into an arm (the plate 13 frame ends the sleeve a hand's length from the cuff)
@@ -29,6 +29,7 @@ uniform float panelK;    // the light table's brightness
 const float Z_A = 1.5, Z_B = 0.7;
 const vec2 HALF = vec2(${f(SHEET.w / 2)}, ${f(SHEET.h / 2)});
 const float HS = ${f(HAND_SCALE)};
+const vec2 SCR_C = vec2(${f(SCRAP.cx)}, ${f(SCRAP.cy)}), SCR_H = vec2(${f(SCRAP.hx)}, ${f(SCRAP.hy)});
 vec2 TB(vec3 p) { return vec2(p.x, -p.y); }
 float sdBox2(vec2 p, vec2 h, float r) { vec2 q = abs(p) - h + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
 vec2 toSheet(vec2 tp, vec4 pose) { vec2 d = tp - pose.xy; float c = cos(pose.z), s = sin(pose.z); return vec2(c * d.x + s * d.y, -s * d.x + c * d.y) / pose.w; }
@@ -82,7 +83,7 @@ float handShadow(vec3 p) {
   return res * res * (3.0 - 2.0 * res);
 }
 vec3 nrmHand(vec3 q) {
-  const vec2 k = vec2(1.0, -1.0); const float e = 0.07;
+  const vec2 k = vec2(1.0, -1.0); const float e = 0.8;
   return normalize(k.xyy * sdHandSD(q + k.xyy * e) + k.yyx * sdHandSD(q + k.yyx * e) + k.yxy * sdHandSD(q + k.yxy * e) + k.xxx * sdHandSD(q + k.xxx * e));
 }
 float aoHand(vec3 q, vec3 n) {
@@ -104,13 +105,13 @@ vec3 shadeHand(vec3 P, vec3 rd, int m) {
     vec3 qh = q / HS;
     vec3 g = vec3(wrinkle(qh + vec3(e, 0.0, 0.0)) - wrinkle(qh - vec3(e, 0.0, 0.0)), wrinkle(qh + vec3(0.0, e, 0.0)) - wrinkle(qh - vec3(0.0, e, 0.0)), wrinkle(qh + vec3(0.0, 0.0, e)) - wrinkle(qh - vec3(0.0, 0.0, e))) / (2.0 * e);
     g -= nl * dot(g, nl);
-    nl = normalize(nl - g * 0.9);
+    nl = normalize(nl - g * 0.22);
   }
   vec3 N = fromH(nl);
   vec3 L = normalize(keyPos - P), V = -rd, Hh = normalize(L + V);
   float o = aoHand(q, nl);
   float nv = max(dot(N, V), 0.0);
-  float fres = 0.04 + 0.96 * pow(1.0 - nv, 4.0);
+  float fres = 0.04 + 0.96 * pow(1.0 - nv, 3.0);
   vec3 R = reflect(rd, N);
   float env = mix(0.05, 0.95, smoothstep(0.15, -0.5, R.z)) * panelK;   // the lit table below, mirrored in the sheen
   float diff = max(dot(N, L), 0.0);
@@ -119,7 +120,7 @@ vec3 shadeHand(vec3 P, vec3 rd, int m) {
   if (m == 0) {
     vec3 alb = mix(T_FILM2, T_SILVER, 0.16);
     float spec = ggx(N, Hh, 0.55) * 0.05;
-    col = alb * (diff * 1.4 + bounce * 1.6 + 0.2) + T_HALIDE * (env * (0.07 + 0.9 * fres) * 0.5 + spec * (0.4 + fres));
+    col = alb * (diff * 1.4 + bounce * 1.6 + 0.2) + T_HALIDE * (env * (0.02 + 0.8 * fres) * 0.42 + spec * (0.4 + fres)) + T_SILVER * 0.012 * smoothstep(-0.2, 1.0, N.z) * o;
   } else if (m == 2) {
     col = T_HALIDE * 0.7 * (ggx(N, Hh, 0.25) * 0.08 + 0.3 * diff + 0.55 * env * (0.2 + fres) + 0.08);
   } else if (m == 3) {
@@ -129,7 +130,7 @@ vec3 shadeHand(vec3 P, vec3 rd, int m) {
     col = T_FILM * (diff * 0.6 + 0.2) + T_HALIDE * env * fres * 0.3;
   } else {
     float weave = 0.9 + 0.1 * snoise(q * vec3(0.5, 3.0, 3.0));
-    col = T_FILM2 * 1.5 * weave * (diff * 1.1 + bounce * 1.2 + 0.2) + T_HALIDE * env * fres * 0.12;
+    col = T_FILM2 * 1.5 * weave * (diff * 1.1 + bounce * 1.2 + 0.2) + T_HALIDE * env * fres * 0.05;
   }
   return col * (m == 0 ? 0.82 : 1.0) * mix(1.0, o, 0.55);
 }
@@ -141,6 +142,7 @@ vec3 paperTex(vec2 q, float base) {
   return T_LIGHTBOX * base * (0.985 + 0.02 * cloud + 0.007 * fib);
 }
 vec3 sheetAColor(vec2 q, float lampE) {
+  float r2 = dot(q / HALF, q / HALF);
   vec2 uv = vec2(q.x / ${f(SHEET.w)} + 0.5, 0.5 - q.y / ${f(SHEET.h)});
   vec3 pr = texG(sheetA, uv, vec2(${f(SHEET.w)}, ${f(SHEET.h)})).rgb;
   vec2 mu = vec2((q.x - ${f(MK.x0)}) / ${f(MK.x1 - MK.x0)}, 1.0 - (q.y - ${f(MK.y0)}) / ${f(MK.y1 - MK.y0)});
@@ -149,8 +151,8 @@ vec3 sheetAColor(vec2 q, float lampE) {
   vec2 lu = vec2((q.x - ${f(LYR.x0)}) / ${f(LYR.x1 - LYR.x0)}, 1.0 - (q.y - ${f(LYR.y0)}) / ${f(LYR.y1 - LYR.y0)});
   vec3 ly = vec3(0.0);
   if (lu.x > 0.0 && lu.x < 1.0 && lu.y > 0.0 && lu.y < 1.0) ly = texG(lyrTex, lu, vec2(${f(LYR.x1 - LYR.x0)}, ${f(LYR.y1 - LYR.y0)})).rgb;
-  vec3 col = paperTex(q, 0.86 * panelK + 0.05 * lampE);
-  col *= 1.0 - 0.34 * clamp(mk.b, 0.0, 1.0);
+  vec3 col = paperTex(q, (0.9 - 0.12 * r2) * panelK + 0.05 * lampE);
+  col *= 1.0 - 0.5 * clamp(mk.b, 0.0, 1.0);
   col = mix(col, T_SILVER * 0.9, clamp(pr.b, 0.0, 1.0) * 0.85);
   col = mix(col, T_HALIDE, clamp(ly.b, 0.0, 1.0) * 0.8);
   col = mix(col, T_WAX * 0.97, clamp(ly.g, 0.0, 1.0));
@@ -165,12 +167,12 @@ vec3 sheetBColor(vec2 q, float lampE, float win) {
   return mix(col, T_FILM * 1.6, clamp(pr.r * 1.1, 0.0, 1.0));
 }
 // the light table: a frosted panel lit from below, masked with black card round a window just larger than her sheet
-float winMask(vec2 tp) { return 1.0 - smoothstep(-0.5, 0.5, sdBox2(tp - vec2(0.0, 2.0), vec2(254.0, 170.0), 2.0)); }
+float winMask(vec2 tp) { return 1.0 - smoothstep(-0.5, 0.5, sdBox2(tp, vec2(217.0, 142.0), 1.5)); }
 vec3 tableColor(vec2 tp) {
-  vec2 c = tp - vec2(0.0, 2.0);
-  float d = sdBox2(c, vec2(254.0, 170.0), 2.0);
-  float r = length(c / vec2(254.0, 170.0));
-  vec3 panel = T_LIGHTBOX * (1.06 - 0.1 * r * r) * panelK * (0.99 + 0.012 * snoise(tp * 0.8) + 0.01 * snoise(tp * 0.07));
+  vec2 c = tp;
+  float d = sdBox2(c, vec2(217.0, 142.0), 1.5);
+  float r = length(c / vec2(217.0, 142.0));
+  vec3 panel = T_LIGHTBOX * (1.12 - 0.06 * r * r) * panelK * (0.99 + 0.012 * snoise(tp * 0.8) + 0.01 * snoise(tp * 0.07));
   // the mask: matte black card, a faint grain, a cut edge catching the light
   vec3 card = T_FILM * (1.9 + 0.5 * snoise(tp * 0.05) + 0.25 * snoise(tp * 1.7)) + T_FILM2 * 0.5 * smoothstep(0.0, 120.0, d);
   float bevel = 1.0 - smoothstep(0.0, 0.9, abs(d - 0.6));
@@ -198,10 +200,10 @@ vec3 shade(vec2 px) {
   {
     vec2 q = toSheet(tpB, poseB) * 1.0;
     // the sheet's own size is SHEET * poseB.w: toSheet divided by the scale, so q is in sheet mm
-    float d = sdBox2(q, HALF, 0.8);
+    float d = sdBox2(q - SCR_C, SCR_H, 0.5);
     // its shadow on the table
     vec2 qs = toSheet(tpT + vec2(-1.5, 2.2), poseB);
-    float dsh = sdBox2(qs, HALF, 0.8);
+    float dsh = sdBox2(qs - SCR_C, SCR_H, 0.5);
     col *= 1.0 - 0.28 * (1.0 - smoothstep(-0.5, 2.5, dsh));
     if (d < 0.0) {
       vec3 b = sheetBColor(q, lampE, winMask(tpB));
@@ -220,7 +222,7 @@ vec3 shade(vec2 px) {
     vec2 qt = toSheet(tpT + vec2(-0.9, 1.3), poseA);
     float dst = sdBox2(qt, HALF, 0.8);
     float sT = 1.0 - smoothstep(-0.4, 1.6, dst);
-    float inB = 1.0 - smoothstep(-0.1, 0.1, sdBox2(toSheet(tpB, poseB), HALF, 0.8));
+    float inB = 1.0 - smoothstep(-0.1, 0.1, sdBox2(toSheet(tpB, poseB) - SCR_C, SCR_H, 0.5));
     col *= 1.0 - 0.32 * mix(sT, sA, inB);
     if (d < 0.0) {
       vec3 a = sheetAColor(q, lampE);

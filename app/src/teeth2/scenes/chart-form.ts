@@ -23,6 +23,8 @@ export const CIR_R = 3.3;
 export const MK = { x0: -215, x1: 215, y0: -92, y1: 72 };
 export const MPPM = SCALE > 1 ? 10 : 8;
 /** Where the header's hero and the examiner's signature line sit. */
+/** His chart is a scrap (a photocopy of one corner of the odontogram, teeth 6-10): its clip box in his sheet's mm. */
+export const SCRAP = { cx: -12, cy: -37, hx: 66, hy: 35 };
 export const HEAD = { y0: -128, y1: -64, base: -96, sigY: -72, sigX0: -60, sigX1: 50 };
 
 /** Her teeth: a set that is not his (no chip): the kit's variant 7 (narrow, flared). */
@@ -109,18 +111,18 @@ function drawForm(c: CanvasRenderingContext2D, arch: Arch, label: string, mk: (c
   // teeth
   for (let n = 1; n <= 32; n++) {
     const cl = cell(n), p = profile(arch, n);
-    c.strokeStyle = INK(0.9); c.lineWidth = 0.26;
+    c.strokeStyle = INK(0.95); c.lineWidth = 0.44;
     c.beginPath(); polyPath(c, p.outline, cl); c.stroke();
-    for (const er of p.extraRoots) { c.strokeStyle = INK(0.45); c.lineWidth = 0.16; c.beginPath(); polyPath(c, er, cl); c.stroke(); }
-    c.strokeStyle = INK(0.7); c.lineWidth = 0.18;
+    for (const er of p.extraRoots) { c.strokeStyle = INK(0.55); c.lineWidth = 0.26; c.beginPath(); polyPath(c, er, cl); c.stroke(); }
+    c.strokeStyle = INK(0.8); c.lineWidth = 0.32;
     c.beginPath(); polyPath(c, p.cej, cl, false); c.stroke();
-    c.strokeStyle = INK(0.38); c.lineWidth = 0.14;
+    c.strokeStyle = INK(0.45); c.lineWidth = 0.2;
     c.beginPath(); polyPath(c, p.pulp, cl); c.stroke();
     // number and circle
-    c.fillStyle = INK(0.9); c.font = font(F.mono(500), 3.4); c.textAlign = 'center';
+    c.fillStyle = INK(0.95); c.font = font(F.mono(700), 3.6); c.textAlign = 'center';
     c.fillText(String(n), cl.cx, cl.numY + 1.2);
     c.textAlign = 'left';
-    c.strokeStyle = INK(0.65); c.lineWidth = 0.17;
+    c.strokeStyle = INK(0.8); c.lineWidth = 0.27;
     circle(c, cl);
   }
   mk(c);
@@ -149,7 +151,7 @@ export function buildHis(drawMarks: (c: CanvasRenderingContext2D) => void): HTML
     // #8 is marked: ringed by hand (two passes, not quite closed) and the chipped corner crossed
     const cl = cell(8), p = profile(HIS, 8);
     const [x, y] = tp(cl, 0, p.H * 0.45);
-    c.strokeStyle = INK(0.95); c.lineWidth = 0.55;
+    c.strokeStyle = INK(1); c.lineWidth = 0.95;
     c.beginPath();
     for (let k = 0; k <= 64; k++) {
       const a = -1.2 + (k / 64) * 7.1, r = 1 + 0.045 * Math.sin(a * 2 + 0.7) + 0.02 * (k / 64);
