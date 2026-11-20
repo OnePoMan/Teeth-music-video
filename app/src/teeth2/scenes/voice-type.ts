@@ -120,7 +120,7 @@ export function newLaneCanvas() {
   return cv;
 }
 /** t: song time (which words are up); tau: the audio time under the playhead (where they sit, and whether the playhead has passed). */
-export function drawLane(cv: HTMLCanvasElement, chunks: Chunk[], t: number, tau: number) {
+export function drawLane(cv: HTMLCanvasElement, chunks: Chunk[], t: number, tau: number, left = LANE.x0 + 1.5) {
   const c = cv.getContext('2d')!;
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-over';
   c.fillStyle = '#000'; c.fillRect(0, 0, cv.width, cv.height);
@@ -129,9 +129,12 @@ export function drawLane(cv: HTMLCanvasElement, chunks: Chunk[], t: number, tau:
   const P = LANE.ppm, base = cv.height * 0.5 + EM * 0.2 * P;
   c.globalCompositeOperation = 'lighter'; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
   const fam = F.archivo(100, 500);
+  // a word that reaches the lane's left edge stops there and the next ones stack against it until the line leaves
+  let minX = Math.max(LANE.x0 + 1.5, left);
   for (const w of ch.words) {
     if (t < w.start - PRE) continue;
-    const xmm = XP + w.cx - tau * SPD;
+    const xmm = Math.max(XP + w.cx - tau * SPD, minX);
+    minX = xmm + w.w + 2.0;
     const dt = tau - (w.start - LEAD);
     const sung = dt >= 0;
     const s = sung ? 0.94 + 0.06 * ease.outBack(clamp(dt / 0.14)) : 1;

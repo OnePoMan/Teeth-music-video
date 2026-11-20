@@ -20,8 +20,8 @@ import { FSPass, SS_TAP } from '../../engine/gl';
 import { clamp, pulse } from '../../engine/util';
 import { VD, SPEC_B64 } from './voice-data';
 import { VOICE_FRAG } from './voice-glsl';
-import { buildHeroes, heroState, buildChunks, newLaneCanvas, drawLane, buildLabel, dataTex, waveBytes, type Hero, type Chunk } from './voice-type';
-import { tDisp, dispRate, tapeTime, TSPD, splice, stripAt, gain, camAt, handAt, CUTS, TCUT, T0, XP } from './voice-script';
+import { buildHeroes, heroState, buildChunks, newLaneCanvas, drawLane, LANE, buildLabel, dataTex, waveBytes, type Hero, type Chunk } from './voice-type';
+import { scr, tDisp, dispRate, tapeTime, TSPD, splice, stripAt, gain, camAt, handAt, CUTS, TCUT, T0, XP } from './voice-script';
 
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
@@ -108,7 +108,14 @@ export default class Voice extends Scene {
       const gm = h === this.heroes[3] ? 1 + 0.22 * clamp((t - 102.0) / 1.2) : 1;
       for (let i = 0; i < 12; i++) hs[i] = i < h.n ? hs0.s[i]! * (hs0.state === 2 ? gm : 1) : 1;
     } else { hA.set(-1, 0, 100, 50); hB.set(0, 0, 0, 1000); }
-    drawLane(this.laneCv, this.chunks, t, td); this.laneTex.needsUpdate = true;
+    // the lane's left stop: the lane edge, or the frame's edge where the camera crops the monitor (a sung word is never cut)
+    let left = LANE.x0 + 1.5;
+    const pv = new THREE.Vector3();
+    for (let sx = LANE.x0; sx < 60; sx += 3) {
+      const q = scr(sx, 47); pv.set(q[0], q[1], q[2]).project(this.cam);
+      if (pv.x > -0.93) { left = Math.max(left, sx + 2.0); break; }
+    }
+    drawLane(this.laneCv, this.chunks, t, td, left); this.laneTex.needsUpdate = true;
 
     // ---- the hand
     const hp = handAt(t);

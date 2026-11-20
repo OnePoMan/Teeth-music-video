@@ -387,10 +387,11 @@ float tapeMask(vec2 l, bool right, float fw, out float dEdge, out float dCut) {
   else dCut = right ? ((l.x + l.y) - (XS + gt)) * R2 : ((XS - gt) - (l.x + l.y)) * R2;
   return clamp(0.5 + min(dEdge, dCut) / fw, 0.0, 1.0);
 }
+float gDefocus = 0.0;   // 1 while the out-of-focus deck is shaded: no brushed grain, soft reflection (clean defocus, no streaks)
 vec3 blockTop(vec3 P, vec3 rd, float fw) {
   vec3 L = normalize(keyPos - P);
   float sh = handShadow(P);
-  float brush = snoise(vec2(P.x * 0.35, P.y * 26.0)) * 0.5 + snoise(vec2(P.x * 0.9, P.y * 61.0)) * 0.25;
+  float brush = (snoise(vec2(P.x * 0.35, P.y * 26.0)) * 0.5 + snoise(vec2(P.x * 0.9, P.y * 61.0)) * 0.25) * (1.0 - gDefocus);
   vec3 alb = mix(T_SILVER, T_HALIDE, 0.3) * (0.62 + 0.1 * brush);
   float diff = max(L.z, 0.0);
   vec3 R = reflect(rd, vec3(0.0, 0.0, 1.0));
@@ -398,7 +399,7 @@ vec3 blockTop(vec3 P, vec3 rd, float fw) {
   float spec = pow(max(dot(R, L), 0.0), 14.0);
   vec3 col = alb * (0.18 + 0.82 * diff * sh) * 0.7 + T_LIGHTBOX * spec * 0.18 * sh;
   vec3 Rj = R; Rj.y += brush * 0.05; Rj = normalize(Rj);
-  col += reflScreen(P, Rj, vec3(0.012)) * (0.08 + 0.7 * fr) * (0.85 + 0.15 * brush);
+  col += reflScreen(P, Rj, vec3(0.012 + 0.03 * gDefocus)) * (0.08 + 0.7 * fr) * (0.85 + 0.15 * brush) * (1.0 - 0.85 * gDefocus);
   // the tape channel (the tape lies in it), edges lit
   float dc = abs(P.y) - TAPEW;
   float inCh = aaf(dc, fw);
@@ -487,12 +488,14 @@ vec3 stripOver(vec3 col, vec3 ro, vec3 rd, float tLim) {
   float m = aaf(ds, fwq);
   if (m < 0.002) return col;
   vec3 L = normalize(keyPos - Pq);
-  vec3 st = col * 0.9 + T_HALIDE * 0.05;
+  // halide-white backing lit by the key, a bright edge on the side the monitor faces
+  vec3 st = T_HALIDE * (0.34 + 0.3 * max(L.z, 0.0)) + col * 0.25;
   vec3 Rs = reflect(rd, vec3(0.0, 0.0, 1.0));
   st += T_LIGHTBOX * pow(max(dot(Rs, L), 0.0), 20.0) * 0.18 + reflScreen(Pq, Rs, vec3(0.0)) * 0.3;
-  st += T_LIGHTBOX * 0.3 * (1.0 - smoothstep(0.0, 0.28, abs(ds + 0.12)));
+  float eN = 1.0 - smoothstep(0.0, 0.55, abs(ds + 0.2));
+  st += T_LIGHTBOX * 0.9 * eN * smoothstep(-1.0, 2.5, ls.y) + T_LIGHTBOX * 0.25 * eN;
   st *= 0.96 + 0.04 * snoise(ls * vec2(0.6, 2.0));
-  return mix(col, st, m * 0.9);
+  return mix(col, st, m * 0.97);
 }
 // the block as a foreground occluder out of focus: a cone-traced coverage (the blur radius at each distance from the
 // lens aperture and the focus distance) of the block's box, shaded at the nearest point of it
@@ -514,7 +517,9 @@ vec4 blockDof(vec3 ro, vec3 rd, float tLim) {
   cov = bestC;
   if (cov < 0.004) return vec4(0.0);
   vec3 Pc = clamp(Pb - FGOFF, BLO, BHI); Pc.z = ZB;
-  vec3 colB = blockTop(Pc, rd, max(rcb * 1.4, 0.3));
+  gDefocus = 1.0;
+  vec3 colB = blockTop(Pc, rd, max(rcb * 3.0, 0.6));
+  gDefocus = 0.0;
   return vec4(colB * 0.85, cov);
 }
 
