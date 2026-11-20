@@ -28,9 +28,10 @@ uniform float handOn; uniform vec3 hTip, hE1, hE2, hE3;
 const float BAG_Y = -150.0, BAG_Z0 = -150.0;
 const vec3 SLO = vec3(-345.0, -178.0, -800.0), SHI = vec3(345.0, 95.0, 88.0);
 const vec2 ATLAS = vec2(${f(TILE_W * ATLAS_C)}, ${f(TILE_H * ATLAS_R)});
-// the one ambient: cold, dim, constant (a dome brighter from above)
+// the one ambient: cold, very dim, constant (a dome brighter from above): it holds everything outside the bloom's
+// reach at or under film2, so the shapes there are silhouettes
 const vec3 AMBC = vec3(0.78, 0.88, 1.0);
-const float AMBK = 0.24;
+const float AMBK = 0.075;
 
 ${GLSL_HANDS}
 
@@ -152,18 +153,18 @@ float sdFolded(vec3 p) {
   float slab = sdBox3(r, vec3(165.0, 12.0, 270.0)) - 14.0 - pil;
   slab += 1.6 * snoise(p.xz * 0.012 + 3.0) + 2.4 * exp(-pow(abs(r.x) - 108.0, 2.0) / 40.0) * step(p.y, FC.y);
   slab += 1.4 * exp(-pow(p.z + 563.0 + 0.03 * p.x, 2.0) / 60.0);
-  // the collar, squashed flat by the bag: the fall round the back (an arch), and its two points lying down the front
+  // the collar, folded flat by the bag (no ring): its back pressed into a straight band across the top, and its two
+  // points lying down the front from the band's ends toward the placket, a V with the shirt showing in the notch
   vec2 c = vec2(p.x - 75.0, p.z - COLZ);
-  c.y += 0.07 * c.x + 1.2 * snoise(c * 0.02 + 1.0);
-  float eo = length(c / vec2(86.0, 38.0)), ei = length(c / vec2(64.0, 22.0));
-  float arch = max(max((eo - 1.0) * 36.0, (1.0 - ei) * 22.0), -(c.y + 4.0));
+  c.y += 0.05 * c.x + 0.8 * snoise(c * 0.02 + 1.0);
   float yTop = FC.y - 26.0 - pil;
-  float band = max(arch, abs(p.y - (yTop - 5.0)) - 5.5) - 1.0;
-  float s = sign(p.x - 75.0);
-  vec2 xz = vec2(abs(p.x - 75.0), p.z - COLZ);
-  vec2 tip = vec2(50.0 + 6.0 * s, -84.0 + 9.0 * s);
-  float tri = sdTri(xz, vec2(13.0, -10.0), vec2(86.0, -2.0), tip) - 1.5;
-  float pts = max(tri, abs(p.y - (yTop - 2.5)) - 2.4);
+  float bd = sdBox(vec2(c.x, c.y - 4.0 + 0.0011 * c.x * c.x), vec2(96.0, 10.0)) - 2.0;
+  float band = max(bd, abs(p.y - (yTop - 4.0)) - 4.0) - 0.8;
+  float s = sign(c.x);
+  vec2 xz = vec2(abs(c.x), c.y);
+  vec2 tip = vec2(15.0 + 3.0 * s, -86.0 + 5.0 * s);
+  float tri = sdTri(xz, vec2(44.0, -2.0), vec2(98.0, -4.0), tip) - 1.5;
+  float pts = max(tri, abs(p.y - (yTop - 7.5)) - 2.4);
   return min(slab, min(band, pts));
 }
 
@@ -269,33 +270,43 @@ vec3 amb(vec3 N, float o) { return AMBC * AMBK * (0.3 + 0.7 * (0.5 + 0.5 * N.z))
 // the reaction as a small soft area source lying on the cloth (wrapped: it is a patch, not a point)
 vec3 glowL(vec3 P, vec3 N) {
   vec3 G = bloomW() - P; float d = max(length(G), 1.0);
-  return T_LUMINOL * glowK * 0.85 * clamp(dot(N, G / d) * 0.8 + 0.2, 0.0, 1.0) / (1.0 + d * d / (105.0 * 105.0));
+  return T_LUMINOL * glowK * 0.85 * clamp(dot(N, G / d) * 0.8 + 0.2, 0.0, 1.0) / (1.0 + d * d / (125.0 * 125.0));
 }
 vec3 glowSpec(vec3 P, vec3 N, vec3 V, float rough) {
   vec3 G = bloomW() - P; float d = max(length(G), 1.0);
   vec3 L = G / d, H = normalize(L + V);
-  return T_LUMINOL * glowK * ggx(N, H, rough) * max(dot(N, L), 0.0) / (1.0 + d * d / (105.0 * 105.0));
+  return T_LUMINOL * glowK * ggx(N, H, rough) * max(dot(N, L), 0.0) / (1.0 + d * d / (125.0 * 125.0));
 }
-// the stain: one irregular patch soaked into the weave over the left chest (~150 x 175 mm), broken by the threads and
-// the folds, with a faint wicked fringe; fixed in place, only its brightness changes
-float bloomMask(vec3 P) {
+// the stain: one irregular soak in the weave over the left chest (~150 x 175 mm), not a cloud. Its edge is where the
+// blood stopped wicking: crisp, ragged, pushed out in fingers along the threads (warp z and weft x); inside it a dim
+// even body with two or three brighter cores where it pooled. Fixed in place, only its brightness changes.
+float bloomMask(vec3 P, float pxmm) {
   vec2 d = P.xz - bloomW().xz;
-  vec2 w = d + 17.0 * vec2(snoise(d * 0.009 + 1.3), snoise(d * 0.009 + 7.7));
-  float r = length(w / (vec2(76.0, 88.0) * glowR));
-  float n = 0.6 * snoise(w * 0.019 + 2.0) + 0.3 * snoise(w * 0.047 + 5.0) + 0.07 * snoise(w * 0.12 + 9.0);
-  float e = r + 0.3 * n;
-  float core = 1.0 - smoothstep(0.74, 1.0, e);
-  // a faint tide line where the soak stopped, and a little wicking past it along the threads
-  float tide = exp(-pow((e - 0.94) / 0.05, 2.0)) * 0.22;
-  float wick = (1.0 - smoothstep(0.95, 1.3, e)) * 0.08;
-  return core * (0.62 + 0.38 * (1.0 - smoothstep(0.0, 0.95, r))) + tide + wick;
+  vec2 w = d + 12.0 * vec2(snoise(d * 0.008 + 1.3), snoise(d * 0.008 + 7.7));
+  float r = length(w / (vec2(74.0, 86.0) * glowR));
+  float n = 0.5 * snoise(w * 0.017 + 2.0) + 0.07 * snoise(w * 0.04 + 5.0);
+  // wicking: streaks along the warp and the weft, only outward (fingers past the line, never holes in it)
+  float wk = max(snoise(P.xz * vec2(0.013, 0.06) + 3.1), 0.0) + max(snoise(P.xz * vec2(0.06, 0.013) + 8.4), 0.0);
+  float e = r + 0.26 * n - 0.06 * wk;
+  float aa = 0.045 + 0.02 * pxmm;
+  float body = 1.0 - smoothstep(0.9 - aa, 0.9 + aa, e);
+  // the tide line just inside the edge, where it dried thickest
+  float tide = exp(-pow((e - 0.86) / 0.035, 2.0)) * 0.18;
+  // the cores (where it pooled): irregular, off-centre, unequal
+  vec2 c1 = (w - vec2(-20.0, 24.0) * glowR) / (vec2(24.0, 30.0) * glowR);
+  vec2 c2 = (w - vec2(26.0, -18.0) * glowR) / (vec2(20.0, 17.0) * glowR);
+  vec2 c3 = (w - vec2(-6.0, -44.0) * glowR) / (vec2(14.0, 12.0) * glowR);
+  float cn = 0.35 * snoise(w * 0.05 + 11.0);
+  float cores = 0.85 * exp(-dot(c1, c1) * (1.0 + cn)) + 0.65 * exp(-dot(c2, c2) * (1.0 - cn)) + 0.45 * exp(-dot(c3, c3));
+  return body * (0.3 + tide + 0.85 * min(cores, 1.0));
 }
 
 vec3 shadeShirt(vec3 P, vec3 N, vec3 V) {
   float pxmm = length(P - camPos) * pxAng;
   float front = smoothstep(0.15, -0.35, N.y);
   // the weave (faded out where it would alias) and the cotton's slub
-  float wv = sin(P.x * 2.4 + 0.7 * sin(P.z * 0.31)) * sin(P.z * 2.4);
+  // (warp and weft as lines, not a dot screen)
+  float wv = 0.5 * (sin(P.x * 2.4 + 0.7 * sin(P.z * 0.31)) + sin(P.z * 2.4 + 0.5 * sin(P.x * 0.27)));
   wv *= 1.0 - smoothstep(0.22, 0.6, pxmm);
   float tw = snoise(P.xz * vec2(0.9, 0.12)) * (1.0 - smoothstep(0.6, 1.6, pxmm));
   vec3 alb = mix(T_SILVER, T_FILM2, 0.3) * 0.46 * (0.93 + 0.05 * wv + 0.04 * tw);
@@ -306,11 +317,6 @@ vec3 shadeShirt(vec3 P, vec3 N, vec3 V) {
   alb *= 1.0 - 0.4 * seam;
   float br = btnDist(P);
   float bt = (1.0 - smoothstep(5.0, 5.8 + pxmm, br)) * front;
-  // the inside of the folded collar's arch (mode 1): the back of the neck, in shadow
-  if (mode > 0.5) {
-    vec2 c = vec2(P.x - 75.0, P.z - COLZ); c.y += 0.07 * c.x + 1.2 * snoise(c * 0.02 + 1.0);
-    alb *= 1.0 - 0.6 * step(length(c / vec2(64.0, 22.0)), 1.0) * step(-4.0, c.y);
-  }
   float o = aoS(P, N);
   vec3 E = amb(N, o) + glowL(P, N) * (0.4 + 0.6 * o);
   vec3 col = alb * E;
@@ -319,11 +325,13 @@ vec3 shadeShirt(vec3 P, vec3 N, vec3 V) {
   float nv = max(dot(N, V), 0.0);
   col += AMBC * AMBK * 0.02 * pow(1.0 - nv, 3.0) * o * (0.5 + 0.5 * N.z);
   col += glowSpec(P, N, V, 0.55) * 0.012 + glowSpec(P, N, V, 0.25) * 0.02 * bt;
-  // the luminol, in the cloth: crests brighter than the valleys, the threads breaking it up
-  float bm = bloomMask(P);
-  float fv = folds(P);
-  float brk = (0.62 + 0.38 * smoothstep(2.5, -2.5, fv)) * (0.78 + 0.22 * wv) * (0.88 + 0.12 * snoise(P.xz * 0.11 + 4.0));
-  col += T_LUMINOL * glowK * bm * brk * front * (1.0 - 0.85 * bt) * (0.6 + 0.4 * o) * 1.15;
+  // the luminol, soaked in the cloth: darker down in the fold valleys and creases (the cloth turns away and occludes
+  // it), the slub along the threads breaking it a little; no screen
+  float bm = bloomMask(P, pxmm);
+  float vly = mode < 0.5 ? smoothstep(-1.2, 1.8, folds(P)) : 0.0;
+  // (and a slight streakiness along the threads, where the soak ran)
+  float brk = (1.0 - 0.7 * vly) * (0.25 + 0.75 * o * o) * (0.92 + 0.08 * tw) * (0.86 + 0.14 * snoise(P.xz * vec2(0.035, 0.007) + 5.0));
+  col += T_LUMINOL * glowK * bm * brk * front * (1.0 - 0.85 * bt) * 1.25;
   return col;
 }
 
@@ -333,7 +341,10 @@ vec3 shadeGlove(vec3 P, vec3 N, vec3 V, float o) {
   vec3 E = amb(N, o) + glowL(P, N);
   float nv = max(dot(N, V), 0.0);
   vec3 sp = glowSpec(P, N, V, 0.62) * (0.05 + 0.2 * pow(1.0 - nv, 5.0));
-  return alb * E * 1.3 + sp * 0.5 + alb * AMBC * AMBK * 0.25 * pow(1.0 - nv, 4.0) * o;
+  // the rim: the bloom catching the glove's turning edges (otherwise it is a silhouette)
+  vec3 G = bloomW() - P; float gd = length(G);
+  vec3 rim = T_LUMINOL * glowK * 0.22 * pow(1.0 - nv, 3.0) * clamp(dot(N, G / gd) * 0.6 + 0.4, 0.0, 1.0) / (1.0 + gd * gd / (230.0 * 230.0));
+  return alb * E * 1.3 + sp * 0.5 + rim * o;
 }
 vec3 shadePenHand(vec3 P, vec3 rd, int m) {
   vec3 q = toH(P);
@@ -362,12 +373,16 @@ vec3 shadeSprayHand(vec3 P, vec3 rd, int m) {
   vec3 nl = nrmQ(q);
   vec3 N = fromQ(nl), V = -rd;
   if (m == 0) return shadeGlove(P, N, V, 1.0);
-  vec3 E = amb(N, 1.0) + glowL(P, N);
+  // (the white bottle takes little of the dome: outside the bloom's reach it stays a silhouette under film2)
+  vec3 E = amb(N, 1.0) * 0.4 + glowL(P, N);
+  float nvq = max(dot(N, V), 0.0);
+  vec3 Gq = bloomW() - P;
+  vec3 rimq = T_LUMINOL * glowK * 0.12 * pow(1.0 - nvq, 3.0) / (1.0 + dot(Gq, Gq) / (230.0 * 230.0));
   if (m == 4) return T_FILM2 * 0.9 * E;
   if (m == 6) return T_FILM * E;
   // white HDPE: diffuse, a broad soft sheen; the cap ribbed
   float rib = (q.z < -32.0 && q.z > -54.0) ? 0.85 + 0.15 * sin(atan(q.y, q.x + 42.0) * 60.0) : 1.0;
-  return T_HALIDE * 0.38 * rib * E + glowSpec(P, N, V, 0.35) * 0.05;
+  return T_HALIDE * 0.38 * rib * E + glowSpec(P, N, V, 0.35) * 0.05 + rimq;
 }
 
 // ---------------------------------------------------------------- the bag: thin polyethylene, crinkled
@@ -408,7 +423,7 @@ vec3 panel(vec3 behind, vec3 P, vec2 b, vec3 rd, float de) {
   vec3 R = reflect(rd, N * sign(-dot(N, rd)));
   float env = AMBK * (0.02 + 1.4 * smoothstep(0.45, 0.95, R.z));
   vec3 col = behind * (0.88 - 0.3 * frost) * (1.0 - F);
-  col += T_LUMINOL * Ib * (0.004 + 0.045 * frost + 0.03 * crk);
+  col += T_LUMINOL * Ib * (0.003 + 0.045 * frost + 0.012 * crk);
   col += AMBC * env * F * 0.8 + AMBC * AMBK * 0.03 * frost;
   return col;
 }
@@ -510,6 +525,11 @@ vec3 shade(vec2 px) {
     vec3 N = fn; if (dot(N, rd) > 0.0) N = -N;
     vec3 alb = pow(sealC, vec3(2.2)) * 0.82;
     vec3 sc = alb * (amb(N, 1.0) * 0.3 + glowL(PFl, N) * 0.8);
+    // closed over the face, the strip is lit from beneath: the bloom glowing up through the bag and the tape (strongest
+    // at its lower edge, nearest the stain), the monogram's ink dark against it
+    vec3 Gs = bloomW() - PFl;
+    float tr = glowK * smoothstep(0.62 * 3.14159, 0.95 * 3.14159, flapA) / (1.0 + dot(Gs, Gs) / (175.0 * 175.0));
+    sc += alb * mix(T_LUMINOL, T_LIGHTBOX, 0.3) * tr * 1.5 * (0.55 + 0.75 * clamp(fs / ${f(FLAP.h)}, 0.0, 1.0));
     // the tape's own slight sheen, from the dome
     vec3 R = reflect(rd, N);
     sc += AMBC * AMBK * 0.025 * smoothstep(0.0, 0.9, R.z);

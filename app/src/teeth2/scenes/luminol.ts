@@ -310,6 +310,6 @@ export default class LuminolPlate extends Scene {
 
     this.pass.render(this.ctx.renderer, out);
     const sh = mode ? 4 * pulse(t, this.tLand, 0.05) : 0;
-    return { halation: 0.14, bloom: 0.4, shake: [sh * 0.4, -sh] as [number, number] };
+    return { halation: 0.1, bloom: 0.2, shake: [sh * 0.4, -sh] as [number, number] };
   }
 }
