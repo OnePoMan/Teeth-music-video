@@ -101,3 +101,13 @@ Lead rulings from batch review 3 (settled):
 - **The glove is one shared model**: every plate imports `GLSL_HAND` from `match-glsl.ts` (exported 2026-11-19) or matches it exactly: film2 matte nitrile, segmented fingers, a cuff, lit only by its plate's source.
 - Value range: every plate reaches true film-black somewhere in frame and lightbox-bright somewhere (P(doom)'s range); mid-tone-only frames are a defect.
 - A line leaving on the beat after it ends can leave a header or lane empty in an instrumental gap: correct karaoke, not a defect.
+
+### Batch review 4 (fresh reviewer, Opus high): chart, voice, articulator round 2; acetate and filed round 1
+Verdicts: chart SHIP for gate 3 (glove lumps → the kit at gate 4); voice FIX (small, last); articulator FIX (last); acetate REWORK of the print, the acetate and the lyric layout (keep timing, snaps, lamp kicks); filed FIX of the desk section (the bank and the loop SHIP). Full review: `docs/gate3/review4.md`.
+
+Lead rulings from batch review 4 (settled):
+- **The tracing is one object across plates 12 and 13**: the six upper marks of `biteTrace()` (`match-ink.ts`), the chip on #8 last. Plate 12 traces it as the bite reads on the print; plate 13 shows it mirrored because the sheet is turned face-down onto the casts. Plate 13 is not changed (its first beat may show the sheet landing face-down, at gate 4). This narrows the review 1 ruling ("upper and lower") for the tracing: the lower arc stays in the photograph, untraced.
+- **Every pen-written lyric and every carried object shows the shared glove doing it** (the polygraph's machine pens are the exception).
+- **Radiographs are always backlit** (plates 2 and 14). **Red, wherever it appears, is full match red at a readable stroke weight**, never a dim hairline.
+- Hero words reach frame scale (≥30% of frame width, or the plate's equivalent) in every plate; small heroes are a defect.
+- The shared glove's knuckle lumps (`sdGlove` in `match-glsl.ts`) are fixed in the kit at gate 4 and re-checked against the gate 2 match stills.
