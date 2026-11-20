@@ -12,6 +12,7 @@
 import { W, H, SS_TAP_GLSL } from '../../engine/gl';
 import { GLSL_TEETH_PALETTE } from '../palette';
 import { GLSL_TEETH } from '../teeth';
+import { GLSL_HAND } from './match-glsl';
 
 export const POUR = {
   /** mode 0: the stone's level, the platform's top, the bench */
@@ -24,11 +25,16 @@ export const POUR = {
   /** text rects (s, v, width, height), mm; B's s is offset per shot so the word faces the lens */
   RECT_A: [-28.0, -14.0, 56.0, 28.0] as [number, number, number, number],
   RECT_B: [-30.0, -38.0, 60.0, 30.0] as [number, number, number, number],
+  /** the model trimmer (mode 1, trim on): the abrasive wheel's face plane (z), its centre (x, y, below the table), radius */
+  ZF: 50.0, WCX: -40.0, WCY: -52.0, RW: 125.0,
+  /** how many dust motes the shader takes */
+  NDUST: 48,
 };
 
 export const MARCH_FRAG = /* glsl */ `
 ${GLSL_TEETH_PALETTE}
 ${GLSL_TEETH}
+${GLSL_HAND}
 ${SS_TAP_GLSL}
 uniform vec3 camPos, camR, camU, camF; uniform float tanH;
 uniform int mode;
@@ -40,6 +46,11 @@ uniform float setP, wetAll, shiverA;  // the set front, the wetness, the stomp's
 uniform vec3 lampPos, lampDir; uniform float lampI, lampCone, lampRef, keyK;
 uniform vec3 tubeP; uniform float tubeI, fillK, topK;
 uniform vec3 castOff;
+uniform float trim, spinA, spinBlur;  // the model trimmer: on, the wheel's angle, its angular smear over the shutter
+uniform vec3 hTip, hE1, hE2, hE3; uniform float handOn;   // the glove's frame (bench mm): GLSL_HAND's pen tip, axes
+uniform vec4 dustP[${POUR.NDUST}], dustV[${POUR.NDUST}]; uniform int dustN;   // motes: pos + radius, smear + opacity
+const float ZF = ${POUR.ZF.toFixed(2)}, RW = ${POUR.RW.toFixed(2)};
+const vec2 WC = vec2(${POUR.WCX.toFixed(2)}, ${POUR.WCY.toFixed(2)});
 const float SURF = ${POUR.SURF.toFixed(2)}, PAD = ${POUR.PAD.toFixed(2)}, BENCH_A = ${POUR.BENCH_A.toFixed(2)};
 const float PB = ${POUR.PB.toFixed(2)}, PTOP = ${POUR.PTOP.toFixed(2)};
 const float CEN = ${POUR.CEN.toFixed(2)}, RA = ${POUR.RA.toFixed(2)}, RB = ${POUR.RB.toFixed(2)};
@@ -231,10 +242,31 @@ float crumbs(vec3 p) {
   }
   return min(dd * 0.9, bound);
 }
+// the model trimmer: the abrasive wheel (its face at z = ZF, the lower part under the table) and its steel hood ring
+float sdWheel(vec3 p) {
+  float r = length(p.xy - WC);
+  return max(r - RW, abs(p.z - (ZF + 8.0)) - 8.0);
+}
+float sdHood(vec3 p) {
+  float r = length(p.xy - WC);
+  float ring = max(abs(r - (RW + 7.0)) - 1.6, abs(p.z - (ZF + 9.0)) - 12.0);
+  float lip = max(max(r - (RW + 8.6), (RW + 1.5) - r), abs(p.z - (ZF - 3.0)) - 1.4);   // the rolled front lip
+  return min(ring, lip) - 0.4;
+}
+// the glove (GLSL_HAND's shared model, the pen left out), its forearm carried on out of frame
+vec3 toHm(vec3 p) { vec3 d = p - hTip; return vec3(dot(d, hE1), dot(d, hE2), dot(d, hE3)); }
+float sdArmP(vec3 p) { p.x -= GRIP; vec3 ax = normalize(W1 - W0); return rcap(p, W0 + ax * 180.0, W0 + ax * 620.0, 32.5, 38.0); }
+float handMapP(vec3 q, out int m) {
+  float d = sdGlove(q); m = 8;
+  float s = min(sdSleeve(q), sdArmP(q));
+  if (s < d) { d = s; m = 11; }
+  return d;
+}
 float mapB(vec3 p, out int id, out int mat) {
   p -= castOff;
   mat = 5; id = 0;
   float d = patty(p);
+  if (trim > 0.5) d = max(d, p.z - ZF + 0.3);   // the heel ground flat against the wheel
   if (p.y > PTOP - 4.0) {
     int cid;
     float c = sdCast(toHead(p), 0, cid);
@@ -253,6 +285,20 @@ float mapB(vec3 p, out int id, out int mat) {
   if (!SHM && abs(d) < 0.8) d = max(d, -voids(p));
   float cr = crumbs(p);
   if (cr < d) { d = cr; id = 0; }
+  if (trim > 0.5) {
+    float w = sdWheel(p);
+    if (w < d) { d = w; mat = 9; id = 0; }
+    float hd = sdHood(p);
+    if (hd < d) { d = hd; mat = 10; id = 0; }
+  }
+  if (handOn > 0.5) {
+    vec3 q = toHm(p);
+    float hb = sdBox3(q - vec3(330.0, -12.0, 2.0), vec3(345.0, 62.0, 52.0));
+    if (hb < d) {
+      int hm; float hd = handMapP(q, hm);
+      if (hd < d) { d = hd; mat = hm; id = 0; }
+    }
+  }
   return d;
 }
 
@@ -276,6 +322,7 @@ vec2 boxHit(vec3 ro, vec3 rd, vec3 lo, vec3 hi) {
 }
 void sceneBox(out vec3 lo, out vec3 hi) {
   if (mode == 0) { lo = vec3(-75.0, BENCH_A, -70.0); hi = vec3(75.0, SURF + 5.0, 90.0); }
+  else if (trim > 0.5 || handOn > 0.5) { lo = vec3(-260.0, PB, -160.0); hi = vec3(200.0, 120.0, 140.0); }
   else { lo = vec3(-130.0, PB, -110.0) + castOff; hi = vec3(130.0, 3.0, 140.0) + castOff; }
 }
 float shadow(vec3 ro, vec3 rd, float tMax) {
@@ -285,7 +332,7 @@ float shadow(vec3 ro, vec3 rd, float tMax) {
   vec2 bh = boxHit(ro, rd, lo, hi);
   float tEnd = min(min(bh.y, tMax), 300.0);
   float res = 1.0, t = max(bh.x, 0.0) + 0.05 + 0.03 * hash12(gl_FragCoord.xy), ph = 1e10;
-  for (int i = 0; i < 120; i++) {
+  for (int i = 0; i < 72; i++) {
     if (t > tEnd) break;
     float h = mapD(ro + rd * t);
     float y = h * h / (2.0 * ph);
@@ -293,7 +340,7 @@ float shadow(vec3 ro, vec3 rd, float tMax) {
     res = min(res, 12.0 * dd / max(0.0, t - y));
     ph = h;
     if (res < 0.004) break;
-    t += clamp(h * 0.8, 0.03, 4.0);
+    t += clamp(h * 0.85, 0.06, 6.0);
   }
   SHM = false;
   res = clamp(res, 0.0, 1.0);
@@ -432,6 +479,35 @@ vec4 shadePx(vec2 px) {
     vec3 alb = mix(T_FILM2 * 3.2, T_HALIDE * 0.3, 0.35) * (0.94 + 0.06 * snoise(P * 1.3) + 0.03 * snoise(P * 9.0));
     col = alb * softL(keyK * 0.85 * max(ndl, 0.0) * att * sh + sky + top);
     col += T_LIGHTBOX * 0.012 * pow(max(dot(N, Hh), 0.0), 8.0) * att * sh;
+  } else if (mat == 8 || mat == 11) {
+    // the glove: matte film2 nitrile, a soft sheen on the knuckles from the lamp; the sleeve dark cotton
+    vec3 alb = mat == 8 ? T_FILM2 * 1.9 : T_FILM2 * 1.15;
+    float wrap = max((ndl + 0.2) / 1.2, 0.0);
+    col = alb * (keyK * 1.1 * wrap * att * sh + sky * 2.0 + top + 0.01);
+    if (mat == 8) col += T_HALIDE * 0.07 * pow(max(dot(N, Hh), 0.0), 10.0) * att * sh;
+    col *= mix(0.5, 1.0, a);
+  } else if (mat == 9) {
+    // the abrasive wheel: grit (sharp when it stands still), smeared into rings while it spins; a band of ground
+    // stone packed into it where the casts meet it
+    vec2 dq = P.xy - WC;
+    float r = length(dq);
+    float grit = 0.5 + 0.5 * snoise(rot2(-spinA) * dq * 0.75) * 0.8 + 0.2 * snoise(rot2(-spinA) * dq * 2.6);
+    float ring = 0.5 + 0.35 * snoise(vec2(r * 0.75, 3.7)) + 0.15 * snoise(vec2(r * 2.6, 8.1));
+    float k = clamp(spinBlur * r / 2.5, 0.0, 1.0);
+    float g = mix(grit, ring, k);
+    vec3 alb = mix(T_FILM2 * 2.0, T_SILVER * 0.5, g);
+    float band = exp(-pow((r - 50.0) / 9.0, 2.0)) * mix(0.25 + 0.3 * snoise(rot2(-spinA) * dq * 0.3), 0.3, k);
+    alb = mix(alb, T_STONE * 0.22, clamp(band, 0.0, 1.0));
+    float wrap = max((ndl + 0.1) / 1.1, 0.0);
+    col = alb * softL(keyK * wrap * att * sh + sky * 1.5 + top) * mix(0.6, 1.0, a);
+  } else if (mat == 10) {
+    // the hood: brushed steel catching the lamp and the tube
+    vec3 R = reflect(rd, N);
+    float fr = 0.55 + 0.45 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
+    col = envAt(P, R, 1.0) * T_HALIDE * 1.3 * fr;
+    col += T_SILVER * 0.5 * (keyK * 0.6 * max(ndl, 0.0) * att * sh + sky * 1.5 + top);
+    col += T_LIGHTBOX * 0.9 * pow(max(dot(N, Hh), 0.0), 50.0) * att * sh;
+    col *= a;
   } else {
     // dental stone: wet (darker, a mirror for the lab) or set (matt, powdery, porous)
     float wet = 0.0; vec4 wd = vec4(0.0);
@@ -447,6 +523,7 @@ vec4 shadePx(vec2 px) {
       vec3 q = P - castOff;
       wd = wordAt(svB(q));
       wax = wd.y * smoothstep(0.3, 0.6, wd.x);
+      wet = wd.z * smoothstep(0.02, 0.3, wd.w);   // a word on the base still wet, hardening to matt
     }
     vec3 alb = stoneAlb(P);
     alb = mix(alb, T_WAX * (0.95 + 0.05 * snoise(P * 5.0)), wax);
@@ -474,6 +551,27 @@ void main() {
   float dmin = 1e9;
   for (int k = ssK0(); k < ssK1(); k++) { vec4 s = shadePx(px + rgss(k)); c += s.rgb; dmin = min(dmin, s.a); }
   c *= ssWeight();
+  // the stone dust off the trimmer: matt motes lit by the lamp, smeared along their flight over the shutter
+  for (int i = 0; i < ${POUR.NDUST}; i++) {
+    if (i >= dustN) break;
+    vec4 dp = dustP[i], dv = dustV[i];
+    vec3 d0 = dp.xyz - camPos, d1 = d0 + dv.xyz;
+    float z0 = dot(d0, camF), z1 = dot(d1, camF);
+    if (z0 < 8.0 || z1 < 8.0 || z0 > dmin) continue;
+    vec2 k = vec2(${(W / H).toFixed(6)} * tanH, tanH);
+    vec2 s0 = (vec2(dot(d0, camR), dot(d0, camU)) / (z0 * k) * 0.5 + 0.5) * vec2(${W.toFixed(1)}, ${H.toFixed(1)});
+    vec2 s1 = (vec2(dot(d1, camR), dot(d1, camU)) / (z1 * k) * 0.5 + 0.5) * vec2(${W.toFixed(1)}, ${H.toFixed(1)});
+    vec2 ab = s1 - s0, ap = px - s0;
+    float h = clamp(dot(ap, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0);
+    float dist = length(ap - ab * h);
+    float rp = max(dp.w * ${(H / 2).toFixed(1)} / (z0 * tanH), 0.6);
+    float cov = (1.0 - smoothstep(rp * 0.6, rp + 0.9, dist)) * dv.w * clamp(rp * 2.0 / (rp * 2.0 + length(ab)), 0.15, 1.0);
+    if (cov <= 0.002) continue;
+    float att; vec3 L = lampL(dp.xyz, att);
+    vec3 mc = T_STONE * softL(keyK * 0.75 * att + 0.04);
+    c = mix(c, mc, cov);
+    if (cov > 0.4) dmin = min(dmin, z0);
+  }
   // depth: the nearest tap, so a silhouette pixel belongs to the object in focus (an averaged depth there would
   // blur it into the background and leave a dithered fringe around the edge)
   fragColor = vec4(c, dmin);
