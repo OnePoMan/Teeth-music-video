@@ -193,8 +193,7 @@ export default class Filed extends Scene {
     const zk = open - LAY.FZ0 - K * LAY.FDZ + this.zs[K]!;
     let lift = LIFT0;
     if (!cr && t - T.snare < 0.2) lift += 0.004 * Math.exp(-(t - T.snare) * 25) * Math.abs(Math.sin((t - T.snare) * 60));
-    // the carry comes out of the dark end of the bank: the tube's louvre opened up there so the folder reads
-    u.louv!.value = mirror ? 12 : lerp(3.5, 12, ease.inOutQuad(clamp((t - T.b(34)) / (T.b(42) - T.b(34)))));
+    u.louv!.value = 12; // the tube is fixed (review 4 #6): its throw never changes
     u.ambK!.value = mirror ? 0.002 : 0.012;
     u.openZ!.value = open;
     u.lift08!.value = lift;
