@@ -31,7 +31,7 @@ uniform vec3 camPos, camR, camU, camF; uniform float tanH;
 uniform vec3 keyPos, keyDir; uniform float keyI, keyRad, keyCone;
 uniform vec3 fillDir; uniform float fillI;
 uniform sampler2D wordTex, word2Tex, labelTex, digitTex;
-uniform float wordAmt, wordWax, coatK, word2Amt;
+uniform float wordAmt, wordWax, coatK, word2Amt, wordThin;
 uniform vec3 W2C, W2N, W2U, W2T;      // the small supporting word: centre on the skin below the bite, normal, up
 uniform vec3 BC, BN, BT, BU;      // the bite: centre on the skin, normal, tangent (photo X), up in its plane (photo Y)
 uniform vec3 WC, WN, WT;          // the word: centre on the skin, normal, tangent
@@ -98,7 +98,7 @@ float teethCut(float X, bool upper) {
       float sc = sat(1.0 - pow(abs(uc) / 1.1, 2.0)) * mix(0.5, 1.0, smoothstep(2.0, 4.5, w));
       // #8: its mesial half is the chip: the corner is missing, so it bit a shallow diagonal shelf there, then a crisp step
       // down to the full scallop (an unbitten wedge between #9 and #8 that reads as a notch in the rim)
-      float facet = t.w == 8.0 ? mix(0.12 + 0.4 * sat(u / 0.46), 1.0, smoothstep(0.46, 0.53, u)) : 1.0;
+      float facet = t.w == 8.0 ? mix(0.25 * sat(u / 0.5), 1.0, smoothstep(0.5, 0.56, u)) : 1.0;
       g = max(g, sc * mix(0.75, 1.0, t.z) * facet);
     }
   }
@@ -129,7 +129,8 @@ float scoop(vec3 p) {
 }
 
 float wordDepth(vec2 X) {
-  float wd = textureLod(wordTex, (X - PATCHR.xy) * PATCHR.zw, 0.0).r;
+  // (wordThin: the light weight the hero springs up in, its strokes eroded ~0.6 mm, before it snaps heavy)
+  float wd = textureLod(wordTex, (X - PATCHR.xy) * PATCHR.zw, 0.0).r + 0.62 * wordThin;
   // the bitten edge: the outline scalloped at tooth width (~1.6 mm), torn
   float edge = smoothstep(-0.9, 0.2, wd);
   wd -= edge * 0.22 * (0.5 + 0.5 * sin(dot(X, vec2(3.9, 0.6)) + 2.0 * snoise(X * 0.6)));
@@ -381,6 +382,10 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     alb = mix(alb, CREAM * k * 1.1, ring * 0.12);
     alb = mix(alb, RUSS * k * 0.75, len * 0.7);
     rough = 0.5 + 0.05 * snoise(P * 0.4); f0 = 0.03; wrap = 0.2; coat = 0.85;
+    // (the skin's micro-relief: a fine orange-peel in the wax coat, off the cut flesh)
+    float skinOnly = step(0.0, ws) * step(-0.05, body0);
+    vec3 pk = vec3(snoise(P * 1.7), snoise(P * 1.7 + 17.3), snoise(P * 1.7 + 31.1)) * 0.6 + vec3(snoise(P * 4.3 + 5.0), snoise(P * 4.3 + 9.0), snoise(P * 4.3 + 2.0)) * 0.4;
+    N = normalize(N + 0.05 * (pk - N * dot(pk, N)) * skinOnly);
     // the stem well: russet netting in the cavity (rougher, warmer, darker)
     float well = smoothstep(0.72, 0.9, hN) * smoothstep(12.0, 4.0, cr);
     float net = well * smoothstep(-0.15, 0.35, fbm(q.xz * 0.55 + 2.0, 4) + 0.35 * well);

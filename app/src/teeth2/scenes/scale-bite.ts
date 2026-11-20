@@ -48,8 +48,9 @@ export function toothSpans(): { upper: number[][]; lower: number[][] } {
   return { upper: bm.upper.map(span).sort((a, b) => a[0]! - b[0]!), lower: bm.lower.map(span).sort((a, b) => a[0]! - b[0]!) };
 }
 
-/** One hero word bitten between the arcs (see the header). `serif`: Cormorant italic (the tender register). */
-export function bakeWord(word: string, serif = false): { tex: THREE.DataTexture; chip: P2 } {
+/** One hero word bitten between the arcs (see the header). `serif`: Cormorant italic (the tender register). `minW`: a
+ *  short word (GO) is bitten taller, up to this width (mm), so it still spans the frame without filling it with skin. */
+export function bakeWord(word: string, serif = false, minW = 0): { tex: THREE.DataTexture; chip: P2; width: number } {
   const text = word.toUpperCase();
   const chars = Array.from(serif ? word.toLowerCase() : text);
   // 1. the letters' mask, drawn into the patch (canvas y down: row 0 = PATCH.y1)
@@ -63,6 +64,12 @@ export function bakeWord(word: string, serif = false): { tex: THREE.DataTexture;
   const widths = () => chars.map((ch) => c.measureText(ch).width / ppm);
   let w = widths();
   let total = w.reduce((a, b) => a + b, 0) + WORD.track * (chars.length - 1);
+  if (total < minW) {
+    size *= Math.min(minW / total, 1.7);
+    c.font = font(fam, size);
+    w = widths();
+    total = w.reduce((a, b) => a + b, 0) + WORD.track * (chars.length - 1);
+  }
   if (total > WORD.span) {
     size *= WORD.span / total;
     c.font = font(fam, size);
@@ -159,7 +166,7 @@ export function bakeWord(word: string, serif = false): { tex: THREE.DataTexture;
       out[j * PATCH_W + i] = Math.max(sLetter - 0.08, Math.min(sd, sLetter + 0.22));
     }
   }
-  return { tex: halfTex(out, 1), chip };
+  return { tex: halfTex(out, 1), chip, width: total };
 }
 
 /** Euclidean distance transform (Felzenszwalb–Huttenlocher), in pixels: distance from each pixel to the nearest pixel

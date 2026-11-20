@@ -38,11 +38,34 @@ const KINDS: Kind[] = [
   'wide', 'ruler', 'rake', 'profile', 'oblique', 'macro', 'rake', 'corner',
   'wide', 'macro', 'rake', 'profile', 'oblique', 'ruler', 'rake', 'chip',
   'oblique', 'macro', 'rake', 'corner', 'rake', 'profile', 'wide', 'ruler',
-  'rake', 'macro', 'oblique', 'chip', 'profile', 'wide', 'corner', 'rake',
+  'rake', 'macro', 'oblique', 'chip', 'profile', 'wide', 'wide', 'rake',
 ];
 
-interface Hero { word: string; start: number; cut: number; leave: number; tex: THREE.DataTexture; wax: boolean; chip: [number, number] }
-interface Shot { i: number; t0: number; t1: number; kind: Kind; hero: number }
+interface Hero { word: string; start: number; cut: number; leave: number; tex: THREE.DataTexture; wax: boolean; chip: [number, number]; width: number; hold: boolean }
+/** line: which lyric line of the window the shot falls in (0..3: each line has its own camera move); sub: the n-th
+ *  photograph of a held hero (NEVER: one new photograph per beat while it is sung three times). */
+interface Shot { i: number; t0: number; t1: number; kind: Kind; hero: number; sub: number; line: number }
+/** Each hero's own photograph (the 3/4 macro on the bitten flank, varied): camera azimuth off the word's normal, its
+ *  elevation, roll, the aim's offset on the flank (mm), the flash's offset from the lens (along the flank's tangent,
+ *  up). SWEET (1) and TEETH (3) keep the gate 2 framing of their approved stills exactly. */
+const HERO_V: { daz: number; el: number; roll: number; ax: number; fT: number; fU: number }[] = [
+  { daz: 0.42, el: 0.0, roll: 0.09, ax: -1.5, fT: -55, fU: 24 },    // DIRTY: low, rolled, raked hard from the upper left
+  { daz: 0.7, el: 0.17, roll: -0.02, ax: -3.0, fT: -40, fU: 14 },   // SWEET (approved still)
+  { daz: -0.45, el: 0.24, roll: -0.07, ax: 2.0, fT: 40, fU: 18 },   // PRETTY: from the other side, the flash mirrored
+  { daz: 0.7, el: 0.17, roll: -0.02, ax: -3.0, fT: -40, fU: 14 },   // TEETH (approved still)
+  { daz: 0.3, el: 0.5, roll: 0.16, ax: -1.0, fT: -30, fU: 30 },     // DEVIL: looking down onto the flank
+  { daz: -0.2, el: -0.08, roll: -0.12, ax: 0.5, fT: 45, fU: 10 },   // HANDS: near-square, from a hair below
+  { daz: 0.55, el: 0.1, roll: 0.05, ax: -2.0, fT: -40, fU: 16 },    // NEVER (then pulled back, one photograph a beat)
+  { daz: 0.62, el: 0.1, roll: 0.04, ax: -5.0, fT: -45, fU: 20 },    // GO: bitten taller, the apple's edge in frame
+];
+/** NEVER's later photographs: the camera pulls back a step per beat until the whole exhibit is in frame. */
+const NEVER_V: { daz: number; el: number; roll: number; d: number }[] = [
+  { daz: -0.3, el: 0.3, roll: -0.1, d: 78 },
+  { daz: 0.15, el: -0.06, roll: 0.12, d: 100 },
+  { daz: -0.5, el: 0.42, roll: -0.06, d: 135 },
+  { daz: 0.4, el: 0.22, roll: 0.08, d: 185 },
+  { daz: 0.78, el: 0.36, roll: -0.04, d: 265 },
+];
 type Pose = { pos: THREE.Vector3; at: THREE.Vector3; fov: number; roll: number; aper: number; focus: THREE.Vector3 };
 type Light = { pos: THREE.Vector3; I: number; rad: number; fillDir: THREE.Vector3; fill: number; cone?: number; coat?: number };
 
@@ -167,18 +190,31 @@ export default class ScalePlate extends Scene {
       const j = beats.findIndex((b) => b >= w.start - 0.12 && b <= w.start + 0.2);
       const cut = w.start - 0.045;
       if (j >= 0) cuts[j] = cut;
-      const leave = beats.find((b) => b > l.end + 0.01) ?? this.ctx.end;
       const word = w.w.replace(/[^A-Za-z]/g, '');
+      // a word sung again straight after itself (never, never, never) is one hero, held until the last is sung
+      let k = wi;
+      while (l.words[k + 1] && l.words[k + 1]!.w.replace(/[^A-Za-z]/g, '').toLowerCase() === word.toLowerCase()) k++;
+      const end = l.words[k]!.end;
+      // the hero leaves on the beat after it is sung (~0.3 s on), so the line's later words are not held up by it
+      const leave = beats.find((b) => b >= end + 0.25) ?? this.ctx.end;
       const wax = word.toLowerCase() === 'sweet';
-      const bw = bakeWord(word, wax);
-      this.heroes.push({ word, start: w.start, cut, leave, tex: bw.tex, wax, chip: bw.chip });
+      const bw = bakeWord(word, wax, 18);
+      this.heroes.push({ word, start: w.start, cut, leave, tex: bw.tex, wax, chip: bw.chip, width: bw.width, hold: k > wi });
     }
     for (let k = 0; k + 1 < this.heroes.length; k++) this.heroes[k]!.leave = Math.min(this.heroes[k]!.leave, this.heroes[k + 1]!.cut);
+    const lineStarts = lyrics.lines.map((l) => l.start).filter((x) => x >= this.ctx.start - 0.05 && x < this.ctx.end);
     this.shots = cuts.map((t0, i) => ({
       i, t0, t1: cuts[i + 1] ?? this.ctx.end, kind: KINDS[i % KINDS.length]!,
-      hero: this.heroes.findIndex((h) => Math.abs(h.cut - t0) < 1e-3),
+      hero: this.heroes.findIndex((h) => Math.abs(h.cut - t0) < 1e-3), sub: 0,
+      line: Math.max(0, lineStarts.filter((x) => x <= t0 + 0.1).length - 1),
     }));
     for (const s of this.shots) if (s.hero >= 0) s.kind = 'rake';
+    // a held hero (NEVER x3): every beat while it is sung is another photograph of it, the camera pulling back
+    this.heroes.forEach((h, k) => {
+      if (!h.hold) return;
+      let n = 0;
+      for (const s of this.shots) if (s.t0 > h.cut + 1e-3 && s.t0 < h.leave - 1e-3) { s.hero = k; s.kind = 'rake'; s.sub = ++n; }
+    });
 
     this.march = new FSPass(MARCH_FRAG, {
       ssTap: SS_TAP,
@@ -187,7 +223,7 @@ export default class ScalePlate extends Scene {
       keyPos: { value: V(0, 0, 0) }, keyDir: { value: V(0, -1, 0) }, keyI: { value: 1 }, keyRad: { value: 10 }, keyCone: { value: 0.8 },
       fillDir: { value: V(0, 1, 0) }, fillI: { value: 0.02 },
       wordTex: { value: this.empty }, labelTex: { value: label }, digitTex: { value: digits },
-      wordAmt: { value: 0 }, wordWax: { value: 0 }, coatK: { value: 1 },
+      wordAmt: { value: 0 }, wordWax: { value: 0 }, wordThin: { value: 0 }, coatK: { value: 1 },
       BC: { value: BITE.C }, BN: { value: BITE.N }, BT: { value: BITE.T }, BU: { value: BITE.U }, POST: { value: POSTS },
       WC: { value: WORDF.C }, WN: { value: WORDF.N }, WT: { value: WORDF.T },
       SO: { value: SO }, SN: { value: BITE0.N }, SU: { value: BITE0.T }, SV: { value: BITE0.U },
@@ -207,6 +243,9 @@ export default class ScalePlate extends Scene {
     if (!w) return null;
     const word = w.w.replace(/[^A-Za-z]/g, '');
     if (!word || this.heroes.some((h) => Math.abs(h.start - w!.start) < 1e-3)) return null;
+    // a repeat of the hero being held (the second and third "never") is the hero itself, not a second word
+    const [hk] = this.heroAt(t);
+    if (hk >= 0 && this.heroes[hk]!.word.toLowerCase() === word.toLowerCase()) return null;
     let tex = this.support.get(word);
     if (!tex) { tex = bakeWord(word).tex; this.support.set(word, tex); }
     return { tex, amt: clamp((t - (w.start - 0.045)) / 0.05) };
@@ -218,22 +257,26 @@ export default class ScalePlate extends Scene {
     return s;
   }
 
-  /** The hero word in the bite at t (or -1), and how far it has bitten in (0..1). */
-  private heroAt(t: number): [number, number] {
+  /** The hero word in the bite at t (or -1), how far it has bitten in (0..1), and how light it still is (1 = the
+   *  light weight it springs up in, 0 = the heavy weight it snaps to on its onset; the letters stay where they are). */
+  private heroAt(t: number): [number, number, number] {
     for (let k = 0; k < this.heroes.length; k++) {
       const h = this.heroes[k]!;
       if (t >= h.cut && t < h.leave) {
         // the jaw closes: the letters press in over ~50 ms from the cut, a hair past full, settling
         const u = clamp((t - h.cut) / 0.05);
-        return [k, u >= 1 ? 1 : ease.outBack(u, 1.2)];
+        // light to heavy on the onset: the bite's strokes widen to the full black weight in ~40 ms
+        const thin = t < h.start ? 1 : 1 - ease.outCubic(clamp((t - h.start) / 0.04));
+        return [k, u >= 1 ? 1 : ease.outBack(u, 1.2), thin];
       }
     }
-    return [-1, 0];
+    return [-1, 0, 0];
   }
 
   /** The camera and the flash for a shot at local progress u (0..1) through it. */
   private pose(s: Shot, u: number): { P: Pose; L: Light } {
     const h1 = hash(s.i, 1.7), h2 = hash(s.i, 5.3), h3 = hash(s.i, 9.1);
+    const occ = this.shots.filter((x) => x.kind === s.kind && x.i < s.i).length;
     const B = BITE.C;
     let P: Pose, L: Light;
     const fill = (d: THREE.Vector3, f: number) => ({ fillDir: d.clone().normalize(), fill: f });
@@ -249,43 +292,64 @@ export default class ScalePlate extends Scene {
         const pos = at.clone().addScaledVector(BITE0.N, 245 + 20 * h1).addScaledVector(BITE0.U, 10 * h3).addScaledVector(BITE0.T, -8 * h2);
         P = { pos, at, fov: 30, roll: (h3 - 0.5) * 0.06, aper: 2.5, focus: B };
         L = { ...flashOn(pos, at, s.i === 0 ? 1.35 : 1.15, 3), pos: pos.clone().addScaledVector(BITE0.U, 70).addScaledVector(BITE0.T, -85) };
+        if (occ >= 3) {
+          // the last exhibit shot: tighter, the apple alone, the bite and the small bitten word below it square to the lens
+          const a2 = BITE0.C.clone().lerp(W2.C, 0.55);
+          const p2 = a2.clone().addScaledVector(W2.N.clone().add(BITE0.N).normalize(), 118).addScaledVector(BITE0.T, -10);
+          P = { pos: p2, at: a2, fov: 30, roll: 0.05, aper: 6, focus: W2.C };
+          L = { ...flashOn(p2, a2, 1.1, 3), pos: p2.clone().addScaledVector(BITE0.U, 50).addScaledVector(BITE0.T, -60) };
+        }
         break;
       }
       case 'oblique': {
+        // the whole exhibit from above at 3/4, each time from a different side and height
+        const o = [[-0.62, 0.5, 265], [0.2, 0.8, 310], [-0.3, 0.3, 225]][occ % 3]!;
         const at = AC.clone().add(V(0, 0, 0));
-        const pos = at.clone().addScaledVector(dirAz(LAY.BAZ - 0.6 + 1.0 * h1, 0.45 + 0.35 * h2), 260 + 50 * h3);
+        const pos = at.clone().addScaledVector(dirAz(LAY.BAZ + o[0]! + 0.12 * (h1 - 0.5), o[1]! + 0.06 * (h2 - 0.5)), o[2]! + 20 * h3);
         P = { pos, at, fov: 26, roll: (h2 - 0.5) * 0.15, aper: 5, focus: B };
         L = flashOn(pos, at, 0.85);
         break;
       }
       case 'ruler': {
-        // low along the scale's foot, its ticks running to the apple (soft beyond)
-        const at = SO.clone().addScaledVector(RC, 10).setY(14);
-        const pos = SO.clone().addScaledVector(RC, 125 + 20 * h1).addScaledVector(DC, 30 + 15 * h2).setY(12 + 10 * h3);
-        P = { pos, at, fov: 30, roll: (h3 - 0.5) * 0.15, aper: 24, focus: SO.clone().addScaledVector(RC, 55).setY(12) };
+        // grazing along the scale's foot from its far end: the millimetre ticks recede to the corner, the bitten apple
+        // soft beyond it
+        // (then down the upright from its top end; then square on its grey patches and ticks, the apple soft beside)
+        const sp = (u: number, v: number, n = 0) => SO.clone().addScaledVector(BITE0.T, u).addScaledVector(BITE0.U, v).addScaledVector(BITE0.N, n);
+        let at = sp(-14, 12 + 6 * h2), pos = sp(128 + 14 * h1, 7 + 5 * h3, 24 + 10 * h2), focus = sp(50, 9);
+        if (occ % 3 === 1) { at = sp(-10, -6); pos = sp(10 + 4 * h1, 132 + 12 * h3, 26 + 8 * h2); focus = sp(9, 55); }
+        else if (occ % 3 === 2) { const g = sp(14, 38); at = sp(-2, 40 + 6 * h2); pos = g.clone().addScaledVector(BITE0.N, 62 + 10 * h3).addScaledVector(BITE0.T, 34).addScaledVector(BITE0.U, -12); focus = g; }
+        P = { pos, at, fov: 30, roll: (h3 - 0.5) * 0.15, aper: 16, focus };
         L = flashOn(pos, at, 0.9, 8);
         break;
       }
       case 'profile': {
         // the bite in profile: its crescent cut out of the outline, the flash raking across its wall
+        // (each time another height: level, from high above the shoulder, low on the cloth's horizon)
+        const o = [[-1.45, 0.06, 170], [-1.4, 0.62, 190], [-1.2, -0.03, 215]][occ % 3]!;
         const at = B.clone().addScaledVector(BITE.N, -10).add(V(0, 2, 0));
-        const pos = at.clone().addScaledVector(dirAz(LAY.BAZ - 1.45 + 0.25 * (h1 - 0.5), 0.06 + 0.1 * h3), 170 + 30 * h2);
+        const pos = at.clone().addScaledVector(dirAz(LAY.BAZ + o[0]! + 0.25 * (h1 - 0.5), o[1]! + 0.1 * h3), o[2]! + 30 * h2);
         P = { pos, at, fov: 20, roll: 0, aper: 10, focus: B };
         L = { pos: at.clone().addScaledVector(dirAz(LAY.BAZ - 0.6, 0.5), 300), I: 1.1, rad: 12, ...fill(pos.clone().sub(at), 0.03) };
         break;
       }
       case 'macro': {
         // macro on the bitten rim at 3/4: the incisors' scallops and their grooves down the wall
-        const at = onF(BITE, -4 + 8 * h1, LAY.SCY + 5 + 3 * h2, -4);
-        const pos = at.clone().addScaledVector(dirAz(LAY.BAZ - 0.75 + 0.3 * (h3 - 0.5), 0.3 + 0.15 * h1), 90);
+        // (each time from elsewhere: 3/4 from the left, from above into the scoop, low from the side along the rim)
+        const o = [[-0.75, 0.32, -2, 90], [-0.15, 0.85, 6, 80], [-1.15, 0.1, -9, 100]][occ % 3]!;
+        const at = onF(BITE, o[2]! + 4 * (h1 - 0.5), LAY.SCY + 5 + 3 * h2, -4);
+        const pos = at.clone().addScaledVector(dirAz(LAY.BAZ + o[0]! + 0.3 * (h3 - 0.5), o[1]! + 0.1 * (h1 - 0.5)), o[3]!);
         P = { pos, at, fov: 22, roll: (h2 - 0.5) * 0.2, aper: 30, focus: at };
         L = flashOn(pos, at, 0.9, 8);
         break;
       }
       case 'corner': {
-        const at = SO.clone().addScaledVector(RC, 9).setY(9);
-        const pos = at.clone().addScaledVector(DC, 80 + 15 * h3).addScaledVector(RC, -20 + 10 * h1).add(V(0, 22 + 10 * h2, 0));
-        P = { pos, at, fov: 26, roll: (h1 - 0.5) * 0.2, aper: 30, focus: at };
+        // the scale's corner target (its ringed dot) sharp in the foreground, the bite soft above and beyond it
+        // (each time another of its three targets: the corner, the top of the upright, the end of the foot by the label)
+        const o = [[9, 9, -16, 10, 26, -18], [9, LAY.SL - 9, -18, -16, 22, 14], [LAY.SL - 9, 9, -22, 8, 8, -16]][occ % 3]!;
+        const tg = SO.clone().addScaledVector(BITE0.T, o[0]!).addScaledVector(BITE0.U, o[1]!);
+        const at = tg.clone().addScaledVector(BITE0.T, o[2]!).addScaledVector(BITE0.U, o[3]!);
+        const pos = tg.clone().addScaledVector(BITE0.N, 72 + 14 * h3).addScaledVector(BITE0.T, o[4]! + 10 * h1).addScaledVector(BITE0.U, o[5]! + 10 * h2);
+        P = { pos, at, fov: 30, roll: (h1 - 0.5) * 0.2, aper: 22, focus: tg };
         L = flashOn(pos, at, 0.9, 8);
         break;
       }
@@ -294,9 +358,10 @@ export default class ScalePlate extends Scene {
         const hk = this.heroAt(s.t0 + 0.02)[0];
         if (hk >= 0) {
           const c = this.heroes[hk]!.chip;
-          const at = onF(WORDF, c[0] + 1.4, c[1] - 1.6, -1.4);
-          const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.25, 0.05), 12);
-          P = { pos, at, fov: 34, roll: 0.06, aper: 6, focus: onF(WORDF, c[0] + 0.5, c[1] - 0.5, -1.0) };
+          // (close enough that the chipped letter and its neighbours fill the frame, the notch at its corner)
+          const at = onF(WORDF, c[0] - 6.0, c[1] - 2.2, -1.4);
+          const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.75, 0.08), 30);
+          P = { pos, at, fov: 32, roll: 0.06, aper: 9, focus: onF(WORDF, c[0] + 0.5, c[1] - 0.5, -1.0) };
           L = { pos: pos.clone().addScaledVector(UP, 8).addScaledVector(WORDF.T, 20), I: 2.4, rad: 4, ...fill(pos.clone().sub(at), 0.05), coat: 0.1 };
         } else {
           const at = onF(BITE, this.c8[0], this.c8[1], -2);
@@ -308,16 +373,38 @@ export default class ScalePlate extends Scene {
       }
       case 'rake':
       default: {
-        // the hero frame: a 3/4 macro on the flank where the word is bitten out, the skin curving away to the left, a
-        // hard flash a little above and left of the lens so each cavity's walls take light on one side
-        const at = onF(WORDF, -3.0, 0.5, -2.0);
-        const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + 0.7 + 0.05 * (h1 - 0.5), 0.17 + 0.03 * h2), 58);
-        P = { pos, at, fov: 27, roll: -0.02 + (h3 - 0.5) * 0.05, aper: 22, focus: onF(WORDF, 0, 0, -0.6) };
-        L = { pos: pos.clone().addScaledVector(UP, 14).addScaledVector(WORDF.T, -40), I: 2.0, rad: 3, ...fill(pos.clone().sub(at), 0.06), coat: 0.0 };
+        // the hero frame: a 3/4 macro on the flank where the word is bitten out, the skin curving away, a hard flash
+        // beside the lens so each cavity's walls take light on one side; each hero its own angle (HERO_V), sized so the
+        // word spans about half the frame. A held hero's later photographs pull back a step a beat (NEVER_V).
+        const hk = s.hero >= 0 ? s.hero : this.heroAt(s.t0 + 0.02)[0];
+        const v = HERO_V[hk] ?? HERO_V[1]!;
+        const H = this.heroes[hk];
+        const keep = hk === 1 || hk === 3 || !H;
+        let daz = v.daz, el = v.el, roll = v.roll;
+        // (the frame is 0.853 d wide at 27 degrees: d = 2.34 w cos(daz) puts the word at ~half of it)
+        let d = keep ? 58 : Math.max(42, H!.width * Math.cos(daz) * 2.34);
+        const nv = s.sub > 0 ? NEVER_V[Math.min(s.sub, NEVER_V.length) - 1]! : null;
+        if (nv) { daz = nv.daz; el = nv.el; roll = nv.roll; d = nv.d; }
+        const back = clamp((d - 60) / 200);
+        const at = onF(WORDF, v.ax, 0.5, -2.0).lerp(AC.clone().add(V(0, 4, 0)), 0.75 * back);
+        const pos = at.clone().addScaledVector(dirAz(LAY.WAZ + daz + 0.05 * (h1 - 0.5), el + 0.03 * h2), d);
+        P = { pos, at, fov: 27, roll: roll + (h3 - 0.5) * 0.05, aper: 22 * Math.min(1, 58 / d), focus: onF(WORDF, 0, 0, -0.6) };
+        L = { pos: pos.clone().addScaledVector(UP, v.fU + 0.15 * (d - 58)).addScaledVector(WORDF.T, v.fT), I: 2.0 - 0.9 * back, rad: 3 + 4 * back, ...fill(pos.clone().sub(at), 0.06), coat: 0.6 * back };
         break;
       }
     }
-    const push = 0.035 * ease.outCubic(clamp(u));
+    // each line its own camera move through its photographs: line 1 dollies in, line 2 tracks sideways, line 3 arcs
+    // round the apple, line 4 pulls back and up (all eased so they settle into the next flash)
+    const e = ease.inOutCubic(clamp(u));
+    let push = 0.035 * ease.outCubic(clamp(u));
+    const off = P.pos.clone().sub(P.at);
+    P.at = P.at.clone();
+    if (s.line === 0) push += 0.04 * e;
+    else if (s.line === 1) {
+      const r = new THREE.Vector3().crossVectors(off, UP).normalize().multiplyScalar(off.length() * 0.025 * (2 * e - 1));
+      P.pos = P.pos.clone().add(r); P.at.add(r);
+    } else if (s.line === 2) P.pos = P.at.clone().add(off.applyAxisAngle(UP, 0.07 * (2 * e - 1)));
+    else { push -= 0.06 * e; P.pos = P.pos.clone().addScaledVector(UP, off.length() * 0.03 * e); }
     P.pos = P.pos.clone().lerp(P.at, push);
     return { P, L };
   }
@@ -352,12 +439,13 @@ export default class ScalePlate extends Scene {
     (m.fillDir!.value as THREE.Vector3).copy(L.fillDir);
     m.fillI!.value = L.fill;
     m.coatK!.value = L.coat ?? 1;
-    const [hk, amt] = this.heroAt(t);
+    const [hk, amt, thin] = this.heroAt(t);
     m.wordTex!.value = hk >= 0 ? this.heroes[hk]!.tex : this.empty;
     m.wordAmt!.value = hk >= 0 ? amt : 0;
+    m.wordThin!.value = hk >= 0 ? thin : 0;
     m.wordWax!.value = hk >= 0 && this.heroes[hk]!.wax ? 1 : 0;
-    // the line's other words, one at a time as sung, bitten small and shallow below the bite (none while a hero shows)
-    const sw = hk < 0 ? this.supportWord(t) : null;
+    // the line's other words, one at a time as sung, bitten small and shallow below the bite (the hero is elsewhere)
+    const sw = this.supportWord(t);
     m.word2Tex!.value = sw ? sw.tex : this.empty;
     m.word2Amt!.value = sw ? sw.amt : 0;
     this.march.render(renderer, this.rt);
