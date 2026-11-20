@@ -117,3 +117,7 @@ Lead rulings from batch review 4 (settled):
 - **Plate 6's *sweet***: fluor-white like every word under the UV lamp (not wax pink).
 - **Plate 4's THROUGH MY EYES from beneath**: stays readable (not mirrored), a deliberate cheat.
 - **Plate 12's lyric**: the fallback is pre-approved. If the pen-uncovering lyric does not read after one attempt, the builder switches to words printed on the print, springing up on their onset, without asking.
+
+### Batch review 5 (fresh reviewer, Opus high): acetate and filed round 2
+Verdicts: acetate FIX (one last small round: the close-ups as a photographed apple, the glove trailing clear of the marks and lifting off for the hand-over, the apple's outline in the pull-back); filed FIX (one item: the glove lit and visible through the carry). `articulator`'s last fix round was judged by the lead: done for gate 3 (hero macros 124 ms/frame, a gate 4 speed item). Full review: `docs/gate3/review5.md`.
+- These are the last fix rounds for both; the lead checks the result, with no further review.
