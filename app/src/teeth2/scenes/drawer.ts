@@ -10,9 +10,13 @@
 //  - the folders: the stop swings them forward into two leaning groups with a V-gap 12 folders behind 08-32; on each real riff
 //    note the folder in front of the gap flicks back over it, so the gap walks forward one folder per note toward
 //    08-32 (12 notes, gap 15 -> 3, 08-32 being the fourth folder from the front), nothing moving in the riff's gaps (2.05–2.94, 5.50–6.39);
-//  - the camera: from the loop pose it rises over the drawer as it rolls out, then dollies along the rail with the
-//    gap, continuously through each phrase (it carries the speed) and dead still in the gaps; on the last beat
-//    (6.855) 08-32 is lifted and the camera tips down into it (blocked in; the whip and the open folder are to come).
+//  - the camera: one framing per bar, cut on the downbeats (audio.json), each dollying with the gap through the
+//    phrases (it carries the speed) and only creeping in the held chords: bar 1 rises from the loop pose over the
+//    drawer as it rolls out (plate 14's mirror echoes this over-the-drawer dolly); bar 2 low and raking from the
+//    right along the tabs; bar 3 high from the left, tight on the tab row; bar 4 front-on to 08-32's tab, the gap
+//    reaching it on the last two notes;
+//  - the last beat (6.855): the glove takes 08-32 by its front rod, lifts it clear and opens it on its fold, the
+//    camera tips down into it and whips in (a zoom blur), cutting to plate 2 on the first sung word (7.23).
 // Riff notes from the analysed mid-band envelope (data/teeth/audio.json has no `other` onsets for the intro): phrase A
 // 0.36 0.79 1.22 1.64 | the chord 2.08, held to 2.94 | phrase B 2.96 3.17 3.60 3.82 4.24 4.67 5.10 | the chord 5.53,
 // held to 6.39 | 6.40 6.64 | the last beat 6.855, 7.06.
@@ -21,7 +25,9 @@ import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
 import { FSPass, SS_TAP, makeRT } from '../../engine/gl';
 import { F, font } from '../../engine/type';
 import { clamp, ease, hash, lerp, springStep } from '../../engine/util';
-import { DOF_FRAG, LAY, MARCH_FRAG } from './drawer-glsl';
+import { DOF_FRAG, LAY } from './drawer-glsl';
+import { DRAWER_FRAG, WHIP_FRAG } from './drawer-fx';
+import { pinch, type HandPose } from './filed-desk';
 
 /** The riff's first note: the loop frame holds until here. */
 export const T_FIRST = 0.36;
@@ -77,8 +83,21 @@ export function folders(t: number, tilt: number[], zs: number[]) {
 
 /** 08-32's lift (m above its rail). */
 export function lift0832(t: number) {
-  return LIFT0 + 0.14 * ease.inOutCubic(clamp((t - T_LIFT) / 0.3));
+  // clear of the folders in front (their tabs stand to ~YR + 0.03), then held
+  return LIFT0 + 0.3 * ease.inOutCubic(clamp((t - T_LIFT) / 0.3));
 }
+/** 08-32's front panel swung forward on its fold (rad): the glove opens it as it clears the drawer. */
+export function open0832(t: number) {
+  // the front panel falls open forward like a book's cover, nearly flat: its inside, with the papers, faces the tube
+  return 1.3 * ease.outCubic(clamp((t - T_LIFT - 0.09) / 0.24));
+}
+/** The glove: reaches in after the last flick, takes 08-32's front rod at its right end (6.855), lifts and opens. */
+const T_REACH = FLICKS[FLICKS.length - 1]! + 0.03;
+
+/** The downbeats of the plate's four bars (audio.json; these defaults are its values). */
+let BAR = [0.38, 2.107, 3.833, 5.56];
+/** The whip: from the tip-down to the cut. */
+const T_WHIP = T_LIFT + 0.2, T_CUT = 7.23;
 
 export type Pose = { pos: THREE.Vector3; at: THREE.Vector3; fov: number; focus: number; aper: number };
 
@@ -112,33 +131,72 @@ function dollyIndex(t: number) {
   return G0 + 0.5;
 }
 
+const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+function mixPose(a: Pose, b: Pose, u: number): Pose {
+  return { pos: a.pos.clone().lerp(b.pos, u), at: a.at.clone().lerp(b.at, u), fov: lerp(a.fov, b.fov, u), focus: u < 0.5 ? a.focus : b.focus, aper: lerp(a.aper, b.aper, u) };
+}
+/** 08-32's rod z (world). */
+const z0832 = (t: number) => drawerOpen(t) - LAY.FZ0 - LAY.K0832 * LAY.FDZ;
+
 export function cameraPose(t: number): Pose {
   if (t <= T_FIRST) return { ...LOOP_POSE, pos: LOOP_POSE.pos.clone(), at: LOOP_POSE.at.clone() };
   // over the drawer, looking down at the gap
   const gi = dollyIndex(t);
   const gz = gapZ(t, gi);
+  const YR = LAY.YR;
+  if (t >= BAR[1]! && t < BAR[2]!) {
+    // bar 2: low from the right, raking along the tabs; a slow creep in through the chord
+    const c = (t - BAR[1]!) / (BAR[2]! - BAR[1]!);
+    return { pos: v3(0.3 - 0.05 * c, YR + 0.17 - 0.02 * c, gz + 0.27), at: v3(-0.07, YR - 0.045, gz - 0.07), fov: 34, focus: -1, aper: 18 };
+  }
+  if (t >= BAR[2]! && t < BAR[3]!) {
+    // bar 3: high from the left, tight on the tab row
+    const c = (t - BAR[2]!) / (BAR[3]! - BAR[2]!);
+    return { pos: v3(-0.31 + 0.04 * c, YR + 0.27 - 0.03 * c, gz + 0.17), at: v3(0.03, YR - 0.035, gz - 0.07), fov: 30, focus: -1, aper: 16 };
+  }
+  if (t >= BAR[3]!) {
+    // bar 4: front-on to 08-32's tab, pushing in through the chord; on the last beat up and over it, then the whip
+    const z = z0832(t), c = ease.inOutQuad(clamp((t - BAR[3]!) / (T_LIFT - BAR[3]!)));
+    const D: Pose = { pos: v3(0.01 - 0.03 * c, YR + 0.28 - 0.02 * c, z + 0.37 - 0.08 * c), at: v3(-0.04, YR - 0.005, z - 0.06), fov: 30, focus: 0, aper: 18 };
+    if (t <= T_LIFT) return D;
+    const lf = lift0832(t);
+    // over the opened folder: its front panel lying open toward the camera, the papers in it under the tube
+    const E: Pose = { pos: v3(0.03, YR + lf + 0.33, z + 0.44), at: v3(0.0, YR + lf - 0.19, z + 0.16), fov: 34, focus: -1, aper: 12 };
+    let p = mixPose(D, E, ease.inOutCubic(clamp((t - T_LIFT) / (T_WHIP - T_LIFT))));
+    if (t > T_WHIP) {
+      const W: Pose = { pos: v3(0.0, YR + lf - 0.02, z + 0.24), at: v3(0.0, YR + lf - 0.19, z + 0.16), fov: 24, focus: -1, aper: 10 };
+      p = mixPose(p, W, ease.inCubic(clamp((t - T_WHIP) / (T_CUT - T_WHIP))));
+    }
+    return p;
+  }
   const over: Pose = {
     pos: new THREE.Vector3(-0.1, LAY.YR + 0.38, gz + 0.36),
     at: new THREE.Vector3(0.01, LAY.YR - 0.016, gz - 0.02),
     fov: 38, focus: -1, aper: 14,
   };
   const u = ease.inOutCubic(clamp((t - T_FIRST) / 0.5));
-  let p: Pose = {
+  const p: Pose = {
     pos: LOOP_POSE.pos.clone().lerp(over.pos, u),
     at: LOOP_POSE.at.clone().lerp(over.at, u),
     fov: lerp(LOOP_POSE.fov, over.fov, u), focus: u < 0.5 ? 0 : -1, aper: lerp(LOOP_POSE.aper, over.aper, u),
   };
-  if (t > T_LIFT) {
-    // tip down into the lifted folder (blocked in)
-    const v = ease.inOutCubic(clamp((t - T_LIFT) / 0.35));
-    const z832 = drawerOpen(t) - LAY.FZ0 - LAY.K0832 * LAY.FDZ;
-    p = {
-      pos: p.pos.clone().lerp(new THREE.Vector3(-0.02, LAY.YR + 0.34, z832 + 0.05), v),
-      at: p.at.clone().lerp(new THREE.Vector3(-0.02, LAY.YR + 0.02, z832 - 0.01), v),
-      fov: lerp(p.fov, 44, v), focus: 0, aper: p.aper,
-    };
-  }
   return p;
+}
+
+/** The glove at t, holding 08-32's front rod at its right end (the folder's tilt a, its rod at (0, y, z)). */
+function handPose(t: number, a: number, y: number, z: number): HandPose | null {
+  if (t < T_REACH || t > T_CUT) return null;
+  const o = open0832(t), HB = 0.236, th = 0.0045;
+  // the folder frame to world (the inverses of the shader's tiltYZ by the panel's opening, then the folder's tilt)
+  const un = (v: THREE.Vector3, ang: number) => v3(v.x, Math.cos(ang) * v.y - Math.sin(ang) * v.z, Math.sin(ang) * v.y + Math.cos(ang) * v.z);
+  const dir = (v: THREE.Vector3) => un(un(v, o), a);
+  const corner = un(v3(0.1855, HB + 0.0015, th * 0.5), o).add(v3(0, -HB, 0));
+  const pt = un(corner, a).add(v3(0, y, z));
+  const h = pinch(pt, v3(1, 0, 0), dir(v3(0, 1, 0)), 0.1);
+  // the reach: in from the right and above, landing on the rod at the lift
+  const r = 1 - ease.outCubic(clamp((t - T_REACH) / (T_LIFT - T_REACH)));
+  h.tip.add(v3(0.3 * r, 0.14 * r, 0.06 * r));
+  return h;
 }
 
 const LABEL = '08-32 · BITE MARK';
@@ -153,7 +211,9 @@ function qv(name: string): number[] | null {
 export default class Drawer extends Scene {
   private march!: FSPass;
   private dof!: FSPass;
+  private whip!: FSPass;
   private rt = makeRT();
+  private rt2: THREE.WebGLRenderTarget | null = null;
   private label!: THREE.CanvasTexture;
   private tilt = new Array<number>(LAY.NF).fill(0);
   private zs = new Array<number>(LAY.NF).fill(0);
@@ -183,7 +243,10 @@ export default class Drawer extends Scene {
     this.label.magFilter = THREE.LinearFilter;
     this.label.anisotropy = 8;
 
-    this.march = new FSPass(MARCH_FRAG, {
+    // the bars' downbeats from the data (the plate's window: the first four)
+    const db = this.ctx.audio.downbeats.filter((d) => d < 7.0);
+    if (db.length >= 4) BAR = db.slice(0, 4);
+    this.march = new FSPass(DRAWER_FRAG, {
       ssTap: SS_TAP,
       camPos: { value: new THREE.Vector3() }, camR: { value: new THREE.Vector3() }, camU: { value: new THREE.Vector3() },
       camF: { value: new THREE.Vector3() }, tanH: { value: 0.3 },
@@ -191,7 +254,12 @@ export default class Drawer extends Scene {
       ftilt: { value: this.tilt }, fzs: { value: this.zs },
       labelTex: { value: this.label },
       TA: { value: new THREE.Vector3(...LAY.TA) }, TB: { value: new THREE.Vector3(...LAY.TB) }, labelTexSize: { value: new THREE.Vector2(cw, ch) },
+      // plate 14's carry (unused here) and the shared glove; 08-32's opening
+      c08off: { value: new THREE.Vector3() }, c08yaw: { value: 0 }, carry08: { value: 0 }, c08zmax: { value: -1e9 },
+      hTip: { value: new THREE.Vector3() }, hE1: { value: new THREE.Vector3(1, 0, 0) }, hE2: { value: new THREE.Vector3(0, 1, 0) },
+      hE3: { value: new THREE.Vector3(0, 0, 1) }, handOn: { value: 0 }, penOn: { value: 0 }, open08: { value: 0 },
     });
+    this.whip = new FSPass(WHIP_FRAG, { src: { value: null }, k: { value: 0 }, ctr: { value: new THREE.Vector2(0.5, 0.5) } });
     this.dof = new FSPass(DOF_FRAG, {
       src: { value: null }, focusD: { value: 0.5 }, aper: { value: 16 }, maxCoc: { value: 22 },
     });
@@ -218,6 +286,18 @@ export default class Drawer extends Scene {
     u.openZ!.value = drawerOpen(t);
     u.lift08!.value = lift0832(t);
     folders(t, this.tilt, this.zs);
+    const K = LAY.K0832, o8 = open0832(t);
+    u.open08!.value = o8;
+    const hp = handPose(t, this.tilt[K]!, LAY.YR + lift0832(t), drawerOpen(t) - LAY.FZ0 - K * LAY.FDZ + this.zs[K]!);
+    u.handOn!.value = hp ? 1 : 0;
+    if (hp) {
+      (u.hTip!.value as THREE.Vector3).copy(hp.tip);
+      (u.hE1!.value as THREE.Vector3).copy(hp.e1);
+      (u.hE2!.value as THREE.Vector3).copy(hp.e2);
+      (u.hE3!.value as THREE.Vector3).copy(hp.e3);
+    }
+    // the glove and the opened panel reach out of the drawer's front: march from the camera
+    u.c08zmax!.value = hp || o8 > 0 ? 1e9 : -1e9;
     // the tube: steady, flicker-free
     u.tubeI!.value = 1.0;
     for (const k of ['difK', 'specK', 'louv', 'ambK', 'paintK', 'chromeR', 'ccK', 'ccR']) { const q = qv(k); if (q) u[k]!.value = q[0]; }
@@ -233,7 +313,14 @@ export default class Drawer extends Scene {
     d.src!.value = this.rt.texture;
     d.focusD!.value = focus;
     d.aper!.value = P.aper;
-    this.dof.render(renderer, out);
+    const wk = 0.2 * ease.inQuad(clamp((t - T_WHIP) / (T_CUT - T_WHIP)));
+    if (wk > 0) {
+      this.rt2 ??= makeRT();
+      this.dof.render(renderer, this.rt2);
+      this.whip.u.src!.value = this.rt2.texture;
+      this.whip.u.k!.value = wk;
+      this.whip.render(renderer, out);
+    } else this.dof.render(renderer, out);
     // the Teeth look (grain, cold halation, vignette, CA) comes from the timeline; the march keeps every value under
     // its bloom threshold, so nothing here glows
     return {};
