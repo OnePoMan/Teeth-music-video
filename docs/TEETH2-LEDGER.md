@@ -90,3 +90,14 @@ Lead rulings from batch review 2 (settled):
 - **Plate 11 is lit only by the reaction** plus a constant dim cold ambient: no key light, no light changes between shots, no flash on the seal.
 - Writing a word between its `start` and `end` is correct karaoke; a word caught mid-write is not a defect.
 - Plate 6 and plate 11 keep apart: 6 is horizontal cloth, a moving beam, table-height oblique shots; 11 is a vertical hanging shirt, a circling camera, the glow fixed in place.
+
+### Batch review 3 (fresh reviewer, Opus high): scene and luminol round 2; chart, voice, articulator round 1
+Verdicts: scene FIX, luminol FIX (both: one last fix round, the rest to gate 4); chart FIX; voice FIX; articulator REWORK of set, light and camera (keep its event script). Full review: `docs/gate3/review3.md`.
+
+Lead rulings from batch review 3 (settled):
+- **Casts never front-on while closed or closing** (plates 9, 10, 13): closures are shot in profile, three-quarter, or from ≥45° above. A front-on closed cast reads as a grinning mouth, and closing on words echoes v1's snapping jaws.
+- **Only plate 3 puts the lyric on standing cards or signs.** Plate 10's lyric is engraved in chrome and reads only where a moving reflection band crosses it; the chrome face is never a uniform white field.
+- **Plate 11: nothing outside the bloom's reach rises above film2**; the stain is a soak shaped by weave and folds, never a soft cloud (the blob ruling covers glows).
+- **The glove is one shared model**: every plate imports `GLSL_HAND` from `match-glsl.ts` (exported 2026-11-19) or matches it exactly: film2 matte nitrile, segmented fingers, a cuff, lit only by its plate's source.
+- Value range: every plate reaches true film-black somewhere in frame and lightbox-bright somewhere (P(doom)'s range); mid-tone-only frames are a defect.
+- A line leaving on the beat after it ends can leave a header or lane empty in an instrumental gap: correct karaoke, not a defect.
