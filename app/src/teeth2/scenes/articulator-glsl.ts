@@ -25,7 +25,7 @@ uniform float marksK;
 uniform vec4 bandA, bandB;   // the reflection band on each bar: centre u (mm), half width, slant, intensity
 uniform vec3 keyPos, keyDir; uniform float keyI, keyCone, keyRef, fillK, upLift;
 const float TABLE_Y = ${f(RIG.TABLE_Y)};
-const float FHW = ${f(RIG.FHW)}, FHH = ${f(RIG.FHH)}, CH = ${f(RIG.CH)}, BD = ${f(RIG.BD)};
+const float FHW = ${f(RIG.FHW)}, FHH = ${f(RIG.FHH)}, LHH = ${f(RIG.LHH)}, CH = ${f(RIG.CH)}, BD = ${f(RIG.BD)};
 const float TS = ${f(Math.sin(RIG.TILT))}, TC = ${f(Math.cos(RIG.TILT))};
 const vec3 UBAR = vec3(0.0, ${f(RIG.FY)}, ${f(RIG.FZ)}), LBAR = vec3(0.0, ${f(RIG.LY)}, ${f(RIG.LZ)});
 const float PZ = ${f(RIG.PZ)}, PTIP = ${f(RIG.PTIP)};
@@ -43,27 +43,29 @@ float sdChamf(vec3 p, vec3 b, float c) {
 }
 // a crossbar's frame: x along the bar, y up the tilted face, z out of the face (0 on the face)
 vec3 barL(vec3 q, vec3 C) { vec3 d = q - C; return vec3(d.x, d.y * TC - d.z * TS, d.y * TS + d.z * TC); }
-float barSD(vec3 q, vec3 C) { vec3 l = barL(q, C); l.z += BD; return sdChamf(l, vec3(FHW + CH, FHH + CH, BD), CH); }
+float barSD(vec3 q, vec3 C, float hh) { vec3 l = barL(q, C); l.z += BD; return sdChamf(l, vec3(FHW + CH, hh + CH, BD), CH); }
 
 // ------------------------------------------------------------------ the machine
+// The upper member is one T-shaped arm: a cross-piece on the condylar axle between the two rear posts, a single stem
+// cantilevered forward over the upper cast's mounting disc, the engraved bar as its front cross-piece, and the incisal
+// pin hanging from the stem's tip just behind the bar. No side arms, no front posts: nothing frames the casts.
 float upperChrome(vec3 q) {
-  float d = barSD(q, UBAR);
+  float d = barSD(q, UBAR, FHH);
   vec3 qa = vec3(abs(q.x), q.y, q.z);
-  // the side arms (from the crossbar back to the condylar housings) and the rear bar joining the housings
-  d = min(d, sdRBox(qa - vec3(58.0, 51.0, -40.0), vec3(5.5, 7.0, 60.0), 2.5));
-  d = min(d, sdRBox(q - vec3(0.0, 46.0, -101.0), vec3(60.0, 4.5, 4.5), 2.0));
-  // the bridge over the cast and the mounting plate
-  d = min(d, sdRBox(q - vec3(0.0, 46.0, -38.0), vec3(6.0, 3.5, 62.0), 2.0));
-  d = min(d, cylY(q - vec3(0.0, 40.5, -22.0), 9.0, 3.0, 1.0));
-  d = min(d, cylY(q - vec3(0.0, 37.5, -22.0), 33.0, 2.0, 0.8));
-  // the condylar housings: drums across the condyles, hung from the arms
+  // the hinge cross-piece over the condyles, and the condylar housings (drums riding on the condyles) under its ends
+  d = min(d, sdRBox(q - vec3(0.0, 44.0, -97.0), vec3(62.0, 5.0, 6.0), 2.0));
   vec3 hq = qa - vec3(56.0, 28.0, -95.0);
   d = min(d, cylY(hq.yxz, 12.0, 9.0, 1.5));
-  d = min(d, sdRBox(qa - vec3(58.0, 40.0, -95.0), vec3(5.0, 9.0, 6.0), 1.5));
-  // the incisal pin: bracket under the crossbar, rod with its scale, lock nut
-  d = min(d, sdRBox(q - vec3(0.0, 40.5, 0.5 * (16.0 + PZ + 7.0)), vec3(6.5, 3.2, 0.5 * (PZ + 7.0 - 16.0)), 2.5));
-  d = min(d, cylY(q - vec3(0.0, 0.5 * (42.0 + PTIP), PZ), 3.0, 0.5 * (42.0 - PTIP), 1.0));
-  d = min(d, cylY(q - vec3(0.0, 33.0, PZ), 5.5, 2.2, 0.6));
+  d = min(d, sdRBox(qa - vec3(56.0, 37.0, -95.0), vec3(5.0, 8.0, 6.0), 1.5));
+  // the stem: from the cross-piece forward over the cast into the back of the engraved bar, deeper over the cast
+  float zs = clamp((q.z + 97.0) / 150.0, 0.0, 1.0);
+  d = min(d, sdRBox(q - vec3(0.0, 47.0 - 1.0 * zs, -22.0), vec3(7.0 - 1.5 * zs, 4.5 - 1.0 * zs, 76.0), 2.0));
+  // the mounting boss and the upper cast's mounting disc
+  d = min(d, cylY(q - vec3(0.0, 40.5, -22.0), 9.0, 3.0, 1.0));
+  d = min(d, cylY(q - vec3(0.0, 37.5, -22.0), 33.0, 2.0, 0.8));
+  // the incisal pin at the stem's tip: rod with its scale, lock nut
+  d = min(d, cylY(q - vec3(0.0, 0.5 * (45.0 + PTIP), PZ), 3.0, 0.5 * (45.0 - PTIP), 1.0));
+  d = min(d, cylY(q - vec3(0.0, 36.0, PZ), 5.5, 2.2, 0.6));
   return d;
 }
 float lowerChrome(vec3 p) {
@@ -77,7 +79,7 @@ float lowerChrome(vec3 p) {
   d = min(d, sdRBox(p - vec3(0.0, -46.0, PZ), vec3(7.0, 6.5, 7.0), 1.0));
   d = min(d, sdRBox(p - vec3(0.0, PTIP - 2.5, PZ), vec3(13.0, 2.5, 10.0), 0.8));
   // the lower crossbar across the base's front edge
-  d = min(d, barSD(p, LBAR));
+  d = min(d, barSD(p, LBAR, LHH));
   return d;
 }
 // mat: 0 table, 1 lower chrome, 2 lower cast, 3 upper cast, 4 plaster, 5 paper, 6 upper chrome, 7 black lacquered base
@@ -124,7 +126,7 @@ float shadow(vec3 ro, vec3 rd, float tMax) {
   vec2 bh = boxHit(ro, rd, BOX_LO - 1.0, boxHi());
   float tEnd = min(min(bh.y, tMax), 500.0);
   float res = 1.0, t = 0.06 + 0.03 * hash12(gl_FragCoord.xy), ph = 1e10;
-  for (int i = 0; i < 80; i++) {
+  for (int i = 0; i < 56; i++) {
     if (t > tEnd) break;
     float h = mapD(ro + rd * t);
     float y = h * h / (2.0 * ph);
@@ -132,7 +134,7 @@ float shadow(vec3 ro, vec3 rd, float tMax) {
     res = min(res, 16.0 * dd / max(0.0, t - y));
     ph = h;
     if (res < 0.004) break;
-    t += clamp(h * 0.85, 0.04, 6.0);
+    t += clamp(h * 0.9, 0.06, 8.0);
   }
   SHM = false;
   res = clamp(res, 0.0, 1.0);
@@ -213,10 +215,12 @@ float marks(vec3 Pc, vec3 Nc, int tid, bool upper) {
   if (top <= 0.0) return 0.0;
   float h = hash12(vec2(float(tid), upper ? 3.1 : 7.7));
   float on = smoothstep(h * 0.8, h * 0.8 + 0.06, marksK);
-  // streaks drawn out along the glide (x), a few per cusp, crisp edged: the paper's carbon wiped on by the glides
-  float n = 0.5 + 0.5 * snoise(vec2(Pc.x * 0.32, Pc.z * 1.5) + float(tid) * 7.13);
-  float thr = mix(0.8, 0.5, marksK);
-  return top * on * smoothstep(thr, thr + 0.035, n);
+  // contact patches on the cusp tips, drawn out a little along the glide (x), crisp edged: only the surface within
+  // ~1 mm of the contact plane takes the carbon, so the marks sit on the tips and ridges, never down the crown
+  float tip = upper ? 1.0 - smoothstep(-0.2, 0.9, Pc.y) : smoothstep(-0.9, 0.2, Pc.y);
+  float n = 0.5 + 0.5 * snoise(vec2(Pc.x * 0.45, Pc.z * 0.7) + float(tid) * 7.13);
+  float thr = mix(0.62, 0.38, marksK);
+  return top * on * smoothstep(0.45, 0.6, tip) * smoothstep(thr, thr + 0.02, n);
 }
 
 // one bounce for the chrome: what the mirror sees nearby, shaded simply (no shadows), else the studio
@@ -260,14 +264,16 @@ float bandAt(vec4 B, vec2 uv) {
   if (B.w <= 0.0) return 0.0;
   float x = (uv.x - B.x - B.z * uv.y) / B.y;
   float x2 = x * x;
-  return B.w * (exp(-x2 * x2) * 0.96 + 0.04 * exp(-x2 * 0.5));
+  float tail = x < -0.8 ? 0.42 * exp((x + 0.8) / 2.4) * (1.0 - smoothstep(-1.4, -0.8, x)) : 0.0;
+  return B.w * (exp(-x2 * x2) * 0.96 + 0.04 * exp(-x2 * 0.5) + tail);
 }
 // the engraving: r = the letter (cut floor), b = wax lacquer; the bevel from a ring of taps around the point
 vec3 engrave(vec3 field, float bnd, vec2 l, bool upper) {
-  vec2 tuv = vec2((l.x + FHW) / (2.0 * FHW), (l.y + FHH) / (4.0 * FHH) + (upper ? 0.5 : 0.0));
+  float hh = upper ? FHH : LHH;
+  vec2 tuv = vec2((l.x + FHW) / (2.0 * FHW), (l.y + hh) / (4.0 * hh) + (upper ? 0.5 : 0.0));
   if (tuv.x <= 0.0 || tuv.x >= 1.0) return field;
   vec4 w = texture(wordTex, tuv);
-  float du = 0.42 / (2.0 * FHW), dv = 0.42 / (4.0 * FHH);
+  float du = 0.42 / (2.0 * FHW), dv = 0.42 / (4.0 * hh);
   float e = texture(wordTex, tuv + vec2(du, 0.0)).r, wv = texture(wordTex, tuv - vec2(du, 0.0)).r;
   float n = texture(wordTex, tuv + vec2(0.0, dv)).r, s = texture(wordTex, tuv - vec2(0.0, dv)).r;
   float ring = max(max(e, wv), max(n, s));
@@ -318,9 +324,17 @@ vec4 shadePx(vec2 px) {
   } else if (mat == 1 || mat == 6) {
     vec3 R = reflect(rd, N);
     float fr = 0.86 + 0.14 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
-    vec3 e = reflCol(P + N * 0.05, R);
-    col = e * fr * 0.92 * mix(0.6, 1.0, a);
     vec3 q = (upInv * vec4(P, 1.0)).xyz;
+    // the bars' engraved faces keep only 15% of their reflection and face the empty studio: the studio alone will do
+    // there (skips the bounce march on the frame-filling bar in the hero macros)
+    bool onFace = false;
+    {
+      bool u6 = mat == 6; vec3 qb = u6 ? q : P; vec3 C = u6 ? UBAR : LBAR; float hh = u6 ? FHH : LHH;
+      vec3 l = barL(qb, C); vec3 Nl = u6 ? mat3(upInv) * N : N;
+      onFace = abs(l.z) < 0.3 && abs(l.y) < hh && abs(l.x) < FHW && Nl.y * TS + Nl.z * TC > 0.97;
+    }
+    vec3 e = onFace ? env(P, R) : reflCol(P + N * 0.05, R);
+    col = e * fr * 0.92 * mix(0.6, 1.0, a);
     // the incisal pin's scale and the guide table's graduations: fixed engraving, frosted lines
     float tick = 0.0;
     if (mat == 6 && length(q.xz - vec2(0.0, PZ)) < 3.4 && q.z > PZ && q.y > -24.0 && q.y < 30.0) {
@@ -337,7 +351,8 @@ vec4 shadePx(vec2 px) {
     bool up = mat == 6;
     vec3 qb = up ? q : P;
     vec3 C = up ? UBAR : LBAR;
-    if (barSD(qb, C) < 0.08) {
+    float hh = up ? FHH : LHH;
+    if (barSD(qb, C, hh) < 0.08) {
       vec3 l = barL(qb, C);
       vec3 Nl = up ? mat3(upInv) * N : N;
       float nz = Nl.y * TS + Nl.z * TC, ny = Nl.y * TC - Nl.z * TS;
@@ -346,13 +361,13 @@ vec4 shadePx(vec2 px) {
       if (abs(l.x) < FHW + CH + 0.01) {
         // face: dark polish darkening toward the bottom edge; chamfers: the top one bright (the strip), the low one dim
         float face = smoothstep(0.85, 0.97, nz);
-        float grad = 0.5 + 0.5 * clamp(l.y / FHH, -1.0, 1.0);
+        float grad = 0.5 + 0.5 * clamp(l.y / hh, -1.0, 1.0);
         vec3 base = mix(col, col * 0.15 + T_HALIDE * (0.002 + 0.02 * grad * grad), face);
         float chamfer = (1.0 - face) * smoothstep(0.2, 0.6, abs(ny));
         float cb = ny > 0.0 ? 1.15 : 0.55;
         vec3 field = base + T_LIGHTBOX * 0.9 * bnd * mix(1.0, cb, chamfer);
         field = min(field, vec3(0.97));
-        col = face > 0.5 && abs(l.z) < 0.3 && abs(l.y) < FHH ? engrave(field, bnd, l.xy, up) : field;
+        col = face > 0.5 && abs(l.z) < 0.3 && abs(l.y) < hh ? engrave(field, bnd, l.xy, up) : field;
       }
     }
   } else if (mat == 7) {
