@@ -111,3 +111,9 @@ Lead rulings from batch review 4 (settled):
 - **Radiographs are always backlit** (plates 2 and 14). **Red, wherever it appears, is full match red at a readable stroke weight**, never a dim hairline.
 - Hero words reach frame scale (≥30% of frame width, or the plate's equivalent) in every plate; small heroes are a defect.
 - The shared glove's knuckle lumps (`sdGlove` in `match-glsl.ts`) are fixed in the kit at gate 4 and re-checked against the gate 2 match stills.
+
+### Client taste calls (2026-11-20, answered during gate 3)
+- **Plate 8's spectrogram**: separate a vocal stem locally (`analysis/teeth/separate.py`, Hybrid Demucs on CPU, stems in `analysis/work/teeth/stems/`), and rebuild `voice-data.ts` from the vocal stem at gate 4.
+- **Plate 6's *sweet***: fluor-white like every word under the UV lamp (not wax pink).
+- **Plate 4's THROUGH MY EYES from beneath**: stays readable (not mirrored), a deliberate cheat.
+- **Plate 12's lyric**: the fallback is pre-approved. If the pen-uncovering lyric does not read after one attempt, the builder switches to words printed on the print, springing up on their onset, without asking.
