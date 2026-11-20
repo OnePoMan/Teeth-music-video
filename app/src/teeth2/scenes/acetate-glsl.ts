@@ -147,8 +147,9 @@ vec3 gmix(vec3 a, vec3 b, float t) { return pow(mix(pow(a, vec3(0.4545)), pow(b,
 #define BLUSH gmix(T_STONE, gmix(T_WAX, T_HALIDE, 0.45), 0.6)
 #define CREAM gmix(T_STONE, T_LIGHTBOX, 0.64)
 #define OXID gmix(RUSS, T_SILVER, 0.3)
+#define BROWN (gmix(T_STONE, RUSS, 0.55) * 0.5)
 const vec2 BMO = vec2(${f(BM.x0)}, ${f(BM.y0)}), BMS = vec2(${f(BM.x1 - BM.x0)}, ${f(BM.y1 - BM.y0)});
-const vec2 AC0 = vec2(14.0, 16.0), AR0 = vec2(43.0, 40.0);
+const vec2 AC0 = vec2(6.0, 4.0), AR0 = vec2(40.0, 36.0);   // the apple: centre and radii (bite mm)
 const vec2 SC0 = vec2(-64.0, -55.0);   // the L-scale's outer corner; arms 100 mm long, 18 mm wide (printed 2.2:1 with everything)
 float bowlH(vec2 uv) { return 6.0 * textureLod(bmS, uv, 5.0).r + 2.6 * textureLod(bmG, uv, 3.0).r; }
 float sdBoxP(vec2 p, vec2 c, vec2 h) { vec2 q = abs(p - c) - h; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0); }
@@ -162,32 +163,75 @@ float ticks(float a, float d) {
 }
 vec3 photo(vec2 tp) {
   vec2 P = vec2(tp.x, -tp.y) / PS;   // bite mm, Y up
-  vec3 L = normalize(vec3(-0.42, 0.62, 0.66));
+  vec3 L = normalize(vec3(-0.5, 0.55, 0.68));
   // the black velvet: a very dark pile with a faint sheen where a fold catches the flash, a fine nap
   vec3 vel = T_FILM * (0.62 + 0.3 * snoise(P * 0.6)) * (1.0 + 0.9 * smoothstep(0.55, 1.0, snoise(P * vec2(1.1, 0.16) + 3.0)) + 0.3 * snoise(P * 13.0));
+  // an apple's silhouette: round, a little broader at the shoulders than at the base, a dimple at the stem well and a shallower one at the calyx
   vec2 e = (P - AC0) / AR0;
-  float ang = atan(e.y, e.x);
-  float r = length(e) * (1.0 + 0.012 * snoise(vec2(ang * 3.0, 1.7)) + 0.06 * exp(-pow((P.x - AC0.x) / 7.0, 2.0)) * smoothstep(0.5, 1.0, e.y));
-  float apple = 1.0 - smoothstep(0.985, 1.0, r);
-  vec3 n = normalize(vec3(e * 0.95, sqrt(max(1.0 - 0.9 * dot(e, e), 0.04))));
-  // the skin: stone gold pulled toward silver, russet toward the stem (top), a faint wax blush, lenticel speckle
-  vec3 skin = gmix(T_STONE, T_SILVER, 0.12) * 0.62;
-  float streak = snoise(e * 2.6 + 5.0);
-  skin = mix(skin, RUSS * 0.55, 0.5 * smoothstep(0.1, 0.95, e.y) + 0.05 * smoothstep(0.2, 0.8, streak));
-  skin *= 1.0 - 0.3 * smoothstep(0.1, 0.8, e.y);
-  skin = mix(skin, BLUSH * 0.55, 0.2 * smoothstep(0.0, 0.8, e.x) * smoothstep(0.8, 0.0, abs(e.y)));
-  float lens1 = step(0.8, snoise(P * 2.6 + 4.0)), lens2 = step(0.84, snoise(P * 6.1 + 9.0));
-  skin = mix(skin, CREAM * 0.8, 0.7 * lens1 + 0.5 * lens2);
-  skin = mix(skin, RUSS * 0.45, 0.25 * step(0.9, snoise(P * 4.3 + 17.0)));   // a few dark flecks
-  skin *= 0.93 + 0.07 * snoise(P * 9.0) + 0.03 * snoise(P * 27.0);
+  float tpr = 1.0 + 0.07 * e.y;
+  float dimple = 0.17 * exp(-pow(e.x / 0.27, 2.0)) * smoothstep(0.0, 0.75, e.y) - 0.05 * exp(-pow(e.x / 0.24, 2.0)) * smoothstep(0.0, -0.75, e.y);
+  vec2 es = vec2(e.x / tpr, e.y + dimple);
+  float ang = atan(es.y, es.x);
+  float r = length(es) * (1.0 + 0.007 * snoise(vec2(ang * 2.0, 1.7)));
+  float aaw = max(max(length(gDX), length(gDY)) / (PS * 36.0) * 1.1, 0.0016);
+  float apple = 1.0 - smoothstep(1.0 - aaw, 1.0 + 0.2 * aaw, r);
+  // the flank: a sphere's normal (the silhouette falls to grazing), lit by the key from the upper left
+  vec3 n = normalize(vec3(es * 0.96, sqrt(max(1.0 - 0.92 * dot(es, es), 0.03))));
+  // the skin: stone gold pulled toward silver, streaked along the meridians from the stem, russet round the well, a faint wax blush
+  vec3 skin = gmix(T_STONE, T_SILVER, 0.05) * 0.74;
+  float mer = snoise(vec2(ang * 3.2, r * 1.3) + 5.0) * 0.6 + snoise(vec2(ang * 9.0, r * 3.0) + 11.0) * 0.4;
+  skin = mix(skin, RUSS * 0.6, 0.4 * smoothstep(0.35, 0.9, mer));
+  skin = mix(skin, gmix(T_STONE, T_LIGHTBOX, 0.25) * 0.7, 0.25 * smoothstep(0.1, 0.8, -mer));
+  float stemNear = smoothstep(0.35, 0.95, e.y) * exp(-pow(e.x / 0.55, 2.0));
+  skin = mix(skin, RUSS * 0.5, 0.55 * stemNear);
+  skin = mix(skin, BLUSH * 0.55, 0.22 * smoothstep(0.0, 0.8, e.x) * smoothstep(0.9, 0.0, abs(e.y)));
+  skin *= 0.9 + 0.1 * snoise(P * 0.09) + 0.05 * snoise(P * 0.5);
+  // lenticels: small pale flecks, fewer and fainter than before, thicker toward the stem, a few dark ones
+  float lens1 = smoothstep(0.6, 0.72, snoise(P * 2.4 + 4.0)), lens2 = smoothstep(0.64, 0.76, snoise(P * 5.5 + 9.0));
+  skin = mix(skin, CREAM * 0.8, (0.42 * lens1 + 0.34 * lens2) * (0.55 + 0.6 * stemNear) * (1.0 - 0.5 * r));
+  skin = mix(skin, RUSS * 0.45, 0.2 * step(0.92, snoise(P * 4.3 + 17.0)));
+  skin *= 0.95 + 0.05 * snoise(P * 9.0) + 0.02 * snoise(P * 27.0);
   float dif = max(dot(n, L), 0.0);
-  skin *= (0.3 + 0.9 * dif) * (1.0 - 0.42 * pow(r, 4.0));
-  // the flash's specular on the glossy skin (a soft-box on the right flank)
-  vec3 Ls = normalize(vec3(0.55, -0.2, 0.8));
-  float sp = pow(max(dot(n, normalize(Ls + vec3(0.0, 0.0, 1.0))), 0.0), 34.0);
-  skin += T_LIGHTBOX * 0.5 * sp * (0.7 + 0.3 * snoise(P * 2.5)) * (1.0 - 0.6 * lens1);
-  skin = mix(skin, RUSS * 0.25, 0.9 * smoothstep(9.0, 2.0, length(P - vec2(AC0.x - 1.0, AC0.y + AR0.y - 3.0))));
+  // curvature falloff: lit flank, terminator toward the lower right, a soft bounce at the very edge
+  skin *= (0.15 + 1.25 * pow(dif, 0.9)) * (1.0 - 0.55 * pow(r, 3.0)) + 0.05 * smoothstep(0.7, 1.0, r);
+  // the lamp's specular band: the soft-box's reflection, a crisp-edged streak running down the flank, bowed with the skin
+  {
+    float hx = -0.3 + 0.35 * pow(n.y - 0.45, 2.0);
+    float dxn = abs(n.x - hx);
+    float bx = (1.0 - smoothstep(0.03, 0.055, dxn)) * 0.6 + 0.4 * exp(-pow(dxn / 0.1, 2.0));
+    float by = smoothstep(0.05, 0.4, n.y) * (1.0 - smoothstep(0.5, 0.9, n.y));
+    float sp = bx * by * (0.8 + 0.2 * snoise(P * vec2(0.4, 1.2) + 2.0));
+    skin += T_LIGHTBOX * 0.22 * sp * (1.0 - 0.5 * lens1);
+    // a faint broad sheen about it
+    skin += T_LIGHTBOX * 0.04 * pow(max(dot(n, normalize(vec3(-0.2, 0.3, 0.93))), 0.0), 22.0);
+  }
+  // the stem well: a dark cavity at the top, russet-black
+  float well = exp(-(pow(e.x / 0.2, 2.0) + pow((e.y - 0.84) / 0.07, 2.0)));
+  skin = mix(skin, RUSS * 0.12, 0.85 * well);
   vec3 col = mix(vel, skin, apple);
+  // the stem: a dark brown rod standing out of the well; and a grey leaf curling off its tip (plate 5's exhibit)
+  {
+    vec2 sa = vec2(AC0.x + 0.2, AC0.y + 0.8 * AR0.y);
+    vec2 sb = sa + vec2(0.8, 13.0);
+    vec2 sd = sb - sa;
+    float st = clamp(dot(P - sa, sd) / dot(sd, sd), 0.0, 1.0);
+    float sdist = length(P - (sa + sd * st)) - (1.1 - 0.15 * st);
+    float sk = 1.0 - smoothstep(-0.08, 0.1, sdist);
+    float sx = clamp((P.x - sa.x) / 1.6, -1.0, 1.0);
+    vec3 scol = RUSS * (0.045 + 0.03 * (1.0 - sx) + 0.02 * snoise(P * vec2(3.0, 0.7)));
+    col = mix(col, scol, sk);
+    vec2 la = sa + vec2(0.4, 10.5), lb = la + vec2(-16.0, 6.0);
+    vec2 ld = lb - la; float ll = length(ld); vec2 lu = ld / ll, lpn = vec2(-lu.y, lu.x);
+    vec2 lr = P - la;
+    float lt = dot(lr, lu) / ll;
+    float lw = 3.5 * pow(max(sin(3.14159 * clamp(lt, 0.0, 1.0)), 0.0), 0.75) * (1.0 - 0.25 * lt);
+    float lacross = dot(lr, lpn) + 2.2 * lt * lt;
+    float lsd = abs(lacross) - lw;
+    float lk = (1.0 - smoothstep(-0.1, 0.12, lsd)) * step(0.0, lt) * step(lt, 1.0);
+    float vein = (1.0 - smoothstep(0.0, 0.16, abs(lacross))) * 0.5 + 0.22 * pow(abs(sin((lt * 11.0 - abs(lacross) * 0.7) * 3.14159)), 14.0) * smoothstep(0.1, 1.0, lw);
+    vec3 lcol = gmix(T_SILVER, T_STONE, 0.2) * (0.2 + 0.22 * clamp(0.6 + 0.8 * lacross / max(lw, 0.5), 0.0, 1.2)) * (1.0 + vein * 0.9);
+    col = mix(col, lcol, lk);
+  }
   // the bite
   vec2 Pb = P;   // (the bite is photographed square on)
   vec2 uv0 = (Pb - BMO) / BMS;
@@ -206,19 +250,42 @@ vec3 photo(vec2 tp) {
     vec3 n2 = normalize(vec3(gr.x, gr.y, 1.0));
     float hb = textureLod(bmS, uv, 5.5).r;
     float hw = textureLod(bmS, uv, 7.2).r;   // the bowl's depth: dark under the walls, open in the middle
-    vec3 fl = CREAM * 1.5 * (0.95 + 0.05 * snoise(P * vec2(5.0, 1.3)));
-    fl = mix(fl, OXID, 0.12 * hb);
-    // the incisors' drag: fine striations dropping from the bars across the scoop
-    float stri = pow(0.5 + 0.5 * sin(Pb.x * 10.0 + 2.5 * snoise(vec2(Pb.x * 0.5, Pb.y * 0.3))), 5.0);
-    fl *= 1.0 - 0.24 * stri * smoothstep(0.02, 0.3, textureLod(bmG, uv0, 5.0).r);
+    // the skin round the cut: a bruised, slightly browned halo
+    float halo = textureLod(bmS, uv, 4.2).r;
+    col *= 1.0 - 0.3 * halo * (1.0 - flesh) * apple;
+    col = mix(col, RUSS * 0.5 * (0.5 + 0.5 * dif), 0.22 * halo * (1.0 - flesh) * apple);
+    vec3 fl = CREAM * 0.95 * (0.94 + 0.06 * snoise(P * vec2(5.0, 1.3)) + 0.04 * snoise(P * 21.0));
+    fl = mix(fl, BROWN, 0.12 * hb + 0.34 * (1.0 - smoothstep(0.45, 0.95, hw)));
+    // the incisors' drag: fine striations dropping from the bars across the scoop, with a lit lower lip
+    float gdr = smoothstep(0.02, 0.3, textureLod(bmG, uv0, 5.0).r);
+    float wob = 2.5 * snoise(vec2(Pb.x * 0.5, Pb.y * 0.3));
+    float stri = pow(0.5 + 0.5 * sin(Pb.x * 11.0 + wob), 6.0) * (0.6 + 0.4 * pow(0.5 + 0.5 * sin(Pb.x * 3.3 + wob * 1.3 + Pb.y * 0.12), 2.0));
+    float stri2 = pow(0.5 + 0.5 * sin(Pb.x * 27.0 + 3.0 * wob + Pb.y * 0.2), 8.0);
+    float drop = 0.45 + 0.55 * smoothstep(-14.0, 14.0, Pb.y);   // strongest under the upper bars
+    fl *= 1.0 - (0.4 * stri + 0.16 * stri2) * gdr * drop - 0.1 * stri * (1.0 - gdr) * drop;
+    fl += T_LIGHTBOX * 0.06 * pow(0.5 + 0.5 * sin(Pb.x * 11.0 + wob + 1.7), 8.0) * drop * hw;
     float dif2 = max(dot(n2, L), 0.0);
-    fl *= (0.36 + 0.85 * dif2) * (0.42 + 0.58 * smoothstep(0.3, 0.95, hw));
-    // the shadowed rim: the lip of skin shades the scoop's upper wall, the flash lights its far (lower) wall
+    fl *= (0.3 + 0.7 * dif2) * (0.36 + 0.64 * smoothstep(0.3, 0.95, hw));
+    // the shadowed rim: the lip of skin throws its shadow across the floor on the lamp side (upper left)
+    vec2 Ld = normalize(vec2(-0.5, 0.55));
+    float occ = 0.0;
+    float ow = 0.0;
+    for (int k = 1; k <= 8; k++) {
+      float dd = 0.5 + 0.7 * float(k);
+      float wk = 1.0 - 0.09 * float(k);
+      float sS = textureLod(bmS, uv + Ld * dd / BMS, 1.0).r;
+      occ += wk * (1.0 - smoothstep(0.38, 0.6, sS)); ow += wk;
+    }
+    occ /= ow;
+    fl = mix(fl, BROWN * 0.55, 0.82 * smoothstep(0.0, 0.7, occ));
+    // the shadowed upper wall under the rim, the flash lighting the far (lower) wall
     float rimsh = smoothstep(0.15, 0.62, textureLod(bmS, uv + vec2(0.0, 1.6 / BMS.y), 3.0).r) * (1.0 - smoothstep(0.62, 0.95, hw));
-    fl *= 1.0 - 0.45 * rimsh * (1.0 - smoothstep(0.5, 0.8, s0));
-    // the skin's cut lip, a thin bright edge
+    fl *= 1.0 - 0.4 * rimsh * (1.0 - smoothstep(0.5, 0.8, s0));
+    // the skin's cut lip, a thin bright edge (the wall facing the lamp)
     float lip = smoothstep(0.28, 0.5, s0) * (1.0 - smoothstep(0.5, 0.74, s0));
-    fl = mix(fl, gmix(T_STONE, T_LIGHTBOX, 0.35) * 0.85, lip * 0.5);
+    vec2 lg = vec2(textureLod(bmS, uv + dxw * 0.4, 3.0).r - textureLod(bmS, uv - dxw * 0.4, 3.0).r, textureLod(bmS, uv + dyw * 0.4, 3.0).r - textureLod(bmS, uv - dyw * 0.4, 3.0).r);
+    float lipLit = 0.35 + 0.65 * smoothstep(-0.2, 0.7, dot(normalize(lg + 1e-4), -Ld));
+    fl = mix(fl, gmix(T_STONE, T_LIGHTBOX, 0.35) * 0.85, lip * 0.5 * lipLit);
     // his teeth: each bar a clean groove cut into the rim, dark in the floor, a lit far edge
     float gb = textureLod(bmG, uv0, 1.0).r;
     vec2 gg = vec2(textureLod(bmG, uv0 + dx, 1.5).r - textureLod(bmG, uv0 - dx, 1.5).r, textureLod(bmG, uv0 + dy, 1.5).r - textureLod(bmG, uv0 - dy, 1.5).r);

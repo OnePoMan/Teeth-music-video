@@ -303,7 +303,9 @@ export function buildPhrases(lines: Line[], beats: number[], camX: (t: number) =
 /** The pen at time t: tip (table mm), height above the acetate, heading and the tracing progress per mark. */
 export function penAt(t: number, marks: MarkPath[], start: number, end: number) {
   const prog = new Array<number>(12).fill(0);
-  const HEAD = 0.78;
+  // the hand trails BEHIND AND BELOW the nib (heading nearly straight down the frame, a little to the right): the forearm
+  // leaves by the bottom edge and the finished marks, which lie along the arch above the nib, stay in the clear
+  const HEAD = 1.36;
   const S = (i: number) => marks[i]!.pts[0]!;
   let x = 0, y = 0, z = 0, on = 1;
   const n = marks.length;
@@ -330,11 +332,11 @@ export function penAt(t: number, marks: MarkPath[], start: number, end: number) 
         z = Math.min(11, 0.2 * Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) + 3) * Math.sin(Math.PI * u);
         break;
       } else if (i === n - 1 && t > b) {
-        // the last mark closed: the pen lifts, the hand draws back to the lower right as the camera pulls away
-        const k = ease.inCubic(clamp((t - b) / (end + 0.4 - b)));
+        // the last mark closed: the pen lifts and dips below the arch at once, then the hand slides off to the right and out of
+        // frame within about 0.36 s (158.85-159.21), so all six marks and the chip read clear for the hand-over to plate 13
+        const u = clamp((t - b) / 0.36);
         const p0 = pathAt(mp, 1);
-        x = p0[0] + 260 * k; y = p0[1] + 110 * k; z = 3 + 36 * ease.outQuad(clamp((t - b) / 0.35));
-        if (k >= 1) on = 0;
+        x = p0[0] + 290 * ease.inOutCubic(u); y = p0[1] + 46 * ease.outCubic(clamp(u * 2.4)); z = 3 + 36 * ease.outQuad(clamp((t - b) / 0.2));
       }
     }
   }
