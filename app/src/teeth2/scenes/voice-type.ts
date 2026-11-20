@@ -7,7 +7,7 @@ import { F, font } from '../../engine/type';
 import { clamp, ease } from '../../engine/util';
 import type { Lyrics, Line } from '../../engine/lyrics';
 import { VD, WAVE_B64 } from './voice-data';
-import { T0, T1 } from './voice-script';
+import { T0, T1, XP, SPD } from './voice-script';
 
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 export const waveBytes = b64(WAVE_B64);
@@ -68,27 +68,30 @@ export function buildHeroes(ly: Lyrics, beats: number[]): { heroes: Hero[]; atla
   return { heroes, atlas: cv };
 }
 
-/** Per-letter height scale and state for the hero word on screen at t. */
+/** Per-letter height scale and state for the hero word on screen at t. Every letter stands on one baseline and is at
+ *  least 0.85 of the cap height (the envelope only lifts the tops), so the word always reads. */
 export function heroState(h: Hero, t: number): { state: number; s: number[] } {
   const s: number[] = [];
-  const rest = 0.74;
+  const rest = 0.95;
   const on = t >= h.start - LEAD;
   for (let k = 0; k < h.n; k++) {
     if (!on) { s.push(rest); continue; }
     const tk = h.start - LEAD + (k / h.n) * (h.end - h.start);
     const e = ease.outBack(clamp((t - tk) / 0.16), 2.4);
-    const target = 0.34 + 1.0 * h.env[k]!;
+    const target = 0.9 + 0.2 * clamp(h.env[k]! * 1.15);
     s.push(rest + (target - rest) * (t >= tk ? e : 0));
   }
-  return { state: on ? 2 : 1, s };
+  return { state: on ? 2 : 1, s: s.map((x) => Math.max(0.85, x)) };
 }
 
-// ------------------------------------------------------------------ the caption lane
-export const LANE = { x0: -146, x1: 146, y0: 43, y1: 57, ppm: 7 };
-interface CW { text: string; start: number; end: number; x: number; w: number }
+// ------------------------------------------------------------------ the transcript lane
+// The supporting words ride in a lane on the monitor under the waveform: each word at its own time position (its
+// start under the playhead), scrolling with the waveform; it lights as the playhead reaches it.
+export const LANE = { x0: -146, x1: 146, y0: 38, y1: 57, ppm: 7 };
+interface CW { text: string; start: number; end: number; cx: number; w: number }
 export interface Chunk { t0: number; t1: number; words: CW[] }
 const SPEC: number[][][] = [[[0, 1, 2, 3], [5, 6]], [[0, 1], [3, 4, 5]], [[0, 1, 2, 3], [4, 5], [7, 8]], [[0, 1, 2, 3], [4, 5, 6, 7]]];
-const EM = 8.4;
+const EM = 11.5;
 let mctx: CanvasRenderingContext2D | null = null;
 const meas = (f: string, s: string) => { mctx ??= document.createElement('canvas').getContext('2d')!; mctx.font = font(f, EM * LANE.ppm); return mctx.measureText(s).width / LANE.ppm; };
 
@@ -99,12 +102,9 @@ export function buildChunks(ly: Lyrics, beats: number[]): Chunk[] {
   lines.forEach((l, li) => {
     SPEC[li]!.forEach((ids) => {
       const ws = ids.map((i) => l.words[i]!);
-      const gap = EM * 0.42;
-      const words: CW[] = ws.map((w) => ({ text: w.w.replace(/[,.!?]/g, ''), start: w.start, end: w.end, x: 0, w: meas(fam, w.w.replace(/[,.!?]/g, '')) }));
-      const W = words.reduce((a, w) => a + w.w, 0) + gap * (words.length - 1);
-      let x = -W / 2;
-      for (const w of words) { w.x = x; x += w.w + gap; }
-      out.push({ t0: Math.max(T0, ws[0]!.start - 0.25), t1: 0, words, line: li });
+      const words: CW[] = ws.map((w) => ({ text: w.w.replace(/[,.!?]/g, ''), start: w.start, end: w.end, cx: w.start * SPD, w: meas(fam, w.w.replace(/[,.!?]/g, '')) }));
+      for (let i = 1; i < words.length; i++) words[i]!.cx = Math.max(words[i]!.cx, words[i - 1]!.cx + words[i - 1]!.w + 2.0);
+      out.push({ t0: Math.max(T0, ws[0]!.start - PRE), t1: 0, words, line: li });
     });
   });
   out.forEach((c, i) => {
@@ -119,27 +119,32 @@ export function newLaneCanvas() {
   cv.width = Math.round((LANE.x1 - LANE.x0) * LANE.ppm); cv.height = Math.round((LANE.y1 - LANE.y0) * LANE.ppm);
   return cv;
 }
-export function drawLane(cv: HTMLCanvasElement, chunks: Chunk[], t: number) {
+/** t: song time (which words are up); tau: the audio time under the playhead (where they sit, and whether the playhead has passed). */
+export function drawLane(cv: HTMLCanvasElement, chunks: Chunk[], t: number, tau: number) {
   const c = cv.getContext('2d')!;
   c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'source-over';
   c.fillStyle = '#000'; c.fillRect(0, 0, cv.width, cv.height);
   const ch = chunks.find((k) => t >= k.t0 && t < k.t1);
   if (!ch) return;
-  const P = LANE.ppm, base = cv.height * 0.5 + EM * 0.36 * P;
+  const P = LANE.ppm, base = cv.height * 0.5 + EM * 0.2 * P;
   c.globalCompositeOperation = 'lighter'; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
   const fam = F.archivo(100, 500);
   for (const w of ch.words) {
     if (t < w.start - PRE) continue;
-    const dt = t - (w.start - LEAD);
+    const xmm = XP + w.cx - tau * SPD;
+    const dt = tau - (w.start - LEAD);
     const sung = dt >= 0;
-    const s = sung ? 0.92 + 0.08 * ease.outBack(clamp(dt / 0.14)) : 1;
+    const s = sung ? 0.94 + 0.06 * ease.outBack(clamp(dt / 0.14)) : 1;
     c.save();
-    const cx = (w.x + w.w / 2 - LANE.x0) * P;
+    const x0 = (xmm - LANE.x0) * P, cx = x0 + (w.w * P) / 2;
     c.translate(cx, base); c.scale(s, s); c.translate(-cx, -base);
     c.font = font(fam, EM * P);
     c.fillStyle = sung ? 'rgb(255,0,0)' : 'rgb(0,0,255)';
-    c.fillText(w.text, (w.x - LANE.x0) * P, base);
+    c.fillText(w.text, x0, base);
     c.restore();
+    // the word's start mark on the lane's floor
+    c.fillStyle = sung ? 'rgb(255,0,0)' : 'rgb(0,0,255)';
+    c.fillRect(x0 - 0.5 * P * 0.5, cv.height - 2.6 * P, 0.5 * P, 2.2 * P);
   }
   c.globalCompositeOperation = 'source-over';
 }

@@ -21,7 +21,7 @@ import { clamp, pulse } from '../../engine/util';
 import { VD, SPEC_B64 } from './voice-data';
 import { VOICE_FRAG } from './voice-glsl';
 import { buildHeroes, heroState, buildChunks, newLaneCanvas, drawLane, buildLabel, dataTex, waveBytes, type Hero, type Chunk } from './voice-type';
-import { tDisp, dispRate, tapeTime, TSPD, splice, gain, camAt, handAt, CUTS, TCUT, T0, XP } from './voice-script';
+import { tDisp, dispRate, tapeTime, TSPD, splice, stripAt, gain, camAt, handAt, CUTS, TCUT, T0, XP } from './voice-script';
 
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
@@ -53,7 +53,7 @@ export default class Voice extends Scene {
       keyPos: { value: new THREE.Vector3(-150, -170, 270) },
       hTip: { value: new THREE.Vector3() }, hE1: { value: new THREE.Vector3() }, hE2: { value: new THREE.Vector3() }, hE3: { value: new THREE.Vector3() },
       handOn: { value: 0 }, bladeOn: { value: 0 },
-      tDisp: { value: 0 }, blurTau: { value: 0 }, gain: { value: 1 }, flash: { value: 0 }, glow: { value: 0.3 },
+      stp: { value: new THREE.Vector4() }, dof: { value: new THREE.Vector2(300, 0) }, tDisp: { value: 0 }, blurTau: { value: 0 }, gain: { value: 1 }, flash: { value: 0 }, glow: { value: 0.3 },
       spl: { value: new THREE.Vector4() }, tp: { value: new THREE.Vector4() },
       heroA: { value: new THREE.Vector4(-1, 0, 100, 50) }, heroB: { value: new THREE.Vector4(0, 0, 0, 1000) },
       hLX: { value: new Array(13).fill(1) }, hS: { value: new Array(12).fill(1) },
@@ -80,6 +80,7 @@ export default class Voice extends Scene {
     (u.camPos!.value as THREE.Vector3).copy(this.cam.position);
     (u.res!.value as THREE.Vector2).set(out.width, out.height);
     u.pxAng!.value = (2 * Math.tan((c.fov * Math.PI) / 360)) / 1080;
+    (u.dof!.value as THREE.Vector2).set(c.D, c.dof);
 
     // ---- the display, the tape, the cut
     const td = tDisp(t);
@@ -88,7 +89,9 @@ export default class Voice extends Scene {
     u.gain!.value = gain(t);
     const sp = splice(t);
     (u.spl!.value as THREE.Vector4).set(sp.cutOn, sp.gh, sp.oL, sp.oR);
-    (u.tp!.value as THREE.Vector4).set(tapeTime(t) * TSPD, sp.gapTape, sp.yJog, sp.strip);
+    (u.tp!.value as THREE.Vector4).set(tapeTime(t) * TSPD, sp.gapTape, sp.yJog, 0);
+    const st = stripAt(t);
+    (u.stp!.value as THREE.Vector4).set(st.x, st.y, st.z, st.on);
     u.flash!.value = 0.07 * pulse(t, TCUT, 0.06) * (t >= TCUT ? 1 : 0);
 
     // ---- the hero word and the caption lane
@@ -96,16 +99,16 @@ export default class Voice extends Scene {
     const hA = u.heroA!.value as THREE.Vector4, hB = u.heroB!.value as THREE.Vector4;
     if (h) {
       this.probe.fillText(h.text, 0, 0);   // the hero is drawn in the shader from an atlas: say so to the frame checker
-      const st = heroState(h, t);
-      hA.set(h.row, st.state, h.Wm, h.Hn);
+      const hs0 = heroState(h, t);
+      hA.set(h.row, hs0.state, h.Wm, h.Hn);
       const isLie = h === this.heroes[1];
       hB.set(isLie ? XP + h.Wm * (0.5 - h.lx[1]!) : 0, isLie && t >= TCUT ? 1 : 0, h.n, h.Wpx);
       const lx = u.hLX!.value as number[], hs = u.hS!.value as number[];
       for (let i = 0; i < 13; i++) lx[i] = i < h.lx.length ? h.lx[i]! : 2;
-      const gm = h === this.heroes[3] ? 1 + 0.5 * clamp((t - 101.8) / 1.0) : 1;
-      for (let i = 0; i < 12; i++) hs[i] = i < h.n ? st.s[i]! * (st.state === 2 ? gm : 1) : 1;
+      const gm = h === this.heroes[3] ? 1 + 0.22 * clamp((t - 102.0) / 1.2) : 1;
+      for (let i = 0; i < 12; i++) hs[i] = i < h.n ? hs0.s[i]! * (hs0.state === 2 ? gm : 1) : 1;
     } else { hA.set(-1, 0, 100, 50); hB.set(0, 0, 0, 1000); }
-    drawLane(this.laneCv, this.chunks, t); this.laneTex.needsUpdate = true;
+    drawLane(this.laneCv, this.chunks, t, td); this.laneTex.needsUpdate = true;
 
     // ---- the hand
     const hp = handAt(t);
