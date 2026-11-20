@@ -207,15 +207,18 @@ ${GLSL_TEETH_PALETTE}
 ${SS_TAP_GLSL}
 ${GLSL_HAND}
 uniform mat4 invVP; uniform vec3 camPos; uniform vec2 res;
-uniform sampler2D photoA, photoB, trcTex, lyrTex, labTex, labBlank, stampTex;
+uniform sampler2D photoA, photoB, trcTex, lyrTex, labTex, labBlank, stampTex, grpTex;
+uniform vec4 gpA, gpB;          // "Late night devil...": how far each group's red line has swept round (0..1)
 uniform vec4 prA, prB;          // prints: ox, oy (table mm, y down), theta, on (B is the top one)
 uniform float flush, redGlow;   // the tracing's red sweep (0..1), the red's lift at the lock
 uniform vec4 ring;              // the examiner's ring round the chip: x, y (table mm), radius, drawn 0..1
 uniform vec4 stamp;             // MATCH: x, y (table mm, centre), angle, ink 0..1
+uniform vec4 stampSh;           // the rubber stamp's shadow as it comes down and lifts: x, y (table mm), softness, strength
 uniform vec3 keyPos;            // the copy-stand lamp (world)
 uniform float lampK;            // its brightness (steps up on the lock)
 uniform vec2 cone;              // its beam: cos of the inner and outer half-angles (snaps tighter on the lock)
 uniform vec3 hTip, hE1, hE2, hE3; uniform float handOn;
+uniform float shCut;            // the hand's shadow is cast only by the hand-local part x < shCut (writing: the glove, not the raised sleeve)
 
 const float Z_PAPER = 0.4, Z_AC = 1.3;
 const vec3 AIM = vec3(42.0, 26.0, 0.0);   // where the lamp points (world)
@@ -283,13 +286,17 @@ float handShadow(vec3 p) {
   float t = max(bh.x, 0.2), res = 1.0;
   for (int i = 0; i < 64; i++) {
     if (t > bh.y) break;
-    float h = sdHandD(o + d * t);
+    vec3 q = o + d * t;
+    float h = max(sdHandD(q), q.x - shCut);
     res = min(res, 18.0 * h / t);
     if (res < 0.01) break;
     t += clamp(h, 0.4, 6.0);
   }
   res = clamp(res, 0.0, 1.0);
-  return res * res * (3.0 - 2.0 * res);
+  res = res * res * (3.0 - 2.0 * res);
+  // writing: the lit print, the label and the white cuff bounce a fill into the glove's shadow, so the words under it
+  // stay legible (shCut < 1e3 only while the glove writes the lyric)
+  return shCut < 1e3 ? mix(0.42, 1.0, res) : res;
 }
 vec3 nrmHand(vec3 q) {
   const vec2 k = vec2(1.0, -1.0); const float e = 0.06;
@@ -424,6 +431,14 @@ vec2 inkAt(vec2 tp) {
     if (c.r > a) { r = mix(r, rr, (c.r - a) / max(c.r, 1e-3)); }
     a = max(a, c.r);
   }
+  // the groups: per word, a heavier red line sweeps once round one tooth group (the outline closing round it)
+  {
+    vec3 c = texG(grpTex, vec2(tu.x, 1.0 - tu.y), vec2(${f(TRC.x1 - TRC.x0)}, ${f(TRC.y1 - TRC.y0)})).rgb;
+    float gi = floor(c.g / max(c.r, 1e-3) * 8.0);
+    float pr = gi < 0.5 ? gpA.x : gi < 1.5 ? gpA.y : gi < 2.5 ? gpA.z : gi < 3.5 ? gpA.w : gi < 4.5 ? gpB.x : gi < 5.5 ? gpB.y : gi < 6.5 ? gpB.z : gpB.w;
+    float s = c.r * step(c.b / max(c.r, 1e-3), pr) * step(0.001, pr);
+    r = mix(r, 1.0, s); a = max(a, s);
+  }
   // the examiner's ring round the chip, drawn in one stroke, overshooting its start
   {
     vec2 d = tp - ring.xy;
@@ -457,6 +472,13 @@ vec3 shade(vec2 px) {
   if (tH < 1e8) return shadeHand(ro + rd * tH, rd, m);
   float gloss;
   vec3 col = shadePaper(P, rd, gloss);
+  // the stamp's block above the sheet, just before and after it strikes: its shadow, hard as it lands
+  if (stampSh.w > 0.0) {
+    vec2 d = TB(P) - stampSh.xy; float cs = cos(stamp.z), sn = sin(stamp.z);
+    vec2 q = vec2(cs * d.x + sn * d.y, -sn * d.x + cs * d.y);
+    float sd = sdBox2(q, vec2(0.0), vec2(${f(STAMP.w / 2 + 3)}, ${f(STAMP.h / 2 + 3)}), 2.0);
+    col *= 1.0 - stampSh.w * (1.0 - smoothstep(-stampSh.z, stampSh.z, sd));
+  }
   // the ink's shadow on the paper below the acetate
   {
     vec3 l = normalize(keyPos - P);

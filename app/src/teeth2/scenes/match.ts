@@ -22,7 +22,7 @@ import { monoPenAt, monoWritten, MONOGRAM } from '../monogram';
 import { PHOTO_FRAG, MAIN_FRAG } from './match-glsl';
 import {
   PHOTO, PHOTO_SCALE, LABEL, buildTracing, buildStamp, buildLabelBase, drawLabel, labelCanvas, drawLyric, lyricCanvas,
-  layoutPhrase, monoToLabel, chipPoint, type Phrase,
+  layoutPhrase, monoToLabel, chipPoint, rowTimes, strokePoint, writtenLength, buildGroups, LYR_CX, type Phrase,
 } from './match-ink';
 
 const T_LOCK = 165.16;
@@ -39,6 +39,15 @@ const SUSPECTS = [12, 1, 37, 29, 5, 10, 34, 25, 11, 33, 17, 15];
 interface Pose { x: number; y: number; th: number }
 interface Ev { t: number; seed: number; pose: Pose; from: [number, number] }
 interface Cam { cx: number; cy: number; w: number; roll: number; tilt: number; yaw: number }
+/** One word the glove writes on the acetate: when (a..b), which row, its chars, and where its pen starts and ends. */
+interface Write { a: number; b: number; ph: Phrase; row: Phrase['rows'][number]; times: [number, number][]; p0: [number, number]; p1: [number, number] }
+/** The glove's heading while it writes the lyric (table, radians, y down; 0 = the forearm off to the right): up and to
+ *  the right, so the hand, the sleeve and their shadow (the lamp is up and to the right) stay above the words. */
+const HEAD_W = -0.75;
+/** The pen tip's height (table mm above the paper) when it is down on the acetate. */
+const Z_AC_PEN = 0.88;
+/** MATCH, stamped on "go" (the line's last word) to the left of the bite, clear of the tracing. */
+const STAMP_AT = { x: -76, y: -11, th: -0.1 };
 
 /** Register a suspect's print on the tracing the way an examiner would: a rigid fit (no scale: the photographs are
  *  at the tracing's scale) of the suspect's midline point and canine tips onto his. The failure then shows in the
@@ -87,6 +96,9 @@ export default class Match extends Scene {
   private labCv!: HTMLCanvasElement; private labTex!: THREE.CanvasTexture; private labKey = -1;
   private labBase!: HTMLCanvasElement;
   private labSuspect!: THREE.CanvasTexture;
+  private writes: Write[] = [];
+  private lineC!: Line;
+  private go = 0;
 
   override init() {
     this.tt = new TeethTex(HIS);
@@ -107,10 +119,11 @@ export default class Match extends Scene {
       photoA: { value: null }, photoB: { value: null }, trcTex: { value: trc }, lyrTex: { value: this.lyrTex },
       labTex: { value: this.labTex }, labBlank: { value: labBlank }, stampTex: { value: stamp },
       prA: { value: new THREE.Vector4() }, prB: { value: new THREE.Vector4() },
-      flush: { value: 0 }, redGlow: { value: 0 }, stamp: { value: new THREE.Vector4() },
+      flush: { value: 0 }, redGlow: { value: 0 }, stamp: { value: new THREE.Vector4() }, stampSh: { value: new THREE.Vector4() },
       keyPos: { value: new THREE.Vector3(230, 240, 900) }, lampK: { value: 1 }, cone: { value: new THREE.Vector2() }, ring: { value: new THREE.Vector4() },
       hTip: { value: new THREE.Vector3() }, hE1: { value: new THREE.Vector3() }, hE2: { value: new THREE.Vector3() }, hE3: { value: new THREE.Vector3() },
-      handOn: { value: 0 }, ssTap: SS_TAP,
+      handOn: { value: 0 }, shCut: { value: 1e4 }, ssTap: SS_TAP,
+      grpTex: { value: dataTex(buildGroups()) }, gpA: { value: new THREE.Vector4() }, gpB: { value: new THREE.Vector4() },
     });
     const au = this.ctx.audio;
     this.beats = au.beats.filter((b) => b > this.ctx.start - 0.3 && b < this.ctx.end + 0.5);
@@ -132,13 +145,16 @@ export default class Match extends Scene {
     const ly = this.ctx.lyrics;
     const lineAt = (t0: number) => ly.lines.find((l: Line) => Math.abs(l.start - t0) < 0.3)!;
     const A = lineAt(159.23), B = lineAt(162.68), C = lineAt(166.13), D = lineAt(169.37);
-    const P = (line: Line, idx: number[], hero: number, red = false) =>
-      ({ line, words: idx.map((i) => line.words[i]!), hero, red, t0: 0, t1: 0, rows: [] }) as Phrase;
+    this.lineC = C;
+    this.go = D.words[6]!.start;
+    const P = (line: Line, idx: number[], hero: number, red = false, cx = LYR_CX) =>
+      ({ line, words: idx.map((i) => line.words[i]!), hero, red, t0: 0, t1: 0, rows: [], cx }) as Phrase & { cx: number };
+    // lines C and D: each phrase written where the camera's walk along the arch keeps it whole in frame
     const list = [
       P(A, [0, 1, 2], -1), P(A, [3, 4, 5], -1), P(A, [6, 7], 1),
       P(B, [0, 1, 2, 3], -1), P(B, [4, 5, 6, 7], 3, true),
-      P(C, [0, 1, 2], 2), P(C, [3, 4, 5], -1), P(C, [6, 7], -1),
-      P(D, [0, 1, 2], -1), P(D, [3, 4], -1), P(D, [5, 6], 1),
+      P(C, [0, 1, 2], 2, false, -4), P(C, [3, 4, 5], -1, false, 10), P(C, [6, 7], -1, false, 0),
+      P(D, [0, 1, 2], -1, false, 20), P(D, [3, 4], -1, false, -22), P(D, [5, 6], 1, false, -38),
     ];
     for (let i = 0; i < list.length; i++) {
       const p = list[i]!, nx = list[i + 1];
@@ -148,9 +164,20 @@ export default class Match extends Scene {
         p.t1 = this.beats.find((b) => b > p.line.end + 0.02) ?? p.line.end + 0.4;
         if (nx) p.t1 = Math.min(p.t1, nx.words[0]!.start - 0.045);
       }
-      layoutPhrase(p);
+      layoutPhrase(p, p.cx);
     }
     this.phrases = list;
+    // the words the glove writes, in order (TEETH excepted: on "teeth" the glove is signing NAME)
+    for (const p of list) for (const r of p.rows) {
+      const { times, words } = rowTimes(p, r);
+      for (const w of words) {
+        if (p.red && w.wi === p.hero) continue;
+        const L0 = r.st.charRange[w.c0]![0], L1 = r.st.charRange[w.c1 - 1]![1];
+        const at = (L: number): [number, number] => { const q = strokePoint(r.st, L); return [r.x + q[0], r.y + q[1]]; };
+        this.writes.push({ a: w.a, b: w.b, ph: p, row: r, times, p0: at(L0 + 1e-3), p1: at(L1) });
+      }
+    }
+    this.writes.sort((x, y) => x.a - y.a);
   }
 
   // ------------------------------------------------------------------ the cast photographs (cached per cast)
@@ -217,15 +244,24 @@ export default class Match extends Scene {
     ];
     const at = (t2: number): Cam => {
       if (t2 >= 166.13) {
-        // stub: "Late night devil...": reframe per word across the matched arch; "never...let go": walk to the chip.
-        // From GO (MATCH) the NAME label is kept out of frame (never both readable at once).
+        // "Late night devil...": one framing per beat, leaning toward the tooth group whose outline closes on that
+        // beat's word (#8, #9, #7, #10, #6/#11, then each half); "never...let go": the camera walks the matched
+        // arch tooth by tooth on the beat (#11, #10, #9, then #6, #7, #8) and lands on the chip with MATCH on GO.
+        // Each keeps its phrase inside title-safe; from GO the NAME label is out of frame (right edge < table x 80).
         const walk: [number, Partial<Cam>][] = [
-          [166.13, { cx: 10, cy: -14, w: 330, roll: 0.03 }], [166.56, { cx: -12, cy: -20, w: 300, roll: -0.04 }], [167.0, { cx: 14, cy: -14, w: 330, roll: 0.05 }],
-          [167.43, { cx: -6, cy: 0, w: 300, roll: -0.03 }], [167.86, { cx: 8, cy: 4, w: 340, roll: -0.04 }],
-          [169.59, { cx: 30, cy: 0, w: 300, roll: 0.04 }], [170.02, { cx: 22, cy: -2, w: 290, roll: -0.03 }], [170.45, { cx: 14, cy: -4, w: 280, roll: 0.03 }],
-          [170.88, { cx: 8, cy: -6, w: 268, roll: -0.04 }], [171.31, { cx: 4, cy: -8, w: 258, roll: 0.03 }], [171.74, { cx: 0, cy: -10, w: 250, roll: -0.02 }],
-          [172.18, { cx: -2, cy: -30, w: 250, roll: 0.02 }], [172.61, { cx: -46, cy: -32, w: 236, roll: -0.03 }],
+          [166.13, { cx: -10, cy: -24, w: 290, roll: 0.03 }], [166.56, { cx: 6, cy: -26, w: 276, roll: -0.035 }], [167.0, { cx: -16, cy: -22, w: 300, roll: 0.045 }],
+          [167.43, { cx: 18, cy: -10, w: 262, roll: -0.04 }], [167.86, { cx: 26, cy: -8, w: 248, roll: 0.03 }], [168.29, { cx: -14, cy: -10, w: 270, roll: -0.03 }],
+          [168.72, { cx: 12, cy: -12, w: 256, roll: 0.04 }], [169.16, { cx: 30, cy: -8, w: 250, roll: -0.03 }],
+          [169.59, { cx: 34, cy: -6, w: 236, roll: 0.035 }], [170.02, { cx: 22, cy: -8, w: 230, roll: -0.03 }], [170.45, { cx: 10, cy: -6, w: 236, roll: 0.03 }],
+          [170.88, { cx: -34, cy: -6, w: 236, roll: -0.035 }], [171.31, { cx: -24, cy: -8, w: 226, roll: 0.03 }], [171.74, { cx: -12, cy: -8, w: 226, roll: -0.025 }],
+          [172.18, { cx: -34, cy: -46, w: 244, roll: 0.02 }], [172.61, { cx: -38, cy: -46, w: 232, roll: -0.015 }],
         ];
+        if (t2 >= 173.04) {
+          // the last bar: from the downbeat a slow push down onto the chip and MATCH (the lyric leaves at 173.90)
+          const a: Cam = { ...base, cx: -38, cy: -46, w: 232, roll: -0.015 };
+          const k = ease.inOutCubic(clamp((t2 - 173.04) / 1.7));
+          return { ...a, cx: lerp(a.cx, -22, k), cy: lerp(a.cy, -8, k), w: lerp(a.w, 200, k), roll: lerp(a.roll, 0.02, k), tilt: lerp(a.tilt, 0.1, k) };
+        }
         let j = 0;
         while (j < walk.length - 1 && t2 >= walk[j + 1]![0]) j++;
         return { ...base, ...walk[j]![1] };
@@ -276,32 +312,65 @@ export default class Match extends Scene {
   }
 
   // ------------------------------------------------------------------ the gloved hand
-  /** Pen tip (table mm, z up) and the pen's heading; null when the hand is out of frame. */
+  /** The pen writing the lyric on the acetate (table mm, z up); null once it has left after GO. */
+  private writeAt(t: number): { x: number; y: number; z: number } | null {
+    const W = this.writes;
+    const first = W[0]!, last = W[W.length - 1]!;
+    if (t < first.a) return { x: first.p0[0], y: first.p0[1], z: Z_AC_PEN + 4 * clamp((first.a - t) / 0.3) };
+    if (t > last.b) {
+      // GO written: the hand lifts away off to the right
+      const k = clamp((t - last.b - 0.04) / 0.5);
+      if (k >= 1) return null;
+      return { x: last.p1[0] + 240 * ease.inCubic(k), y: last.p1[1] - 40 * ease.inCubic(k), z: Z_AC_PEN + 2 + 90 * ease.outQuad(k) };
+    }
+    let i = 0;
+    while (i < W.length - 1 && W[i + 1]!.a <= t) i++;
+    const w = W[i]!;
+    if (t <= w.b) {
+      const q = strokePoint(w.row.st, writtenLength(w.row.st, w.times, t));
+      return { x: w.row.x + q[0], y: w.row.y + q[1], z: Z_AC_PEN };
+    }
+    // between words: the pen lifts and travels to the next word's first stroke
+    const n = W[i + 1]!;
+    const k = clamp((t - w.b) / Math.max(1e-3, n.a - w.b)), e = ease.inOutCubic(k);
+    const d = Math.hypot(n.p0[0] - w.p1[0], n.p0[1] - w.p1[1]);
+    return { x: lerp(w.p1[0], n.p0[0], e), y: lerp(w.p1[1], n.p0[1], e), z: Z_AC_PEN + Math.min(3 + d * 0.25, 30) * Math.sin(Math.PI * k) };
+  }
+  /** Pen tip (table mm, z up) and the pen's heading; null when the hand is out of frame. The glove writes every
+   *  lyric word on the acetate (heading HEAD_W, forearm off to the right), dashes to the label on "teeth" to sign
+   *  NAME (heading ~0.8, as at gate 2) and goes back to the lyric for "Late night devil". */
   private hand(t: number): { x: number; y: number; z: number; head: number; tilt: number } | null {
-    if (t < 164.86 || t > 166.4) return null;
     // label point -> table (his print, locked from 165.16)
     const lab = (lx: number, ly: number) => [LABEL.x0 + lx, LABEL.y0 + ly] as const;
     const p0 = MONOGRAM.strokes[0]![0]!;
     const [sx, sy] = lab(...monoToLabel(p0.x, p0.y));
-    let x: number, y: number, z: number;
-    if (t < SIGN_T0) {
-      // in from the lower right, the pen coming down onto the label as the print locks
-      const k = ease.outCubic(clamp((t - 164.86) / (SIGN_T0 - 164.86)));
-      x = lerp(sx + 150, sx, k); y = lerp(sy + 120, sy, k); z = lerp(60, 0, ease.inOutCubic(k));
-    } else if (t <= SIGN_T1 + 0.02) {
-      const pen = monoPenAt(t, SIGN_T0, SIGN_T1);
-      [x, y] = lab(...monoToLabel(pen.x, pen.y));
-      z = pen.down || t < SIGN_T0 + 0.01 ? 0 : 3.5;
-      if (t > SIGN_T1) z = 0;
-    } else {
-      const pe = monoPenAt(SIGN_T1, SIGN_T0, SIGN_T1);
-      const [ex, ey] = lab(...monoToLabel(pe.x, pe.y));
-      const k = ease.inCubic(clamp((t - SIGN_T1 - 0.05) / 0.6));
-      x = ex + 160 * k; y = ey + 110 * k; z = 4 + 70 * ease.outQuad(clamp((t - SIGN_T1 - 0.05) / 0.25));
+    const signHead = (x: number) => 0.8 + (x - sx) * 0.0035;
+    const signTilt = (y: number) => 0.96 + (y - sy) * 0.002;
+    const got = [...this.writes].reverse().find((w) => w.b <= SIGN_T0)!;
+    const late = this.writes.find((w) => w.a >= SIGN_T1)!;
+    const pe = monoPenAt(SIGN_T1, SIGN_T0, SIGN_T1);
+    const [ex, ey] = lab(...monoToLabel(pe.x, pe.y));
+    const tOff = SIGN_T1 + 0.02, tGo = SIGN_T1 + 0.07;
+    if (t > got.b && t < SIGN_T0) {
+      // the dash from GOT down to the label, the pen coming down onto NAME as the print locks
+      const k = clamp((t - got.b) / (SIGN_T0 - got.b)), e = ease.inOutCubic(k);
+      const x = lerp(got.p1[0], sx, e), y = lerp(got.p1[1], sy, e);
+      return { x, y, z: lerp(Z_AC_PEN, 0, e) + 24 * Math.sin(Math.PI * k), head: lerp(HEAD_W, signHead(sx), e), tilt: lerp(0.96, signTilt(sy), e) };
     }
-    // the wrist pivots a little as the pen travels across the label
-    const head = 0.8 + (x - sx) * 0.0035;
-    return { x, y, z, head, tilt: 0.96 + (y - sy) * 0.002 };
+    if (t >= SIGN_T0 && t <= tOff) {
+      const pen = monoPenAt(t, SIGN_T0, SIGN_T1);
+      const [x, y] = lab(...monoToLabel(pen.x, pen.y));
+      let z = pen.down || t < SIGN_T0 + 0.01 ? 0 : 3.5;
+      if (t > SIGN_T1) z = 0;
+      return { x, y, z, head: signHead(x), tilt: signTilt(y) };
+    }
+    if (t > tOff && t < late.a) {
+      // signed: the pen lifts off the label, then goes back up to the top of the sheet for the next line
+      const k = clamp((t - tGo) / (late.a - tGo)), e = ease.inOutCubic(k);
+      return { x: lerp(ex, late.p0[0], e), y: lerp(ey, late.p0[1], e), z: lerp(4, Z_AC_PEN, e) + 30 * Math.sin(Math.PI * k), head: lerp(signHead(ex), HEAD_W, e), tilt: lerp(signTilt(ey), 0.96, e) };
+    }
+    const p = this.writeAt(t);
+    return p ? { ...p, head: HEAD_W, tilt: 0.96 } : null;
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget) {
@@ -337,9 +406,23 @@ export default class Match extends Scene {
     // the examiner's ring round the chip, drawn as the red reaches #8 (it stays until the end of the plate)
     const [rx, ry] = chipPoint();
     (u.ring!.value as THREE.Vector4).set(rx - 1.0, ry - 1.5, 8.0, clamp((t - 165.31) / 0.16) * 1.06);
-    // MATCH on GO (stub)
-    const go = 172.61;
-    (u.stamp!.value as THREE.Vector4).set(-44, 26, -0.14, t >= go ? 1 : 0);
+    // MATCH, stamped on GO: the ink lands whole with the stamp's thump
+    const go = this.go;
+    (u.stamp!.value as THREE.Vector4).set(STAMP_AT.x, STAMP_AT.y, STAMP_AT.th, t >= go ? 1 : 0);
+    // its block coming down onto the sheet (0.12 s) and lifting off (0.25 s): the shadow, away from the lamp, closes
+    // on the stamp and sharpens as it lands
+    {
+      const zs = t < go ? 70 * clamp((go - t) / 0.12) : 70 * ease.inQuad(clamp((t - go - 0.04) / 0.25));
+      const on = (t > go - 0.12 && t < go + 0.29) ? 1 : 0;
+      const kp = u.keyPos!.value as THREE.Vector3;
+      const lx = kp.x, ly = -kp.y, lz = kp.z;
+      const m = zs / Math.max(1, lz - zs);
+      (u.stampSh!.value as THREE.Vector4).set(STAMP_AT.x + (STAMP_AT.x - lx) * m, STAMP_AT.y + (STAMP_AT.y - ly) * m, 0.6 + zs * 0.08, on * 0.75 * (1 - zs / 140));
+    }
+    // "Late night devil, put your hands on me": per word, the red closes round one tooth group
+    const gp = this.lineC.words.map((w) => (t < w.start - 0.03 ? 0 : clamp((t - w.start + 0.03) / Math.min(0.3, Math.max(0.16, (w.end - w.start) * 0.75))) * 1.02));
+    (u.gpA!.value as THREE.Vector4).set(gp[0] ?? 0, gp[1] ?? 0, gp[2] ?? 0, gp[3] ?? 0);
+    (u.gpB!.value as THREE.Vector4).set(gp[4] ?? 0, gp[5] ?? 0, gp[6] ?? 0, gp[7] ?? 0);
 
     // the lyric
     const ph = this.phrases.find((p) => t >= Math.max(p.t0, p.red ? Math.min(p.t0, T_LOCK) : p.t0) && t < p.t1) ?? null;
@@ -360,6 +443,9 @@ export default class Match extends Scene {
     // the hand
     const h = this.hand(t);
     u.handOn!.value = h ? 1 : 0;
+    // writing, the raised sleeve's shadow (far above the sheet, soft and off to the lower left) is left out: only the
+    // glove's own shadow falls on the words; signing keeps the gate 2 shadow whole
+    u.shCut!.value = t >= SIGN_T0 - 0.02 && t <= SIGN_T1 + 0.12 ? 1e4 : 155;
     if (h) {
       const c = Math.cos(h.tilt), s = Math.sin(h.tilt);
       const dx = Math.cos(h.head), dy = Math.sin(h.head); // table, y down: toward the lower right
@@ -377,7 +463,7 @@ export default class Match extends Scene {
     // post: a small jolt on each landing, a harder one on the lock
     const land = this.evs.reduce((m, e) => Math.max(m, pulse(t, e.t, 0.05)), 0);
     const lock = pulse(t, T_LOCK, 0.09);
-    const sh = 2.2 * land + 7 * lock;
+    const sh = 2.2 * land + 7 * lock + 4 * pulse(t, this.go, 0.07);
     return { shake: [sh * 0.8, -sh * 0.6] as [number, number], halation: 0.2 };
   }
 }

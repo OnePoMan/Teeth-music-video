@@ -8,6 +8,7 @@
 import { SCALE } from '../../engine/gl';
 import { F, font } from '../../engine/type';
 import { strokeText, drawStrokeText, writtenLength, type StrokeText } from '../../engine/stroke';
+export { writtenLength };
 import { clamp } from '../../engine/util';
 import type { Line, Word } from '../../engine/lyrics';
 import { HIS, tooth, biteMark, type V2 } from '../teeth';
@@ -183,21 +184,68 @@ export interface Phrase {
 
 const HERO_EM = 40, SUP_EM = 12.5, SOLO_EM = 14;
 const HERO_BASE = -37, SUP_BASE = -76, SOLO_BASE = -50;
+/** A short hero (GO) is set larger so it still reaches frame scale (>= 30% of the view's width). */
+const HERO_MIN_W = 86;
+/** The hero is written in the light pen and snaps to the heavy one as its last letter lands (letters locked). */
+const HERO_LIGHT = 0.42;
 
-/** Lay a phrase out on the acetate (table mm): supporting words on a row above the hero, both centred on the arch. */
-export function layoutPhrase(p: Phrase) {
+/** Lay a phrase out on the acetate (table mm): supporting words on a row above the hero, both centred on `cx`. */
+export function layoutPhrase(p: Phrase, cx = LYR_CX) {
   const sup = p.words.map((_, i) => i).filter((i) => i !== p.hero);
   // a technical pen hand: upright single-stroke capitals (Hershey Sans, as through a lettering guide)
   const txt = (i: number) => (i === p.hero ? p.words[i]!.w.replace(/[,.]/g, '') : p.words[i]!.w).toUpperCase();
   const row = (idx: number[], em: number, y: number, pen: number) => {
     const st = strokeText(idx.map(txt).join(' '), 'sans', em, em * 0.04);
-    return { st, words: idx, x: LYR_CX - st.width / 2, y, width: st.width, pen };
+    return { st, words: idx, x: cx - st.width / 2, y, width: st.width, pen };
   };
   p.rows = [];
   if (p.hero >= 0) {
-    if (sup.length) p.rows.push(row(sup, SUP_EM, SUP_BASE, 0.5));
-    p.rows.push(row([p.hero], HERO_EM, HERO_BASE, 1.0));
+    let h = row([p.hero], HERO_EM, HERO_BASE, 1.0);
+    let supY = SUP_BASE;
+    if (h.width < HERO_MIN_W) {
+      const h40 = h;
+      h = row([p.hero], (HERO_EM * HERO_MIN_W) / h.width, HERO_BASE, 1.0);
+      supY = SUP_BASE - (h.st.capHeight - h40.st.capHeight);   // the supporting row keeps its gap above the taller hero
+    }
+    if (sup.length) p.rows.push(row(sup, SUP_EM, supY, 0.5));
+    p.rows.push(h);
   } else p.rows.push(row(sup, SOLO_EM, SOLO_BASE, 0.55));
+}
+
+/** Per char of a row: the times it is written (each word from its onset, letters ~45 ms early, over most of its
+ *  length; `fast`: the supporting words written quicker, for the dash to the label). */
+export function rowTimes(p: Phrase, r: Phrase['rows'][number]): { times: [number, number][]; words: { wi: number; a: number; b: number; c0: number; c1: number }[] } {
+  const times: [number, number][] = [];
+  const words: { wi: number; a: number; b: number; c0: number; c1: number }[] = [];
+  r.words.forEach((wi, j) => {
+    const w = p.words[wi]!;
+    const hero = wi === p.hero;
+    const cap = hero ? 0.26 : p.red ? 0.17 : 0.3;
+    const a = w.start - 0.045, b = w.start + Math.min(cap, Math.max(0.12, (w.end - w.start) * 0.8));
+    const s = hero ? w.w.replace(/[,.]/g, '') : w.w;
+    const c0 = times.length;
+    for (let i = 0; i < s.length; i++) times.push([a + ((b - a) * i) / s.length, a + ((b - a) * (i + 1)) / s.length]);
+    words.push({ wi, a, b, c0, c1: times.length });
+    if (j < r.words.length - 1) times.push([b, b]);
+  });
+  return { times, words };
+}
+
+/** The point at written length `len` of a stroke text (its own px = mm, y down), and the point a stroke starts at. */
+export function strokePoint(st: StrokeText, len: number): V2 {
+  for (let i = 0; i < st.strokes.length; i++) {
+    const s0 = st.startLen[i]!, L = st.lens[i]!, pts = st.strokes[i]!;
+    const sl = L[L.length - 1] ?? 0;
+    if (len > s0 + sl && i < st.strokes.length - 1) continue;
+    const remain = Math.max(0, len - s0);
+    let j = 1;
+    while (j < pts.length && L[j]! < remain) j++;
+    if (j >= pts.length) return [pts[pts.length - 1]!.x, pts[pts.length - 1]!.y];
+    const a = pts[j - 1]!, b = pts[j]!;
+    const u = clamp((remain - L[j - 1]!) / Math.max(1e-6, L[j]! - L[j - 1]!));
+    return [a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u];
+  }
+  return [0, 0];
 }
 
 /** Write the phrase into the lyric canvas (R = ink, G = red), each word while it is sung. */
@@ -209,24 +257,84 @@ export function drawLyric(cv: HTMLCanvasElement, p: Phrase | null, t: number) {
   const k = LYR.ppm * SCALE;
   c.lineCap = 'round'; c.lineJoin = 'round';
   for (const r of p.rows) {
-    // char times: each word written from its onset (letters ~45 ms early) over most of its length
-    const times: [number, number][] = [];
-    r.words.forEach((wi, j) => {
-      const w = p.words[wi]!;
-      const hero = wi === p.hero;
-      const a = w.start - 0.045, b = w.start + Math.min(hero ? 0.26 : 0.3, Math.max(0.12, (w.end - w.start) * 0.8));
-      const s = hero ? w.w.replace(/[,.]/g, '') : w.w;
-      for (let i = 0; i < s.length; i++) times.push([a + ((b - a) * i) / s.length, a + ((b - a) * (i + 1)) / s.length]);
-      if (j < r.words.length - 1) times.push([b, b]);
-    });
+    const { times, words } = rowTimes(p, r);
     const len = writtenLength(r.st, times, t);
     if (len <= 0) continue;
-    const red = p.red && r.words.includes(p.hero);
+    const isHero = r.words.includes(p.hero);
+    const red = p.red && isHero;
     c.setTransform(k, 0, 0, k, (r.x - LYR.x0) * k, (r.y - LYR.y0) * k);
     c.strokeStyle = red ? 'rgb(255,255,0)' : 'rgb(255,0,0)';
-    c.lineWidth = r.pen;
+    c.lineWidth = isHero && t < words[0]!.b ? HERO_LIGHT : r.pen;
     drawStrokeText(c, r.st, len);
   }
 }
+
+// ------------------------------------------------------------------------------------------------ the groups
+/** "Late night devil, put your hands on me": per word the red outline closes round one anterior tooth group, a
+ *  heavier red line sweeping once round it: the six marks one by one (#8 first, then outward), then a loop round
+ *  each half of the bite ("on": #6-#8, "me": #9-#11). Static canvas over TRC: R = ink, G = group (k + 0.5) / 8,
+ *  B = where along its loop (0..1). */
+export const GROUP_TEETH = [8, 9, 7, 10, 6, 11];
+export function buildGroups(): HTMLCanvasElement {
+  const ppm = 12, k = ppm * SCALE;
+  const cv = mkCanvas((TRC.x1 - TRC.x0) * k, (TRC.y1 - TRC.y0) * k);
+  const c = cv.getContext('2d')!;
+  c.fillStyle = '#000'; c.fillRect(0, 0, cv.width, cv.height);
+  c.setTransform(k, 0, 0, k, -TRC.x0 * k, -TRC.y0 * k);
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  const loop = (pts: V2[], g: number, w: number) => {
+    const L = [0];
+    for (let i = 1; i <= pts.length; i++) { const a = pts[i - 1]!, b = pts[i % pts.length]!; L.push(L[i - 1]! + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+    const tot = L[L.length - 1]!;
+    c.lineWidth = w;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i]!, b = pts[(i + 1) % pts.length]!;
+      c.strokeStyle = `rgb(255,${Math.round(((g + 0.5) / 8) * 255)},${Math.round(((L[i]! + L[i + 1]!) / 2 / tot) * 255)})`;
+      c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+    }
+  };
+  const marks = biteTrace().map((m) => ({ n: m.n, poly: m.poly.map((p) => [p[0] * PHOTO_SCALE, p[1] * PHOTO_SCALE] as V2) }));
+  const cen = (P: V2[]) => P.reduce((m, p) => [m[0] + p[0] / P.length, m[1] + p[1] / P.length] as V2, [0, 0] as V2);
+  // the six marks, each re-inked heavy round its own outline (densified so the sweep is smooth)
+  GROUP_TEETH.forEach((n, g) => {
+    const m = marks.find((q) => q.n === n);
+    if (!m) return;
+    const d: V2[] = [];
+    m.poly.forEach((a, i) => { const b = m.poly[(i + 1) % m.poly.length]!; for (let s = 0; s < 4; s++) d.push([a[0] + ((b[0] - a[0]) * s) / 4, a[1] + ((b[1] - a[1]) * s) / 4]); });
+    loop(d, g, 0.9);
+  });
+  // the two halves: a stadium round the centres of the half's marks (offset 5.5 mm), drawn in one sweep
+  const half = (ns: number[], g: number) => {
+    const C = ns.map((n) => cen(marks.find((q) => q.n === n)!.poly));
+    // a smooth spine through the centres (Catmull-Rom), then offset both sides and capped
+    const sp: V2[] = [];
+    for (let i = 0; i < C.length - 1; i++) {
+      const p0 = C[Math.max(0, i - 1)]!, p1 = C[i]!, p2 = C[i + 1]!, p3 = C[Math.min(C.length - 1, i + 2)]!;
+      for (let s = 0; s < 12; s++) {
+        const u = s / 12, u2 = u * u, u3 = u2 * u;
+        const f = (a: number, b: number, cc: number, dd: number) => 0.5 * (2 * b + (-a + cc) * u + (2 * a - 5 * b + 4 * cc - dd) * u2 + (-a + 3 * b - 3 * cc + dd) * u3);
+        sp.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])]);
+      }
+    }
+    sp.push(C[C.length - 1]!);
+    const R = 5.5;
+    const nrm = (i: number): V2 => { const a = sp[Math.max(0, i - 1)]!, b = sp[Math.min(sp.length - 1, i + 1)]!; const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; };
+    const outA: V2[] = sp.map((p, i) => { const n = nrm(i); return [p[0] + n[0] * R, p[1] + n[1] * R] as V2; });
+    const outB: V2[] = sp.map((p, i) => { const n = nrm(i); return [p[0] - n[0] * R, p[1] - n[1] * R] as V2; }).reverse();
+    const cap = (p: V2, n: V2, sgn: number): V2[] => {
+      const a0 = Math.atan2(n[1], n[0]);
+      return Array.from({ length: 10 }, (_, s) => { const a = a0 + sgn * Math.PI * ((s + 1) / 11); return [p[0] + Math.cos(a) * R, p[1] + Math.sin(a) * R] as V2; });
+    };
+    const nE = nrm(sp.length - 1), n0 = nrm(0);
+    const tE = [sp[sp.length - 1]![0] - sp[sp.length - 2]![0], sp[sp.length - 1]![1] - sp[sp.length - 2]![1]];
+    const sE = Math.sign(nE[0] * tE[1] - nE[1] * tE[0]) || 1;
+    const pts = [...outA, ...cap(sp[sp.length - 1]!, nE, sE), ...outB, ...cap(sp[0]!, [-n0[0], -n0[1]], sE)];
+    loop(pts, g, 0.75);
+  };
+  half([6, 7, 8], 6);
+  half([9, 10, 11], 7);
+  return cv;
+}
+export const GROUP_PPM = 12;
 export const lyricCanvas = () => mkCanvas((LYR.x1 - LYR.x0) * LYR.ppm * SCALE, (LYR.y1 - LYR.y0) * LYR.ppm * SCALE);
 export const clamp01 = clamp;
