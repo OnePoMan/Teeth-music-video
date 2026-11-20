@@ -66,7 +66,46 @@ Light plates (polygraph, chart) invert to lightbox white with film-black ink. On
 - A word appears or lights at its `start` (letters spring up ~45 ms ahead) and completes by its `end`; nothing shows more than 0.4 s early; no fade-in entrances.
 - One phrase on screen (1–4 words of the line being sung); a line leaves on the next beat after it ends.
 - One **hero word** per line at frame scale, readable at a glance, frontal, inside title-safe (96 px). Supporting words are physical things in the scene, never flat captions.
-- States (client, gate 2: treatment A): unsung halide at ~35%, sung lightbox white, the hero in its plate's idiom; the hero word also snaps from light to heavy weight on its onset (borrowed from treatment B), with letter positions locked so nothing reflows.
+- States (client, gate 2: treatment A): unsung halide at ~35%, sung lightbox white, the hero in its plate's idiom; the hero word also snaps from light to heavy weight on its onset (borrowed from treatment B). ~~Letter positions locked so nothing reflows~~: superseded by kinetic type below.
+
+## Kinetic type (client, 2026-11-20, during gate 3; binding)
+
+The lyric is **motion-graphics type at P(doom)'s level**, not still words in a moving world. The client's three calls:
+
+1. **Both layers.** Supporting words stay in each plate's world (bitten, engraved, written, printed, glowing), but they move like motion graphics on that surface. Hero words may break out of the world as **full-frame graphic slams** (P(doom)'s hook idiom). A slam is flat palette fills in Archivo 900, with no outlines or halos. It takes the plate's grain, halation and motion blur, so it sits in the shot.
+2. **Escalating.** The type moves in the verses, builds in the pre-choruses and is maximal in the choruses. The bridge and the outro drop back.
+3. **Prototype first.** One shared kit, shown as clips on three contrasting plates before it reaches all 14.
+
+**The vocabulary** (one shared kit, `app/src/teeth2/kinetic.ts`; every move is keyed to the beat grid and the kick and snare onsets in `audio.json`):
+
+- **Spring:** letters arrive per glyph, staggered 15–25 ms, with overshoot and settle.
+- **Stretch and condense:** Archivo's width (62–125) and weight (300–900) axes move. Stretch on kicks, condense on snares.
+- **Track:** letter-spacing opens and closes on the beat.
+- **Stamp:** the hero lands oversized and settles, with a frame shake on its onset.
+- **Slide and lean:** a word drifts or leans further on each beat (cumulative, like P(doom)'s ASKEW).
+- **Pressure:** copies of a word condense and pack the frame on successive kicks, for the pre-chorus build.
+- **Break:** a hero's letters split along the plate's own motif: bite scallops, the razor's diagonal, a pen stroke, a crack in stone. **Stakes guard: never into drips, blots, blobs or spatter.**
+- **Exit:** every line leaves with a move on the beat after it ends: collapse, slide-out, wipe or swallowed by the next cut. Never a fade or a hard pop.
+
+**Escalation by plate:**
+
+| plate | energy | type |
+|---|---|---|
+| verses (`lightbox`, `scene`, `chart`) | low | spring, track, slide; only the line's hero stamps |
+| pre-choruses (`polygraph`, `voice`) | rising | pressure builds bar by bar; condense on snares; lean |
+| choruses (`scale`, `uv`, `pour`, `articulator`, `match`) | maximal | every hero stamps or slams full-frame; stretch on kicks; breaks |
+| stripped chorus 3a (`acetate`) | eerie | hairline weights, small and slow, lots of black |
+| bridge (`luminol`), outro (`filed`) | falling | slow tracking and drift; the last words held |
+
+**The TEETH hook:** TEETH, in each "got teeth" line, is one recurring slam whose look escalates on each return, as P(doom)'s hook did.
+
+**Still binding:**
+- Readability at a glance, one hero per line, and the hero reaching frame scale.
+- Nothing more than 0.4 s early, and the word lit at its `start`.
+- The palette, including red only from the match.
+- The craft rules: kerning and typographic punctuation, no outlined or haloed type.
+- The stakes guards.
+- "Supporting words are physical things, never flat captions": the supporting words. Only heroes may go full-frame graphic.
 
 ## Song map and plates
 

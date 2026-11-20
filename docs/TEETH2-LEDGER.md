@@ -121,3 +121,11 @@ Lead rulings from batch review 4 (settled):
 ### Batch review 5 (fresh reviewer, Opus high): acetate and filed round 2
 Verdicts: acetate FIX (one last small round: the close-ups as a photographed apple, the glove trailing clear of the marks and lifting off for the hand-over, the apple's outline in the pull-back); filed FIX (one item: the glove lit and visible through the carry). `articulator`'s last fix round was judged by the lead: done for gate 3 (hero macros 124 ms/frame, a gate 4 speed item). Full review: `docs/gate3/review5.md`.
 - These are the last fix rounds for both; the lead checks the result, with no further review.
+
+### Client direction change (2026-11-20): kinetic type
+The client wants motion-graphics lyrics at P(doom)'s level. Locking letter positions was a misread of the gate 2 call. Settled:
+- Supporting words stay in the plate's world but move; heroes may slam full-frame.
+- The energy escalates across the song, and the TEETH hook escalates on each return.
+- A prototype comes first: a shared kit (`kinetic.ts`) plus `scale`, `voice` and `lightbox` as clips with audio, for the client's approval before the other 11 plates.
+
+The rules are the "Kinetic type" section of `docs/TEETH2.md`; the briefs are in `docs/gate3/brief-kinetic.md`. Scene, camera and timing work in every plate stands; only the lyric layer is redone. Reviews hold their lyric findings until the type pass. The batch review of the five gate 2 plates waits for it.
