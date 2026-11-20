@@ -121,31 +121,31 @@ function lightPose(t: number) {
     [WT.love + 0.53, LOV.x - 22, LOV.z, 14, 64],
     [WT.dead, DED.x, DED.z, -34, 66, swing],
     [27.57, DED.x, DED.z, -34, 66],
-    [WT.push1, 4, 28, 20, 112],
-    [WT.push2 - 0.04, 4, 28, 20, 112],
-    [WT.push2, -12, 20, 30, 120],
-    [30.59, -12, 20, 34, 120],
-    [WT.stay1 - 0.65, STY.x + 67, STY.z + 17, 30, 82],
+    [WT.push1, 4, 28, 20, 86],
+    [WT.push2 - 0.04, 4, 28, 20, 86],
+    [WT.push2, -12, 20, 30, 92],
+    [30.59, -12, 20, 34, 92],
+    [WT.stay1 - 0.65, STY.x + 40, STY.z + 10, 30, 190],
   ];
   const phi = camAt(t).phi;
   let ax: number, az: number, sdeg: number, R: number;
   const t0 = WT.stay1 - 0.65;
   if (t >= t0) {
     const u0 = clamp((t - t0) / 0.65), u1 = clamp((t - WT.stay1) / (WT.stay2 - WT.stay1));
-    let m = 70 * Math.cos((Math.PI / 2) * u0);
+    let m = 40 * Math.cos((Math.PI / 2) * u0);
     if (t >= WT.stay1) m = -34 * Math.sin(Math.PI * u1);
     if (t >= WT.stay2) m = 6 * Math.exp(-(t - WT.stay2) / 0.2) * Math.sin((2 * Math.PI * (t - WT.stay2)) / 0.3);
     const dir = V(1, 0, 0.25).normalize();
     ax = STY.x + dir.x * m; az = STY.z + dir.z * m;
     sdeg = 36 - 0.35 * m;
-    R = lerp(82, 56, smoothstep(t0, WT.stay1, t));
+    R = lerp(152, 56, smoothstep(t0, WT.stay1, t));
   } else {
     let i = 1;
     while (i < rows.length - 1 && t > rows[i]![0]) i++;
     const a = rows[i - 1]!, b = rows[i]!;
     const u = (b[5] ?? ease.inOutCubic)(clamp((t - a[0]) / (b[0] - a[0])));
     const L = (n: number) => lerp(a[n] as number, b[n] as number, u);
-    ax = L(1); az = L(2); sdeg = L(3); R = L(4);
+    ax = L(1); az = L(2); sdeg = L(3); R = L(4) * 0.8;
     if (t >= WT.dead) { // DEAD: the arm overshoots and settles
       const o = 7 * Math.exp(-(t - WT.dead) / 0.3) * Math.sin((Math.PI * (t - WT.dead)) / 0.42);
       ax += o; sdeg += o * 0.8;
@@ -186,15 +186,15 @@ export default class BedPlate extends Scene {
       slot, kind, key, x, z, phi, yaw, sc, tApp: tLand - (kind === 1 ? 0.06 : 0.1), tLand, tLeave, snap: snaps.map((s) => [s, s]),
     });
     // the heroes (the word's onset is the landing; the card is in its unsung state while it falls)
-    this.cards.push(mk(0, 'STRANGER', 0, STR.x, STR.z, -90, 2 * RAD, 1, l1[3]!.start, 23.26));
-    this.cards.push(mk(0, 'LOVE', 1, LOV.x, LOV.z, -90, -5 * RAD, 1, l2[4]!.start, 27.57));
-    this.cards.push(mk(0, 'DEAD', 2, DED.x, DED.z, -90, 4 * RAD, 1, l2[10]!.start, 27.75));
-    this.cards.push(mk(0, 'STAY', 4, STY.x, STY.z, -90, -2 * RAD, 1, l4[4]!.start, 99, [l4[4]!.start, l4[8]!.start]));
+    this.cards.push(mk(0, 'STRANGER', 0, STR.x, STR.z, -90, 11 * RAD, 1, l1[3]!.start, 23.26));
+    this.cards.push(mk(0, 'LOVE', 1, LOV.x, LOV.z, -90, -12 * RAD, 1, l2[4]!.start, 27.57));
+    this.cards.push(mk(0, 'DEAD', 2, DED.x, DED.z, -90, 11 * RAD, 1, l2[10]!.start, 27.75));
+    this.cards.push(mk(0, 'STAY', 4, STY.x, STY.z, -90, -10 * RAD, 1, l4[4]!.start, 99, [l4[4]!.start, l4[8]!.start]));
     // PUSH: set down near the lens on each "push", lifted between (read from the camera of that moment)
     const c1 = camAt(l3[0]!.start), c2 = camAt(l3[3]!.start);
     const p1 = ground(c1, 0.5, 0.78, 0.5), p2 = ground(c2, 0.42, 0.76, 0.5);
-    this.cards.push(mk(0, 'PUSH', 3, p1.x, p1.z, c1.phi, 3 * RAD, 0.6, l3[0]!.start, 29.0));
-    this.cards.push(mk(0, 'PUSH', 3, p2.x, p2.z, c2.phi, -3 * RAD, 0.6, l3[3]!.start, 30.59));
+    this.cards.push(mk(0, 'PUSH', 3, p1.x, p1.z, c1.phi, 9 * RAD, 0.6, l3[0]!.start, 29.0));
+    this.cards.push(mk(0, 'PUSH', 3, p2.x, p2.z, c2.phi, -9 * RAD, 0.6, l3[3]!.start, 30.59));
     this.pushNear = [p1, p2];
     this.cards.push(mk(2, 'TAG', 5, TAGP.x, TAGP.z, -90, 8 * RAD, 1, 20.0, 99, [20.0]));
     // supporting words: small folded cards in a row, anchored to the camera of the moment
@@ -221,7 +221,7 @@ export default class BedPlate extends Scene {
         const p = centre.clone().addScaledVector(rh, off + wcm[i]! / 2);
         off += wcm[i]! + gap;
         const slot = 6 + (n++ % 6);
-        this.cards.push(mk(1, keys[i]!, slot, p.x, p.z, cam.phi, (hash(n, 3.1) - 0.5) * 0.05, g.sc, w.start, g.leave));
+        this.cards.push(mk(1, keys[i]!, slot, p.x, p.z, cam.phi, (n % 2 ? 1 : -1) * (0.13 + 0.07 * hash(n, 3.1)), g.sc, w.start, g.leave));
       });
     }
     // the far edge where the focus is racked to: the centres of the "me away" rows
@@ -289,9 +289,9 @@ export default class BedPlate extends Scene {
     (m.cPos!.value as THREE.Vector3).copy(lp.pos);
     (m.cAim!.value as THREE.Vector3).copy(lp.aim);
     m.cRad!.value = lp.R;
-    (m.cCol!.value as THREE.Vector3).set(0.92, 1.0, 1.1).multiplyScalar(1.7);
+    (m.cCol!.value as THREE.Vector3).set(0.92, 1.0, 1.1).multiplyScalar(3.0);
     const tl = T_LIN.tungsten; // warm light, desaturated a little toward white: illumination only
-    (m.wCol!.value as THREE.Vector3).set(lerp(tl[0], 1, 0.45), lerp(tl[1], 1, 0.45), lerp(tl[2], 1, 0.45)).multiplyScalar(2.4);
+    (m.wCol!.value as THREE.Vector3).set(tl[0], tl[1] * 0.88, tl[2] * 0.6).multiplyScalar(3.2);
 
     // markers
     const PA = m.PA!.value as THREE.Vector4[], PX = m.PX!.value as THREE.Vector4[], PD = m.PD!.value as THREE.Vector4[], PE = m.PE!.value as THREE.Vector4[], PS = m.PS!.value as THREE.Vector4[];
@@ -307,7 +307,9 @@ export default class BedPlate extends Scene {
       if (c.kind === 0) { rect = this.rectsHero[c.key]!; W = (rect.faceW * sc) / 2; D = HERO_D * sc; H = HERO_H * sc; }
       else if (c.kind === 2) { rect = this.rectsHero.TAG!; W = TAG_W / 2; D = TAG_D; H = TAG_H; }
       else { rect = this.rectsSmall[c.key]!; W = (rect.faceW * sc) / 2; D = SMALL_D * sc; H = SMALL_H * sc; }
-      PA[i]!.set(c.x, c.z, s.lift, 1);
+      // the tent's base is deeper than a bare card's: keep its front edge where the card's was (no collisions with the chips)
+      const sh = c.kind === 2 ? 0 : D * 0.5 - (c.kind === 0 ? 11.45 : 3.51) * sc;
+      PA[i]!.set(c.x + Math.cos(phi) * sh, c.z + Math.sin(phi) * sh, s.lift, 1);
       PX[i]!.set(-Math.sin(phi), Math.cos(phi), -Math.cos(phi), -Math.sin(phi));
       PD[i]!.set(W, D, H, c.kind);
       PE[i]!.set(rect.u0, rect.vtop, rect.du, rect.dv);

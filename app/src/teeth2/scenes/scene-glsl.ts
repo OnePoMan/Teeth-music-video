@@ -33,16 +33,19 @@ void main() {
   // the fitted sheet: creases fanning out from where the covers were dragged, soft undulation, fine wrinkles
   vec2 c0 = p - vec2(-30.0, -4.0);
   float rad0 = length(c0), ang0 = atan(c0.y, c0.x);
-  float fn1 = snoise(vec2(ang0 * 2.7 + 0.9 * snoise(p * 0.015), 1.7));
-  float fan = 1.0 - sqrt(fn1 * fn1 + 0.04);
-  float sheet = 0.42 * fan * fan * smoothstep(20.0, 60.0, rad0) * exp(-rad0 / 140.0)
-              + 0.5 * snoise(p * vec2(0.055, 0.035)) + 0.45 * snoise(p * vec2(0.03, 0.022) + 9.0) + 0.012 * snoise(p * 0.3)
-              + 0.34 * snoise(rot2(0.45) * p * vec2(0.1, 0.022) + 21.0);
+  // (broad soft undulation only: no small dents; the wrinkles live near the mattress edge)
+  float fn1 = snoise(vec2(ang0 * 2.2 + 0.7 * snoise(p * 0.012), 1.7));
+  float fan = 1.0 - sqrt(fn1 * fn1 + 0.12);
+  float sdE = sdBox(p, vec2(86.0, 66.0)) - 14.0;
+  float edgeK = smoothstep(-30.0, -3.0, sdE);
+  float sheet = 0.5 * fan * fan * smoothstep(20.0, 60.0, rad0) * exp(-rad0 / 150.0)
+              + 0.55 * snoise(p * vec2(0.032, 0.022)) + 0.4 * snoise(p * vec2(0.02, 0.016) + 9.0)
+              + edgeK * 0.45 * snoise(vec2(atan(p.y, p.x) * 8.0, length(p) * 0.05) + 31.0);
   // a few long soft creases pulled across the sheet, tapering out
   for (int k = 0; k < 3; k++) {
     float fk = float(k);
     vec2 q0 = rot2(0.35 + 0.22 * fk) * (p - vec2(-10.0 + 38.0 * fk, 24.0 + 9.0 * fk));
-    sheet += (0.55 - 0.1 * fk) * exp(-pow(q0.y / 2.6, 2.0)) * smoothstep(-70.0, -20.0, q0.x) * (1.0 - smoothstep(10.0, 70.0, q0.x));
+    sheet += (0.5 - 0.1 * fk) * exp(-pow(q0.y / 4.5, 2.0)) * smoothstep(-70.0, -20.0, q0.x) * (1.0 - smoothstep(10.0, 70.0, q0.x));
   }
   // the duvet: thrown back off the far side along a diagonal line; a rolled edge, then a few large soft folds
   float ze = -20.0 + 0.22 * (p.x + 60.0);
@@ -51,14 +54,14 @@ void main() {
   float side = smoothstep(-66.0, -38.0, p.x);
   float lip = 9.5 * sin(clamp(dd / 10.0, 0.0, 1.0) * 1.5708);
   float wob = 4.0 * snoise(vec2(s * 0.03, 2.0));
-  float f1 = 4.5 * exp(-pow((dd - 24.0 - wob) / 9.0, 2.0));
-  float f2 = 6.5 * exp(-pow((dd - 50.0 - 1.5 * wob + 6.0 * snoise(vec2(s * 0.02, 7.0))) / 12.0, 2.0));
-  float f3 = 5.0 * exp(-pow((dd - 74.0 + 5.0 * snoise(vec2(s * 0.025, 11.0))) / 10.0, 2.0));
+  float f1 = 6.0 * exp(-pow((dd - 24.0 - wob) / 9.0, 2.0));
+  float f2 = 9.0 * exp(-pow((dd - 50.0 - 1.5 * wob + 6.0 * snoise(vec2(s * 0.02, 7.0))) / 12.0, 2.0));
+  float f3 = 7.5 * exp(-pow((dd - 74.0 + 5.0 * snoise(vec2(s * 0.025, 11.0))) / 10.0, 2.0));
   vec2 cq = rot2(0.7) * (p - vec2(34.0, -40.0));
   float f4 = 5.5 * exp(-pow(cq.y / 8.0, 2.0)) * smoothstep(-48.0, -20.0, cq.x) * (1.0 - smoothstep(18.0, 52.0, cq.x));
   float puff = 2.0 * snoise(vec2(s * 0.014, dd * 0.04) + 3.0);
   float cn = snoise(vec2(s * 0.045, dd * 0.08 + 5.0));
-  float crease = 0.4 * (1.0 - sqrt(cn * cn + 0.05));
+  float crease = 0.3 * (1.0 - sqrt(cn * cn + 0.3));
   float body = lip + (f1 + f2 + f3 + f4 + puff + crease) * smoothstep(6.0, 16.0, dd);
   float duv = step(0.0, dd) * side * body;
   float wDuv = smoothstep(0.0, 4.0, dd) * side;
@@ -143,6 +146,25 @@ bool cardHit(int i, vec3 ro, vec3 rd, out float tt, out int face, out vec3 lp, o
   vec3 nf = isFlat ? vec3(0.0, 1.0, 0.0) : normalize(vec3(0.0, b, Hh));
   vec3 nb = isFlat ? vec3(0.0, 1.0, 0.0) : normalize(vec3(0.0, b, -Hh));
   float cf = nf.y * Hh;
+  if (!isFlat) {
+    // a true A-frame of folded card: two thin panels meeting at a ridge, the ends open (the shaded inside of the back panel shows)
+    float bt = 1e9; int bf = -1; vec3 bn = vec3(0.0);
+    for (int k = 0; k < 2; k++) {
+      vec3 n = k == 0 ? nf : nb;
+      float dn = dot(n, dl);
+      if (abs(dn) < 1e-7) continue;
+      float t = (cf - dot(n, ol)) / dn;
+      if (t < 0.0 || t >= bt) continue;
+      vec3 p = ol + dl * t;
+      if (abs(p.x) > W) continue;
+      if (k == 0 ? (p.z < 0.0 || p.z > b) : (p.z > 0.0 || p.z < -b)) continue;
+      bt = t; bf = (k == 1 && dn < 0.0) ? 4 : (dn < 0.0 ? 3 : 5); bn = dn < 0.0 ? n : -n;
+    }
+    if (bf < 0) return false;
+    tt = bt; face = bf; lp = ol + dl * bt;
+    nW = vec3(ax.x * bn.x + ax.z * bn.z, bn.y, ax.y * bn.x + ax.w * bn.z);
+    return true;
+  }
   float tn = -1e9, tf = 1e9; int fn = -1;
   for (int k = 0; k < 7; k++) {
     vec3 n; float c;
@@ -194,13 +216,14 @@ float cardShadow(vec3 q, vec3 L, float dl, int skip) {
     float tEnd = min(t0 + m, dl);
     for (int k = 0; k < 14; k++) {
       float sd = cardSd(i, q + L * t);
-      res = min(res, 7.0 * sd / t);
+      res = min(res, 3.2 * sd / t);
       t += clamp(sd, 0.3, 5.0);
       if (t > tEnd || res < 0.01) break;
     }
   }
   res = clamp(res, 0.0, 1.0);
-  return res * res * (3.0 - 2.0 * res);
+  res = res * res * (3.0 - 2.0 * res);
+  return mix(0.16, 1.0, res);
 }
 
 float hfShadow(vec3 p, vec3 L, float tmax) {
@@ -240,31 +263,32 @@ vec3 lights(vec3 P, vec3 N, bool cloth, int skip) {
     vec2 hd = normalize(cAim.xz - cPos.xz);
     vec2 o = P.xz - cAim.xz;
     float e = length(vec2(dot(o, hd) / 1.5, dot(o, vec2(-hd.y, hd.x)))) / cRad;
-    float spot = 1.0 - smoothstep(0.55, 1.0, e);
-    float spill = 0.14 * (1.0 - smoothstep(0.7, 2.8, e));
+    float spot = pow(1.0 - smoothstep(0.05, 0.85, e), 1.5);
+    float spill = 0.025 * (1.0 - smoothstep(0.7, 2.8, e));
     float nl = dot(N, Lv);
     float wrap = cloth ? clamp((nl + 0.35) / 1.35, 0.0, 1.0) : max(nl, 0.0);
     float amt = spot + spill;
     float shadowK = 1.0;
     if (amt > 0.001 && wrap > 0.0) {
       float sh = mix(1.0, mix(hfShadow(q, Lv, dc), 1.0, 0.5 * smoothstep(110.0, 230.0, gT)), smoothstep(0.02, 0.25, nl));
-      if (sh > 0.01) sh *= cardShadow(q, Lv, dc, skip);
+      if (sh > 0.01) sh *= cardShadow(q, normalize(vec3(Lv.x * 0.6, Lv.y, Lv.z * 0.6)), dc, skip);
       shadowK = sh;
       float att = 1.0 / (1.0 + dc * dc / 60000.0);
       acc += cCol * amt * wrap * sh * att;
     }
     // where the cold light would be but is blocked (a shadow, a face turned away), the warm lamp is shadowed too: shadows stay film-cool
-    float lit = clamp(amt * 3.0, 0.0, 1.0);
+    float lit = smoothstep(0.35, 0.8, amt);
     float avail = (amt > 0.001 && wrap > 0.0) ? shadowK : 0.0;
     warmMod = mix(1.0, mix(0.04, 1.0, avail), lit);
   }
   // the warm bedside lamp: only a smooth falloff of light across the bed (no shadows, no texture of its own)
   {
     vec3 Lw = wPos - P; float dw = length(Lw); Lw /= dw;
-    float wr = clamp(dot(N, Lw) * 0.5 + 0.5, 0.0, 1.0);
-    vec2 r2 = (P.xz - wPos.xz) / 170.0;
-    float fall = pow(1.0 + dot(r2, r2), -1.3);
-    acc += wCol * wr * fall * warmMod;
+    float wr = cloth ? clamp(dot(N, Lw) * 0.5 + 0.5, 0.0, 1.0) : max(dot(N, Lw), 0.0);
+    float dwx = length(vec2(P.x - wPos.x, 0.7 * (P.z - wPos.z)));
+    float fall = exp(-dwx / 34.0) * (1.0 - smoothstep(55.0, 140.0, dwx));
+    vec3 wc = mix(vec3(0.75, 0.62, 0.5), wCol, smoothstep(0.0, 0.7, fall * 2.0));   // never a dim brown: where the lamp is weak it is simply weak
+    acc += wc * wr * fall * warmMod;
   }
   return acc;
 }
@@ -301,7 +325,7 @@ vec4 shade(vec2 px) {
     vec3 P = ro + rd * tK; depth = tK; gT = tK;
     vec4 d = PD[kI], e = PE[kI], s = PS[kI];
     float b = 0.5 * d.y;
-    vec3 paper = T_LIGHTBOX * 0.86;
+    vec3 paper = T_LIGHTBOX * 0.95;
     float ink = 0.0;
     vec3 inkCol = T_FILM * 1.4;
     if (kF == 3 || (d.w > 1.5 && kF == 4)) {
@@ -318,14 +342,18 @@ vec4 shade(vec2 px) {
       } else {
         ink = textureLod(heroB, uv, lod).r;
       }
-      paper *= 1.0 - 0.16 * exp(-abs(kLp.z) / 0.7) * step(d.w, 1.5);   // the crease at the fold
+      float rz = abs(kLp.z);
+      paper *= (1.0 - 0.12 * exp(-rz / 0.9) * step(d.w, 1.5)) * (1.0 + 0.1 * exp(-pow((rz - 0.9) / 0.35, 2.0)) * step(d.w, 1.5));   // the fold line: a soft crease with a bright rib beside it
+      paper *= 1.0 - 0.1 * clamp(sv, 0.0, 1.0) * step(d.w, 1.5);   // the base of the face a touch deeper
     } else if (kF == 4) {
-      paper *= 0.9 * (1.0 + 0.2 * exp(-abs(kLp.z) / 0.5));   // the back slope, the folded edge catching light
+      paper *= 0.9 * (1.0 + 0.45 * exp(-abs(kLp.z) / 0.45));   // the back slope: the ridge catching light
+    } else if (kF == 5) {
+      paper *= 0.62 * (0.55 + 0.45 * smoothstep(0.0, 2.5, abs(kLp.z)));   // the inside of the tent, in shade, deeper at the ridge
     } else paper *= 0.78;
     paper *= 0.975 + 0.035 * snoise(P.xz * 1.7 + P.y);
     vec3 alb = mix(paper, inkCol, clamp(ink, 0.0, 1.0));
     vec3 L = lights(P, kN, false, kI);
-    col = alb * (L + vec3(0.03, 0.036, 0.055));
+    col = alb * (L + vec3(0.05, 0.058, 0.075) * (kF == 3 ? 0.5 : 1.0));
   } else if (hitC) {
     vec3 P = ro + rd * tC; depth = tC; gT = tC;
     vec4 hv = hfAt(P.xz);
@@ -362,8 +390,9 @@ vec4 shade(vec2 px) {
     vec3 V = -rd;
     vec3 L = lights(P, N, true, -1);
     float sheen = pow(1.0 - max(dot(N, V), 0.0), 3.0) * 0.07 * (1.0 - floorK);
-    vec3 amb = vec3(0.07, 0.082, 0.12) * (0.7 + 0.3 * N.y);
+    vec3 amb = vec3(0.012, 0.016, 0.03) * (0.7 + 0.3 * N.y);
     col = alb * (L * ao + amb * ao) + sheen * (L * ao) * 0.5;
+    col *= 0.35 + 0.65 * clamp(dot(col, vec3(0.33)) * 2.2, 0.0, 1.0);   // a firmer toe: shadows fall away to film
   } else {
     col = T_FILM * 0.8; depth = 1.0e4;
   }
