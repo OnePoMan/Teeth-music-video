@@ -39,6 +39,8 @@ uniform vec2 aYaw;                // the apple's turn on its stand (cos, sin): t
 // apple's centre, the arc radius, half height searched); lineRect = the baked patch (s0, h0, 1/w, 1/h)
 uniform vec4 band, lineRect;
 uniform vec4 lnA[${LN_G}], lnB[${LN_G}], lnC[${LN_G}], lnW[${LN_W}]; uniform int lnNW; uniform vec2 lnS;
+// (round 2b: the line is set in rows, so each word also carries its posed height range over the band's middle)
+uniform vec2 lnH[${LN_W}];
 uniform vec3 BC, BN, BT, BU;      // the bite: centre on the skin, normal, tangent (photo X), up in its plane (photo Y)
 uniform vec3 SO, SN, SU, SV;      // the scale: outer corner, face normal, along the foot, up the upright (in the bite's plane)
 uniform vec4 POST[2];             // its black posts: x, z, top y, half size
@@ -123,7 +125,7 @@ float lineSDF(vec2 X, out float on, out float thin) {
   for (int w = 0; w < ${LN_W}; w++) {
     if (w >= lnNW) break;
     vec4 W = lnW[w];
-    if (X.x < W.x || X.x > W.y) continue;
+    if (X.x < W.x || X.x > W.y || X.y < lnH[w].x || X.y > lnH[w].y) continue;
     int g1 = int(W.w);
     for (int i = int(W.z); i < g1; i++) {
       vec4 A = lnA[i], B = lnB[i], C = lnC[i];
@@ -134,8 +136,11 @@ float lineSDF(vec2 X, out float on, out float thin) {
       float c = cos(A.w), s = sin(A.w);
       d = vec2(c * d.x + s * d.y, -s * d.x + c * d.y) / B.xy;
       float ex = abs(d.x) - C.x;
+      // (round 2b: the line is set in rows, so each letter also reads only inside its own row: never the row above or
+      // below; Cormorant's ascenders rise further)
+      float ey = abs(d.y) - C.y * (C.w >= 10.0 ? 1.5 : 1.0) - 1.0;
       vec2 R = vec2(A.x + clamp(d.x, -C.x, C.x), C.z + d.y);
-      float v = max(textureLod(lineTex, (R - lineRect.xy) * lineRect.zw, 0.0).r, ex + 0.3) * min(B.x, B.y);
+      float v = max(textureLod(lineTex, (R - lineRect.xy) * lineRect.zw, 0.0).r, max(ex, ey) + 0.3) * min(B.x, B.y);
       if (v < best) { best = v; on = B.z; thin = B.w; gWax = step(10.0, C.w); gDep = mod(C.w, 10.0); gK = C.y / 6.5; }
     }
   }
@@ -257,6 +262,7 @@ float blockD(vec3 p) {
 }
 
 vec2 map(vec3 p) {
+  gWord = 9.0;
   vec2 r = vec2(p.y - clothH(p.xz), M_CLOTH);
   vec3 pr = restP(p);
   float ab = length(p - AC) - AR - 6.0;
@@ -278,7 +284,9 @@ vec3 calcN(vec3 p, float e) {
 
 float stepK(vec3 p) {
   vec3 q = p - AC;
-  if (lnNW > 0 && abs(q.y - band.y) < band.w + 1.0 && dot(q.xz, q.xz) > 400.0) return 0.36;
+  // (round 2b: slow only near a letter (gWord: the last map's distance to the line in the band plane); away from
+  // the letters the skin is the plain body, whose distance is a safe bound)
+  if (lnNW > 0 && abs(q.y - band.y) < band.w + 1.0 && dot(q.xz, q.xz) > 400.0 && gWord < 2.5) return 0.36;
   if (length(restP(p) - BC) < 32.0) return 0.45;
   if (q.y > 20.0 && length(q.xz) < 16.0) return 0.55;
   return 0.85;

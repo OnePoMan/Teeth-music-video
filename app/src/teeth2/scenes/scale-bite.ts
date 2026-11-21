@@ -201,13 +201,20 @@ function edt(mask: Uint8Array, target: number, W = PATCH_W, H = PATCH_H): Float3
 // ================================================================================================== a line along a band
 /** One word of a line bitten along the band round the apple: its cap height (mm), Cormorant (SWEET), his chip (in the
  *  letter over #8's position), pre-condensed (NEVER's repeats). */
-export interface BandWord { text: string; cap: number; serif?: boolean; chip?: boolean; condense?: number }
+export interface BandWord {
+  text: string; cap: number; serif?: boolean; chip?: boolean; condense?: number;
+  /** set in rows: the word's left end along the band (mm; default: after the word before) and the centre of its cap
+   *  box over the band's middle (mm; default 0) */
+  x?: number; h?: number;
+  /** its row (0 = top): rows are set left-aligned, running down the apple (bakeLine's top and gap) */
+  row?: number;
+}
 export interface BandLine {
   tex: THREE.DataTexture;
   /** the patch for the shader: s0, h0, 1 / (s1 - s0), 1 / (h1 - h0) (mm) */
   rect: [number, number, number, number];
   /** per word: its letters' cells along the band (centre s and advance, mm), its extent, centre and cap height */
-  words: { cells: { cx: number; adv: number }[]; x0: number; x1: number; cx: number; cap: number }[];
+  words: { cells: { cx: number; adv: number }[]; x0: number; x1: number; cx: number; cap: number; /** its cap box's centre height */ hc: number }[];
   /** the band's length (mm) and half height */
   len: number; half: number;
 }
@@ -217,7 +224,7 @@ export interface BandLine {
  * letters baked once into one signed distance field (negative inside), each stroke a chain of tooth-width scallop
  * bites as in bakeWord, the pitch scaled with each word's size. The kinetic kit then poses every letter on it.
  */
-export function bakeLine(words: BandWord[]): BandLine {
+export function bakeLine(words: BandWord[], o: { top?: number; gap?: number } = {}): BandLine {
   const meas = document.createElement('canvas').getContext('2d')!;
   const lay = words.map((w) => {
     const chars = Array.from(w.serif ? w.text.toLowerCase() : w.text.toUpperCase());
@@ -227,19 +234,38 @@ export function bakeLine(words: BandWord[]): BandLine {
     const adv = chars.map((ch) => (meas.measureText(ch).width / 100) * em * c);
     const track = 0.09 * w.cap;
     const width = adv.reduce((a, b) => a + b, 0) + track * (chars.length - 1);
-    return { w, chars, fam, em, c, adv, track, width, x0: 0 };
+    return { w, chars, fam, em, c, adv, track, width, x0: 0, hc: w.h ?? 0 };
   });
   const M = 4;
   let s = M;
   lay.forEach((l, i) => {
-    if (i > 0) s += 0.3 * Math.max(l.em, lay[i - 1]!.em);
-    l.x0 = s;
-    s += l.width;
+    const prev = lay[i - 1];
+    // a new row starts again at the left margin (rows are left-aligned, like a page)
+    if (prev && (l.w.row ?? 0) !== (prev.w.row ?? 0)) s = M;
+    else if (prev) s += 0.42 * Math.max(l.em, prev.em);
+    l.x0 = l.w.x ?? s;
+    s = l.x0 + l.width;
   });
-  const len = s + M;
-  const half = Math.max(...words.map((w) => w.cap)) * 0.5 + 3;
+  if (words.some((w) => w.row !== undefined)) {
+    // rows run down from o.top (the first row's cap top), each word on its row's baseline, o.gap between rows
+    const nRows = Math.max(...words.map((w) => w.row ?? 0)) + 1;
+    let top = o.top ?? 0;
+    for (let r = 0; r < nRows; r++) {
+      const ls = lay.filter((l) => (l.w.row ?? 0) === r);
+      if (!ls.length) continue;
+      const base = top - Math.max(...ls.map((l) => l.w.cap));
+      for (const l of ls) if (l.w.h === undefined) l.hc = base + (l.w.serif ? 0.3 : 0.5) * l.w.cap;
+      top = base - (o.gap ?? 3);
+    }
+  }
+  const len = Math.max(...lay.map((l) => l.x0 + l.width)) + M;
+  // the patch spans every row: hTop down to hBot (mm over the band's middle)
+  const hTop = Math.max(...lay.map((l) => l.hc + l.w.cap * 0.5)) + 3;
+  const hBot = Math.min(...lay.map((l) => l.hc - l.w.cap * 0.5)) - 3;
+  const half = Math.max(hTop, -hBot);
   const ppm = Math.min(20, 4000 / len);
-  const PW = Math.ceil(len * ppm), PH = Math.ceil(2 * half * ppm);
+  const PW = Math.ceil(len * ppm), PH = Math.ceil((hTop - hBot) * ppm);
+  const rowJ = (h: number) => Math.round((hTop - h) * ppm);
   const cv = document.createElement('canvas');
   cv.width = PW; cv.height = PH;
   const c = cv.getContext('2d', { willReadFrequently: true })!;
@@ -247,8 +273,8 @@ export function bakeLine(words: BandWord[]): BandLine {
   c.textAlign = 'center';
   c.textBaseline = 'alphabetic';
   const out: BandLine['words'] = [];
-  const glyphBox: { i0: number; i1: number; cap: number }[] = [];
-  const colCap = new Float32Array(PW).fill(words[0]?.cap ?? 9);
+  const glyphBox: { i0: number; i1: number; j0: number; j1: number; cap: number }[] = [];
+  const capMap = new Float32Array(PW * PH).fill(words[0]?.cap ?? 9);
   for (const l of lay) {
     const cells: { cx: number; adv: number }[] = [];
     let x = l.x0;
@@ -260,13 +286,15 @@ export function bakeLine(words: BandWord[]): BandLine {
       let xx = l.x0;
       l.adv.forEach((a, i) => { const cx = xx + a / 2; const dd = Math.abs(cx - (mid + (4.22 * l.w.cap) / 9)); if (dd < best) { best = dd; chipI = i; } xx += a + l.track; });
     }
-    const baseH = l.w.serif ? -0.3 * l.w.cap : -l.w.cap / 2;
+    const hc = l.hc;
+    const baseH = hc + (l.w.serif ? -0.3 * l.w.cap : -l.w.cap / 2);
+    const gj0 = Math.max(0, rowJ(hc + 0.75 * l.w.cap + 1.5)), gj1 = Math.min(PH - 1, rowJ(hc - 0.75 * l.w.cap - 1.5));
     l.chars.forEach((ch, i) => {
       const a = l.adv[i]!, cx = x + a / 2;
       cells.push({ cx, adv: a + l.track });
       c.save();
       c.font = font(l.fam, l.em * ppm);
-      c.translate(cx * ppm, (half - baseH) * ppm);
+      c.translate(cx * ppm, (hTop - baseH) * ppm);
       c.scale(l.c, 1);
       c.fillText(ch, 0, 0);
       if (i === chipI) {
@@ -280,11 +308,12 @@ export function bakeLine(words: BandWord[]): BandLine {
         c.globalCompositeOperation = 'source-over';
       }
       c.restore();
-      glyphBox.push({ i0: Math.max(0, Math.floor((x - 0.3) * ppm)), i1: Math.min(PW - 1, Math.ceil((x + a + 0.3) * ppm)), cap: l.w.cap });
+      glyphBox.push({ i0: Math.max(0, Math.floor((x - 0.3) * ppm)), i1: Math.min(PW - 1, Math.ceil((x + a + 0.3) * ppm)), j0: gj0, j1: gj1, cap: l.w.cap });
       x += a + l.track;
     });
-    for (let i = Math.max(0, Math.floor((l.x0 - 2) * ppm)); i < Math.min(PW, Math.ceil((l.x0 + l.width + 2) * ppm)); i++) colCap[i] = l.w.cap;
-    out.push({ cells, x0: l.x0, x1: l.x0 + l.width, cx: mid, cap: l.w.cap });
+    const cj0 = Math.max(0, rowJ(hc + 0.5 * l.w.cap + 3)), cj1 = Math.min(PH - 1, rowJ(hc - 0.5 * l.w.cap - 3));
+    for (let j = cj0; j <= cj1; j++) for (let i = Math.max(0, Math.floor((l.x0 - 2) * ppm)); i < Math.min(PW, Math.ceil((l.x0 + l.width + 2) * ppm)); i++) capMap[j * PW + i] = l.w.cap;
+    out.push({ cells, x0: l.x0, x1: l.x0 + l.width, cx: mid, cap: l.w.cap, hc });
   }
   const img = c.getImageData(0, 0, PW, PH).data;
   const inMask = new Uint8Array(PW * PH);
@@ -294,10 +323,10 @@ export function bakeLine(words: BandWord[]): BandLine {
   const discs: number[] = [];
   for (const g of glyphBox) {
     let hw = 0;
-    for (let j = 0; j < PH; j++) for (let i = g.i0; i <= g.i1; i++) if (inMask[j * PW + i]) hw = Math.max(hw, dIn[j * PW + i]!);
+    for (let j = g.j0; j <= g.j1; j++) for (let i = g.i0; i <= g.i1; i++) if (inMask[j * PW + i]) hw = Math.max(hw, dIn[j * PW + i]!);
     hw /= ppm;
     const pitch = (WORD.pitch * g.cap) / 9;
-    for (let row = 0, y = 0; y < PH; row++, y += pitch * 0.866 * ppm) {
+    for (let row = 0, y = g.j0; y <= g.j1; row++, y += pitch * 0.866 * ppm) {
       for (let x = g.i0 + (row % 2) * pitch * 0.5 * ppm; x <= g.i1; x += pitch * ppm) {
         const ci = Math.round(x), cj = Math.round(y);
         if (ci < 0 || cj < 0 || ci >= PW || cj >= PH) continue;
@@ -319,7 +348,7 @@ export function bakeLine(words: BandWord[]): BandLine {
   for (let j = 0; j < PH; j++) {
     const mj = PH - 1 - j, py = (mj + 0.5) / ppm;
     for (let i = 0; i < PW; i++) {
-      const idx = mj * PW + i, k9 = colCap[i]! / 9;
+      const idx = mj * PW + i, k9 = capMap[idx]! / 9;
       const sLetter = (dOut[idx]! - dIn[idx]!) / ppm;
       if (sLetter > 1.5 * k9) { data[j * PW + i] = Math.min(FAR, sLetter); continue; }
       const px = (i + 0.5) / ppm, bx = Math.floor(px / CELL), by = Math.floor(py / CELL);
@@ -339,5 +368,5 @@ export function bakeLine(words: BandWord[]): BandLine {
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.generateMipmaps = false;
   tex.needsUpdate = true;
-  return { tex, rect: [0, -half, 1 / (PW / ppm), 1 / (PH / ppm)], words: out, len, half };
+  return { tex, rect: [0, hBot, 1 / (PW / ppm), 1 / (PH / ppm)], words: out, len, half };
 }
