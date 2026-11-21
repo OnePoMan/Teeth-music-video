@@ -8,7 +8,7 @@
 
 The treatment was consolidated on 2026-11-21 into `docs/teeth2/`:
 
-- `RULES.md`: every binding rule (R1-R74), the order of precedence, and the open questions for the lead.
+- `RULES.md`: every binding rule (R1-R91), the order of precedence, and the lead's decisions (R75-R91).
 - `PLATES.md`: the 14 plate cards (story beats, exhibits, stills, hand-offs, status of record, type cards).
 - `TYPE.md`: the kinetic vocabulary, line layout, impact tiers and the TEETH hook plan.
 - `BACKLOG.md`: gate 4 items by plate. `CHECKLIST.md`: the Teeth reviewer checklist. `HANDOFF.md`: current state.

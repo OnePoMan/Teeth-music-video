@@ -1,6 +1,6 @@
 # Teeth v2: the type system
 
-The kinetic vocabulary, how a line is laid out, pickups, gaps, impact tiers and the TEETH hook plan. Rules are in `RULES.md` (R17-R30 type, R31-R42 camera); per-plate type cards are in `PLATES.md`. The kit is `app/src/teeth2/kinetic.ts` (its top comment documents the API; its hook-plan comment is superseded by section 8, and the comment should be changed to point here: not done, code untouched). Sections marked **OPEN** are undecided.
+The kinetic vocabulary, how a line is laid out, pickups, gaps, impact tiers and the TEETH hook plan. Rules are in `RULES.md` (R17-R30 type, R31-R42 camera); per-plate type cards are in `PLATES.md`. The kit is `app/src/teeth2/kinetic.ts` (its top comment documents the API; its hook-plan comment is superseded by section 8, and the comment should be changed to point here: not done, code untouched).
 
 ## 1. Principles
 
