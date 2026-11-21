@@ -7,6 +7,7 @@ import { SS_TAP_GLSL } from '../../engine/gl';
 import { GLSL_HAND as MATCH_HAND } from './match-glsl';
 import { VD } from './voice-data';
 import { SPD, XP, YC, HP, ZB, XS, MON, TCUT, TAPE_END, HS, TSL } from './voice-script';
+import { KIN } from './voice-type';
 
 const f = (x: number) => x.toFixed(4);
 const HAND = MATCH_HAND.replace('ax * 190.0', 'ax * 1100.0').replace('float sdPen(vec3 p, out int m) {', 'float sdPenOld(vec3 p, out int m) {');
@@ -31,7 +32,7 @@ float sdPen(vec3 p, out int m) {
 }
 
 uniform mat4 invVP; uniform vec3 camPos; uniform vec2 res; uniform float pxAng;
-uniform sampler2D waveTex, specTex, laneTex, heroTex, labTex;
+uniform sampler2D waveTex, specTex, laneTex, kinTex, labTex;
 uniform vec3 keyPos;
 uniform vec3 hTip, hE1, hE2, hE3; uniform float handOn;
 uniform float tDisp, blurTau, gain, flash, glow;
@@ -39,9 +40,7 @@ uniform vec4 stp;    // the strip: centre x, y (mm), lift above the tape (mm), o
 uniform vec2 dof;    // focus distance (mm), lens aperture radius (mm; 0: everything sharp)
 uniform vec4 spl;    // cutOn, half gap (mm, along the horizontal of the 45 degree band), left half's shift (s), right half's shift (s)
 uniform vec4 tp;     // tape travel (mm), tape gap (mm), right half's y jog (mm), strip on
-uniform vec4 heroA;  // atlas row (-1: none), state (1 light, 2 heavy), width (mm), nominal height (mm)
-uniform vec4 heroB;  // centre x (mm), the lie is split (1), letters, word width (px)
-uniform float hLX[13]; uniform float hS[12];
+uniform float kinOn;  // the kinetic panel layer (heroes, pressure) is up
 
 const float SPD = ${f(SPD)}, XP = ${f(XP)}, YC = ${f(YC)}, HP = ${f(HP)}, A0 = 0.5;
 const float ZB = ${f(ZB)}, XS = ${f(XS)}, CUTT = ${f(TCUT)};
@@ -96,28 +95,10 @@ vec2 waveTap(float tau, float dy, float fw) {
   }
   return vec2(cov, eg);
 }
-vec2 glyphAt(float sx, float sy, float fw) {
-  float u = (sx - (heroB.x - heroA.z * 0.5)) / heroA.z;
-  if (u < 0.0 || u >= 1.0) return vec2(0.0);
-  int k = 0;
-  for (int i = 1; i < 12; i++) if (float(i) < heroB.z && u >= hLX[i]) k = i;
-  // every letter stands on the one baseline; the envelope only lifts the tops (never under 0.85 of the cap height)
-  float H = heroA.w * hS[k];
-  float base = YC - 0.5 * heroA.w;
-  float top = min(base + H, YC + HP);
-  if (sy > top + fw || sy < base - fw) return vec2(0.0);
-  float g = (sy - base) / H;
-  float xpx = 40.0 + u * heroB.w;
-  float ypx = heroA.x * 320.0 + 280.0 - g * 240.0;
-  vec2 uv = vec2(xpx / 1536.0, 1.0 - ypx / 1280.0);
-  float lod = max(0.0, log2(max(fw * heroB.w / heroA.z, fw * 240.0 / H)));
-  vec4 t = textureLod(heroTex, uv, min(lod, 3.0));
-  float edge = clamp((top - sy) / fw + 0.5, 0.0, 1.0);
-  return t.rg * edge;
-}
 vec3 screenCol(vec2 s, float fw) {
   vec3 col = T_FILM * 0.7;
   vec4 heroL = vec4(0.0);
+  float kinCov = 0.0;
   fw = max(fw, 0.02);
   float tau = tDisp + (s.x - XP) / SPD;
   float past = aaf(s.x - XP, fw);
@@ -142,21 +123,15 @@ vec3 screenCol(vec2 s, float fw) {
     col = bg;
     col = mix(col, fill, wc.x);
     col = mix(col, edge, clamp(wc.y, 0.0, 1.0) * 0.9);
-    // the lie, cut: the word is sliced along the same slant at the playhead and its halves are slid
-    if (heroA.x > -0.5) {
-      vec2 hv = vec2(0.0);
-      if (heroB.y > 0.5) {
-        float gm = spl.y;
-        float dxL = spl.z * SPD, dxR = spl.w * SPD;
-        float wR = smoothstep(-fw, fw, ((s.x - dxR) - XP) + (s.y - YC) - gm);
-        float wL = smoothstep(-fw, fw, -(((s.x - dxL) - XP) + (s.y - YC) + gm));
-        vec2 a = wL > 0.002 ? glyphAt(s.x - dxL, s.y, fw) * wL : vec2(0.0);
-        vec2 b = wR > 0.002 ? glyphAt(s.x - dxR, s.y, fw) * wR : vec2(0.0);
-        hv = max(a, b);
-      } else hv = glyphAt(s.x, s.y, fw);
-      vec3 hc = heroA.y > 1.5 ? T_LIGHTBOX * 0.9 : T_HALIDE * 0.5;
-      float ha = heroA.y > 1.5 ? hv.x : hv.y;
-      heroL = vec4(hc, clamp(ha, 0.0, 1.0));
+    // the kinetic layer (voice-type.ts): dim ink (b) under bright ink (r); the lie's cut and slide are drawn into it
+    if (kinOn > 0.5) {
+      vec2 ku = vec2((s.x - ${f(KIN.x0)}) / ${f(KIN.x1 - KIN.x0)}, (s.y - ${f(KIN.y0)}) / ${f(KIN.y1 - KIN.y0)});
+      if (ku.x > 0.0 && ku.x < 1.0 && ku.y > 0.0 && ku.y < 1.0) {
+        vec3 kv = textureLod(kinTex, ku, max(0.0, log2(fw * ${f(KIN.ppm)}))).rgb;
+        col = mix(col, T_HALIDE * 0.5, clamp(kv.b, 0.0, 1.0));
+        heroL = vec4(T_LIGHTBOX * 0.9, clamp(kv.r, 0.0, 1.0));
+        kinCov = clamp(kv.r + kv.b, 0.0, 1.0);
+      }
     }
   }
   // ---- the caption lane
@@ -207,8 +182,7 @@ vec3 screenCol(vec2 s, float fw) {
     col += T_SILVER * 0.5 * aaf(abs(abs(uc) - spl.y) - 0.13, fw) * clamp(spl.y, 0.0, 1.0);
   }
   // the playhead lives in the waveform lane only (and its ruler): never through the hero letters or the transcript
-  float heroBand = heroA.x > -0.5 ? step(abs(s.y - YC), 0.62 * heroA.w + 2.0) : 0.0;
-  float ph = aaf(abs(s.x - XP) - 0.3, fw) * step(59.0, s.y) * step(s.y, 160.0) * (1.0 - heroBand);
+  float ph = aaf(abs(s.x - XP) - 0.3, fw) * step(59.0, s.y) * step(s.y, 160.0) * (1.0 - kinCov);
   col = mix(col, T_LIGHTBOX * 0.75, ph);
   float cap = aaf(sdBox2(s - vec2(XP, 157.0), vec2(2.4, 1.6), 0.5), fw);
   col = mix(col, T_LIGHTBOX * 0.75, cap);
