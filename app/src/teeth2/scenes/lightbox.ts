@@ -12,7 +12,14 @@
 // loupe pushes in to #8's chip in two steps, the words inside its lens; "Beg you to stay" snaps tooth to tooth, each
 // STAY coming through over a filling; "yeah" pulls back to the whole film on the box while the fillings come through one
 // after another, back to the last molar. One hero per line (KNOW, BURNING, AWAY, STAY), each snapping light to heavy on
-// its onset in fixed letter slots.
+// its onset.
+// Kinetic type (gate 3, the shared kit `kinetic.ts`; verse 1, low energy): the words stay radiopaque metal IN the film
+// (they show only where the backlight comes through), but they move: an unsung word is a faint latent image; on its
+// onset its letters spring up into it one by one; letter-spacing breathes open on every beat; the supporting words
+// slide a step left along the film on each beat and collapse onto their baseline as the next phrase of the line
+// springs in; a line slides off to the left on the beat after it ends. Only each line's hero stamps (lands oversized and
+// settles, light to heavy, a small frame shake and a kick of the tube): KNOW, BURNING, AWAY, STAY. COLD condenses
+// (Archivo's width axis, 112 -> 62) as the tube cools and dims.
 import * as THREE from 'three';
 import { Scene, type Frame } from '../../engine/scene';
 import { FSPass, SS_TAP, SS_TAP_GLSL, SCALE } from '../../engine/gl';
@@ -24,6 +31,7 @@ import { drawMonogram, monoWritten, monoPenAt, MONO_H } from '../monogram';
 import { HIS, tooth, panoramic } from '../teeth';
 import { buildFilm, FILM, FILM_W, FILM_H, type FilmInfo } from './lightbox-film';
 import { GLSL_HAND } from './match-glsl';
+import { KinClock, KinWord, kinShake, type GlyphPose, type KinPose, type Moves } from '../kinetic';
 
 const VFOV = 20; // degrees
 const WORD_W = 2048, WORD_H = 1024;
@@ -297,13 +305,14 @@ void main() {
  *  words before it on its baseline; 'center' the phrase's cap centre at (x, y); 'stack' the hero's cap centre at (x, y),
  *  the other words in a row above it. Cap heights in px; maxW the widest it may be (px). */
 interface Anchor { x: number; y: number; mode: 'row' | 'center' | 'stack'; hero?: number; sup?: number; maxW?: number; ref?: number }
-interface Layout { x: number[]; y: number[]; w: number[]; size: number[]; fam: string[]; slots: number[] }
+interface Layout { x: number[]; y: number[]; w: number[]; size: number[]; kw: KinWord[] }
 /** One phrase of the karaoke: words (indices into the line), which is the hero, where it sits in film mm. */
-interface Phrase { line: Line; words: Word[]; hero: number; t0: number; t1: number; anchor: Anchor; layout?: Layout }
+/** exit: how it leaves (a collapse onto its baseline as the next phrase of its line arrives, a slide off to the left
+ *  on the beat after its line ends). */
+interface Phrase { line: Line; words: Word[]; hero: number; t0: number; t1: number; anchor: Anchor; layout?: Layout; exit: NonNullable<Moves['exit']> }
 /** The glove's pen: tip (film mm, z toward the camera), heading on the film (rad, y up), tilt above it. */
 interface HandPose { x: number; y: number; z: number; head: number; tilt: number }
 
-const HERO_LIGHT = F.archivo(125, 300), HERO_HEAVY = F.archivo(125, 900), SUP_FAM = F.archivo(112, 500);
 const CAP_K = 0.715; // Archivo cap height / em
 const SIGN0 = 9.9, SIGN1 = 10.45;          // the signature (the type sheet's timing)
 const TAG_RECT = { x: FILM.x1 - 34, y: FILM.y1 - 7.6, w: 44, h: 18.5, rot: -0.025 };
@@ -311,6 +320,53 @@ const TAG0 = 9.445, TAG1 = 9.86;           // the tag carried in under the glove
 const PEN_HEAD = -0.62, PEN_TILT = 0.62;
 /** The signature's unit box on the tag (its px): top-left and size, as the type sheet set it. */
 const SIG = { x: 288, y: 252 - 34 - 296 * MONO_H * 0.84, size: 296 };
+
+// ---------------------------------------------------------------------------------------------- glyph sprites
+// The kit's drawKin sets every glyph with fillText each frame. Here each (glyph, Archivo instance) is set once, in
+// init, into a sprite, and the word layer is drawn from the sprites with the kit's poses (the same transform as
+// drawKin's): no font switching per frame, and the frame checker's 2D text hook never sees lone letters (it matched
+// the "i" of "thing" to the sung "I", the "a" of "can't" to the "a" of the next plate's line).
+interface Sprite { cv: HTMLCanvasElement; adv: number; ox: number; base: number; S: number }
+class GlyphSprites {
+  private m = new Map<string, Sprite>();
+  /** Set glyph ch of an Archivo family (as KinWord.family gives it) at S px per em. */
+  add(ch: string, fam: string, S: number) {
+    const key = `${fam}|${ch}`;
+    if (this.m.has(key) || !ch.trim()) return;
+    const cv = document.createElement('canvas');
+    const c = cv.getContext('2d')!;
+    c.font = font(fam, S);
+    const adv = c.measureText(ch).width, ox = Math.ceil(0.18 * S), base = Math.ceil(1.0 * S);
+    cv.width = Math.ceil(adv + 2 * ox); cv.height = Math.ceil(1.3 * S);
+    c.font = font(fam, S);
+    c.textBaseline = 'alphabetic';
+    c.fillStyle = '#fff';
+    c.fillText(ch, ox, base);
+    this.m.set(key, { cv, adv, ox, base, S });
+  }
+  get(ch: string, fam: string) { return this.m.get(`${fam}|${ch}`); }
+}
+/** drawKin without fillText: a posed word at (0, 0) of the current transform (units: the word's em = kw.style.size),
+ *  every glyph from its sprite. `fam` picks the instance a glyph is drawn in from its pose. */
+function drawPosed(c: CanvasRenderingContext2D, sp: GlyphSprites, kw: KinWord, P: KinPose, alpha: number, fam: (p: GlyphPose) => string) {
+  const a0 = c.globalAlpha, size = kw.style.size;
+  P.glyphs.forEach((p, i) => {
+    const g = kw.glyphs[i]!;
+    if (p.on <= 0.001 || !g.ch.trim()) return;
+    const s = sp.get(g.ch, fam(p));
+    if (!s) return;
+    const k = size / s.S, adv = s.adv * k;
+    const corr = g.adv / Math.max(1e-6, adv);
+    c.save();
+    c.globalAlpha = a0 * clamp(p.on * 3) * alpha;
+    c.translate(p.cx, p.y);
+    if (p.rot) c.rotate(p.rot);
+    c.scale(p.sx * corr, p.sy);
+    c.drawImage(s.cv, -adv / 2 - s.ox * k, -s.base * k, s.cv.width * k, s.cv.height * k);
+    c.restore();
+  });
+  c.globalAlpha = a0;
+}
 
 export default class Lightbox extends Scene {
   private pass!: FSPass;
@@ -326,6 +382,8 @@ export default class Lightbox extends Scene {
   private phrases: Phrase[] = [];
   private downbeats: number[] = [];
   private fillOrder: number[] = [];
+  private clk!: KinClock;
+  private sprites = new GlyphSprites();
 
   override init() {
     this.film = buildFilm(HIS);
@@ -368,6 +426,7 @@ export default class Lightbox extends Scene {
     this.tagTex.generateMipmaps = true;
     this.tagTex.minFilter = THREE.LinearMipmapLinearFilter;
     this.pass.u.tagTex!.value = this.tagTex;
+    this.clk = new KinClock(this.ctx.audio);
     this.buildPhrases();
   }
 
@@ -394,19 +453,37 @@ export default class Lightbox extends Scene {
       P(L4, [7], 0, { x: 960, y: 540, mode: 'center', hero: 210 }),
       P(L4, [8], -1, { x: 960, y: 205, mode: 'center', sup: 64, ref: ly.get(L4).words[8]!.start + 0.6 }),
     ];
-    // on screen from its first word (letters spring ~45 ms early) until the next phrase of the line starts, or the
-    // next beat after the line ends
+    // on screen from its first word's ghost (0.3 s ahead, never over the phrase before it) until its exit is over: it
+    // collapses onto its baseline as the next phrase of its line springs in, or slides off to the left on the next
+    // beat after its line ends
     for (let i = 0; i < list.length; i++) {
-      const p = list[i]!, nx = list[i + 1];
-      p.t0 = p.words[0]!.start - 0.045;
-      if (nx && nx.line === p.line) p.t1 = nx.words[0]!.start - 0.045;
+      const p = list[i]!, nx = list[i + 1], pv = list[i - 1];
+      p.t0 = p.words[0]!.start - 0.3;
+      if (pv && pv.line === p.line) p.t0 = Math.max(p.t0, pv.exit.at + pv.exit.dur! * 1.2);
+      // (a snap collapse, gone as the next phrase's letters spring: they share the frame's anchor)
+      const last = p.words[p.words.length - 1]!;
+      if (nx && nx.line === p.line) p.exit = { at: Math.max(last.start + 0.1, Math.min(last.end - 0.04, nx.words[0]!.start - 0.145)), kind: 'collapse', dur: 0.1 };
       else {
-        const beats = this.ctx.audio.beats;
-        p.t1 = beats.find((b) => b > p.line.end + 0.02) ?? p.line.end + 0.4;
-        if (nx) p.t1 = Math.min(p.t1, nx.words[0]!.start - 0.045);
+        let at = this.clk.leave(p.line.end);
+        if (nx) at = Math.min(at, nx.words[0]!.start - 0.3);
+        p.exit = { at, kind: 'slide', dir: -0.4, dur: 0.2 };
       }
+      p.t1 = p.exit.at + p.exit.dur! * 1.25 + 0.02;
     }
     this.phrases = list;
+    // lay every phrase out, and set its glyphs into sprites in every Archivo instance its moves reach: the
+    // supporting words 112/500, the heroes light (300, the ghost) and heavy (900), COLD along its condensing
+    const cold = this.ctx.lyrics.get('Only thing that').words[8]!;
+    for (const p of list) {
+      const L = this.layout(p);
+      p.words.forEach((w, i) => {
+        const kw = L.kw[i]!, fams: string[] = [];
+        if (i === p.hero) fams.push(kw.family(125, 300), kw.family(125, 900));
+        else if (w === cold) for (let k = 0; k <= 1.001; k += 0.05) fams.push(kw.family(lerp(112, 62, k), lerp(500, 800, k)));
+        else fams.push(kw.family(112, 500));
+        for (const f of new Set(fams)) for (const g of kw.glyphs) this.sprites.add(g.ch, f, i === p.hero ? 420 : 300);
+      });
+    }
   }
 
   // ------------------------------------------------------------------ the film's tag (the type sheet's design)
@@ -606,8 +683,8 @@ export default class Lightbox extends Scene {
     return [o.x + d.x * k, o.y + d.y * k];
   }
 
-  /** Lay a phrase out in film mm on the frame where its hero (or first word) is sung, at its anchor. The hero's letters
-   *  get fixed slots (centres, from the heavy cut) so the light-to-heavy snap never reflows them. */
+  /** Lay a phrase out in film mm on the frame where its hero (or first word) is sung, at its anchor: each word's rest
+   *  position and em, and its KinWord (the kit poses it from there). */
   private layout(p: Phrase): Layout {
     if (p.layout) return p.layout;
     const ref = p.anchor.ref ?? (p.hero >= 0 ? p.words[p.hero]!.start + 0.12 : p.words[0]!.start + 0.1);
@@ -616,18 +693,16 @@ export default class Lightbox extends Scene {
     const [x0, y0] = this.toFilm(A.x, A.y);
     const [x1] = this.toFilm(A.x + 100, A.y);
     const mmPerPx = (x1 - x0) / 100;
-    const c = this.wctx;
     const heroCapPx = A.hero ?? 236, supCapPx = A.sup ?? (p.hero >= 0 ? 66 : 92);
-    const sizes: number[] = [], fams: string[] = [], widths: number[] = [], slots: number[] = [];
+    const sizes: number[] = [], widths: number[] = [], kws: KinWord[] = [];
     p.words.forEach((w, i) => {
       const hero = i === p.hero;
       const em = ((hero ? heroCapPx : supCapPx) / CAP_K) * mmPerPx;
-      const fam = hero ? HERO_HEAVY : SUP_FAM;
-      c.font = font(fam, 100);
-      const txt = hero ? w.w.replace(/[,.]/g, '').toUpperCase() : w.w;
-      widths.push((c.measureText(txt).width / 100) * em);
-      sizes.push(em); fams.push(fam);
-      if (hero) for (let k = 0; k < txt.length; k++) slots.push(c.measureText(txt.slice(0, k)).width + c.measureText(txt[k]!).width / 2);
+      // the kit's kerned rest layout at a 100-unit em (drawn scaled to the word's em in film mm)
+      const txt = hero ? w.w.replace(/[,.]/g, '').toUpperCase() : w.w.replace(/'/g, '’');
+      const kw = new KinWord(txt, hero ? { size: 100, width: 125, weight: 900 } : { size: 100, width: 112, weight: 500 });
+      widths.push((kw.width / 100) * em);
+      sizes.push(em); kws.push(kw);
     });
     const stack = A.mode === 'stack' && p.hero >= 0;
     const gap0 = ((supCapPx * 0.42) / CAP_K) * mmPerPx;
@@ -648,80 +723,121 @@ export default class Lightbox extends Scene {
       const y = stack && ri === 0 ? base + capMain + supCapPx * mmPerPx * fit * 1.05 : base;
       for (const i of r) { xs[i] = x; ys[i] = y; x += widths[i]! + gap; }
     });
-    p.layout = { x: xs, y: ys, w: widths, size: sizes, fam: fams, slots };
+    p.layout = { x: xs, y: ys, w: widths, size: sizes, kw: kws };
     return p.layout;
   }
 
-  /** Draw the phrase on screen at t into the word layer (film space) and return the layer's rect (mm). */
-  private drawWords(t: number): [number, number, number, number] | null {
-    const p = this.phrases.find((q) => t >= q.t0 && t < q.t1);
+  /** The kit's moves for word i of a phrase (verse 1: low energy, restrained and precise). Every word springs up
+   *  letter by letter on its onset and its letter-spacing breathes open on each beat; the supporting words slide a
+   *  step left along the film on every beat; only the hero stamps (oversized, settling) and snaps light to heavy. */
+  private moves(p: Phrase, i: number): Moves {
+    const w = p.words[i]!;
+    // (the slide exit is the kit's; the collapse is squash(), eased out so it reads in its three frames)
+    const m: Moves = { t0: w.start, lead: 0.045, track: { amt: 0.035, hl: 0.12 }, exit: p.exit.kind === 'slide' ? p.exit : undefined };
+    if (i === p.hero) {
+      m.spring = { stagger: 0.022, rise: 0.16, freq: 5.5, damp: 0.45 };
+      m.stamp = { over: 1.2, freq: 4.5, damp: 0.55 };
+      m.weight = { from: 300, dur: 0.05 };
+    } else {
+      m.spring = { stagger: 0.02, rise: 0.3, freq: 5.5, damp: 0.42 };
+      m.slide = { perBeat: [-7, 0], from: p.words[0]!.start };
+    }
+    return m;
+  }
+  /** The collapse exit: squashed flat onto the baseline (eased out: most of it in the first frame), widening a little,
+   *  the letters going left to right. */
+  private squash(p: Phrase, P: KinPose, t: number) {
+    const e = p.exit, n = P.glyphs.length;
+    if (e.kind !== 'collapse' || t < e.at) return;
+    P.glyphs.forEach((g, i) => {
+      const u = clamp((t - e.at - 0.2 * e.dur! * (n > 1 ? i / (n - 1) : 0)) / e.dur!);
+      g.sy *= 1 - ease.outQuad(u); g.sx *= 1 + 0.15 * u;
+      if (u >= 1) g.on = 0;
+    });
+  }
+  /** COLD condenses on Archivo's width axis (112 -> 62), and grows denser (500 -> 800), as the tube cools and dims,
+   *  about its left edge. */
+  private condense(kw: KinWord, P: KinPose, t: number) {
+    const cold = this.ctx.lyrics.get('Only thing that').words[8]!;
+    const k = ease.inOutCubic(clamp((t - (cold.start - 0.02)) / (cold.end - cold.start + 0.05)));
+    if (k <= 0) return;
+    const width = lerp(112, 62, k), wr = kw.widthRatio(width) / kw.widthRatio(P.glyphs[0]?.width ?? 112);
+    const g0 = kw.glyphs[0]!, left = g0.cx - g0.adv / 2;
+    for (const g of P.glyphs) { g.cx = left + (g.cx - left) * wr; g.sx *= wr; g.width = width; g.weight = lerp(500, 800, k); }
+  }
+
+  /** Draw the phrases on screen at t (the current one and, while it leaves, the one before it) into the word layer
+   *  (film space); return the layer's rect (mm) and the heroes' stamp pulse. */
+  private drawWords(t: number): { rect: [number, number, number, number] | null; shake: number } {
     const c = this.wctx;
     c.filter = 'none';
     c.setTransform(1, 0, 0, 1, 0, 0);
     c.clearRect(0, 0, this.wcv.width, this.wcv.height);
-    if (!p) return null;
-    const L = this.layout(p);
-    // the layer's window around the phrase (2:1)
-    let xMin = 1e9, xMax = -1e9, yMin = 1e9, yMax = -1e9;
-    L.x.forEach((x, i) => {
-      xMin = Math.min(xMin, x); xMax = Math.max(xMax, x + L.w[i]!);
-      yMin = Math.min(yMin, L.y[i]! - L.size[i]! * 0.3); yMax = Math.max(yMax, L.y[i]! + L.size[i]! * 0.85);
-    });
+    let vis = this.phrases.filter((q) => t >= q.t0 && t < q.t1);
+    if (!vis.length) return { rect: null, shake: 0 };
+    const clk = this.clk;
+    // pose every word: the sung letters, and the ghost (the latent image, 35 %) of the letters not yet sprung
+    interface Drawn { L: Layout; i: number; hero: number; P: KinPose; G: KinPose }
+    const posed = (p: Phrase) => {
+      const L = p.layout!, out: Drawn[] = [];
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      p.words.forEach((w, i) => {
+        // nothing on screen more than 0.4 s before it is sung (the ghost comes up 0.3 s ahead)
+        if (t < w.start - 0.3) return;
+        const kw = L.kw[i]!, m = this.moves(p, i), hero = i === p.hero;
+        const P = kw.pose(t, clk, m);
+        const G = kw.pose(t, clk, { ...m, t0: -1e3, spring: false, stamp: undefined, weight: hero ? { from: 300, to: 300 } : undefined });
+        const sp = m.spring as { stagger: number };
+        G.glyphs.forEach((g, j) => { g.on = t < w.start - 0.045 + j * sp.stagger && !(p.exit && t >= p.exit.at) ? 1 : 0; });
+        if (w === this.ctx.lyrics.get('Only thing that').words[8]) { this.condense(kw, P, t); this.condense(kw, G, t); }
+        this.squash(p, P, t);
+        out.push({ L, i, hero: p.hero, P, G });
+        // extents (mm): the rest box and every posed glyph
+        const em = L.size[i]!, k = em / 100;
+        x0 = Math.min(x0, L.x[i]!); x1 = Math.max(x1, L.x[i]! + L.w[i]!);
+        y0 = Math.min(y0, L.y[i]! - em * 0.3); y1 = Math.max(y1, L.y[i]! + em * 0.85);
+        P.glyphs.forEach((g, j) => {
+          if (g.on <= 0.001) return;
+          const hx = (kw.glyphs[j]!.adv * Math.abs(g.sx) * 0.5 + 12) * k, b = L.y[i]! - g.y * k;
+          x0 = Math.min(x0, L.x[i]! + g.cx * k - hx); x1 = Math.max(x1, L.x[i]! + g.cx * k + hx);
+          y0 = Math.min(y0, b - em * 0.3 * g.sy); y1 = Math.max(y1, b + em * 0.9 * g.sy);
+        });
+      });
+      return { out, box: [x0, y0, x1, y1] as const };
+    };
+    let sets = vis.map(posed);
+    // a leaving phrase far from the new one (the camera has cut away from it) goes with the cut
+    const cur = sets[sets.length - 1]!.box;
+    const span = (b: readonly number[]) => Math.max(b[2]! - b[0]!, (b[3]! - b[1]!) * 2);
+    const union = (bs: (readonly number[])[]) => [Math.min(...bs.map((b) => b[0]!)), Math.min(...bs.map((b) => b[1]!)), Math.max(...bs.map((b) => b[2]!)), Math.max(...bs.map((b) => b[3]!))];
+    if (sets.length > 1 && span(union(sets.map((s) => s.box))) > 2.4 * span(cur)) { sets = sets.slice(-1); vis = vis.slice(-1); }
+    const [xMin, yMin, xMax, yMax] = union(sets.map((s) => s.box)) as [number, number, number, number];
+    if (!(xMax > xMin)) return { rect: null, shake: 0 };
+    // the layer's window around them (2:1)
     const ww = Math.max(xMax - xMin + 8, (yMax - yMin + 8) * 2, 40) * 1.04, wh = ww / 2;
     const wx = (xMin + xMax) / 2 - ww / 2, wy = (yMin + yMax) / 2 - wh / 2;
     const sx = this.wcv.width / ww;
     // film mm -> layer px (y up -> canvas y down)
     c.setTransform(sx, 0, 0, -sx, -wx * sx, (wy + wh) * sx);
-    c.fillStyle = '#fff';
-    p.words.forEach((w, i) => {
-      // nothing on screen more than 0.4 s before it is sung (the ghost comes up 0.3 s ahead)
-      if (t < w.start - 0.3) return;
-      const hero = i === p.hero;
-      const txt = hero ? w.w.replace(/[,.]/g, '').toUpperCase() : w.w;
-      // development: a ghost (unsung, 35 %) then clear film, wiped across the word from its onset to 3/4 of it
-      const t0 = w.start - 0.045, t1 = w.start + Math.max(0.12, (w.end - w.start) * 0.5);
-      const pr = clamp((t - t0) / (t1 - t0));
-      const prE = 1 - Math.pow(1 - pr, 3);
-      const em = L.size[i]!;
+    c.textBaseline = 'alphabetic';
+    let shake = 0;
+    for (const s of sets) for (const d of s.out) {
+      const em = d.L.size[d.i]!, kw = d.L.kw[d.i]!;
       c.save();
-      c.translate(L.x[i]!, L.y[i]!);
+      c.translate(d.L.x[d.i]!, d.L.y[d.i]!);
       c.scale(em / 100, -em / 100);
-      c.textBaseline = 'alphabetic';
-      // the hero snaps from light to heavy on its onset, each letter in its fixed slot
-      const heavy = !hero || t >= t0;
-      const fam = hero ? (heavy ? HERO_HEAVY : HERO_LIGHT) : L.fam[i]!;
-      c.font = font(fam, 100);
-      const wpx = (L.w[i]! / em) * 100;
-      const put = () => {
-        // (the heavy cut set the slots, so the heavy word as one run sits exactly in them)
-        if (!hero || heavy) { c.fillText(txt, 0, 0); return; }
-        // the light cut tracked out so its letters stand in the heavy slots (first and last centred on theirs), one run
-        const n = txt.length, wa = c.measureText(txt[0]!).width, wz = c.measureText(txt[n - 1]!).width;
-        const ls = n > 1 ? (L.slots[n - 1]! - L.slots[0]! - (c.measureText(txt).width - wa / 2 - wz / 2)) / (n - 1) : 0;
-        const cc = c as unknown as { letterSpacing: string };
-        cc.letterSpacing = `${ls.toFixed(2)}px`;
-        c.fillText(txt, L.slots[0]! - wa / 2, 0);
-        cc.letterSpacing = '0px';
-      };
-      // ghost
-      c.globalAlpha = 0.35;
-      put();
-      if (pr > 0) {
-        // the developed part: a soft-edged wipe
-        const edge = wpx * prE * 1.06;
-        const g = c.createLinearGradient(edge - wpx * 0.06, 0, edge, 0);
-        g.addColorStop(0, 'rgba(255,255,255,1)');
-        g.addColorStop(1, 'rgba(255,255,255,0)');
-        c.globalAlpha = 1;
-        c.globalCompositeOperation = 'lighter';
-        c.fillStyle = g;
-        put();
-        c.globalCompositeOperation = 'source-over';
-        c.fillStyle = '#fff';
-      }
+      // (a hero snaps light to heavy: its glyphs are set in the 300 and the 900 only)
+      const fam = d.i === d.hero ? (g: GlyphPose) => kw.family(125, g.weight < 600 ? 300 : 900) : (g: GlyphPose) => kw.family(g.width, g.weight);
+      drawPosed(c, this.sprites, kw, d.G, 0.35, fam);
+      drawPosed(c, this.sprites, kw, d.P, 1, fam);
       c.restore();
-    });
-    return [wx, wy, ww, wh];
+      shake = Math.max(shake, d.P.shake);
+    }
+    // a clear border: nothing reaches the layer's edge (its texels clamp)
+    const W = this.wcv.width, H = this.wcv.height, e = 4;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.clearRect(0, 0, W, e); c.clearRect(0, H - e, W, e); c.clearRect(0, 0, e, H); c.clearRect(W - e, 0, e, H);
+    return { rect: [wx, wy, ww, wh], shake };
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget) {
@@ -787,7 +903,9 @@ export default class Lightbox extends Scene {
       fk[fi] = t < yeah.start - 0.08 ? 1 : t < ti ? 0.25 : 1 + 0.9 * Math.exp(-(t - ti) / 0.12);
     });
     // the words
-    const r = this.drawWords(t);
+    const { rect: r, shake } = this.drawWords(t);
+    // a hero's stamp: the tube kicks a little brighter and the frame shakes (restrained: verse 1)
+    u.box!.value *= 1 + 0.06 * shake;
     if (r) {
       (u.wordRect!.value as THREE.Vector4).set(r[0], r[1], r[2], r[3]);
       this.wordTex.needsUpdate = true;
@@ -795,6 +913,7 @@ export default class Lightbox extends Scene {
     this.pass.render(renderer, out);
     // the corner hold: the bare lightbox stays the brightest thing in frame, edge to edge
     const inCorner = t > 9.7 && t < (this.downbeats.find((d) => d > 10.5) ?? 10.74);
-    return inCorner ? { vignette: 0.1 } : {};
+    const sh = kinShake(t, shake * 7);
+    return inCorner ? { vignette: 0.1, shake: sh } : { shake: sh };
   }
 }
