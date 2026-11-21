@@ -21,8 +21,11 @@
 //   line 3 "Late night devil...": from above, descending; DEVIL leans further each beat; it carries AND across the cut.
 //   line 4 "And never, never...": cut on the downbeat 59.08 (AND already standing); each NEVER lands wider and condenses
 //          (each copy narrower); GO, biggest, alone on the last row.
-// The stomp is the shutter: every beat a flash (an exposure kick with a punch of zoom, the head overshooting, a few
-// pixels of shake; the words stretch on the kicks) inside the continuing shot. Cuts only between lines, on downbeats,
+// The stomp is the shutter (round 3, graded): one hard key rakes low across the apple from a strobe head at the upper
+// left; the strobe fires only on tier 1 (the opening photograph and each hero's onset), a hard side flash that throws
+// the bitten letters into black shadow and bright edge light for a few frames; between flashes the modelling lamp
+// ticks back up as the unit recharges, the words stretch on the kicks, and the frame nudges a few pixels on the
+// downbeats. Cuts only between lines, on downbeats,
 // each landing on its first word already readable (and the TEETH slam and back).
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
@@ -30,7 +33,7 @@ import { FSPass, Layer2D, SS_TAP, makeRT, W as FW, H as FH } from '../../engine/
 import { F, font } from '../../engine/type';
 import { clamp, ease, lerp, pulse, springStep } from '../../engine/util';
 import { trgba } from '../palette';
-import { KinClock, KinWord, KIN_MAX, LyricPath, drawKin, kinShake, packKin, type KinPose, type Moves } from '../kinetic';
+import { KinClock, KinWord, KIN_MAX, LyricPath, drawKin, kinCam, kinProbeOn, kinRecord3D, kinShake, packKin, type KinPose, type Moves } from '../kinetic';
 import { DOF_FRAG, LAY, LN_G, LN_W, MARCH_FRAG } from './scale-glsl';
 import { bakeLine, toothSpans, type BandLine } from './scale-bite';
 
@@ -41,7 +44,7 @@ const HB = -2, RB = 39;
 /** Cap heights (mm): supporting words, heroes, SWEET (Cormorant lowercase), GO, TEETH, and line 1's opening row
  *  (read from the exhibit's distance). Round 2b: supporting words bigger and heroes smaller than round 2, so a whole
  *  line sets as a short page on the apple's front. */
-const CAP = { sup: 4.4, hero: 8.0, serif: 10, go: 10.5, teeth: 8.5, open: 8.5 };
+const CAP = { sup: 4.4, hero: 8.0, serif: 10, go: 10.5, teeth: 8.5, open: 8.5, sup1: 5.6, hero1: 8.8 };
 /** Bite depth (mm): supporting words shallow, heroes deep. */
 const DEPTH = { sup: 1.3, hero: 2.3, go: 2.8 };
 
@@ -72,10 +75,35 @@ const FH_D = 2 * Math.tan((FOV * Math.PI) / 360), FW_D = FH_D * (16 / 9);
 interface Plan { a: [number, number]; el: [number, number]; roll: [number, number]; daz: [number, number]; psi0: number; wide?: boolean; dEx?: number }
 const PLANS: Plan[] = [
   { a: [-0.3, 0.2], el: [0.5, -0.1], roll: [0, -0.02], daz: [0.5, -0.04], psi0: 0, wide: true, dEx: 190 * LENS },
-  { a: [-0.3, 0.15], el: [0.06, 0.12], roll: [0.05, -0.02], daz: [0.0, 0.04], psi0: 2.4 },
-  { a: [-1.5, -1.05], el: [0.36, 0.08], roll: [0.08, 0.0], daz: [0.0, 0.04], psi0: 1.0 },
-  { a: [-0.7, -0.25], el: [-0.02, 0.16], roll: [-0.05, 0.03], daz: [0.0, 0.04], psi0: 2.0 },
+  // (round 3: lines 2-4 seen from right of their normal as they grow (easing back to square as the left-aligned rows
+  // fill), so each row's last word stays on the lit face; line 2's BUT whole)
+  { a: [-0.3, 0.15], el: [0.06, 0.12], roll: [0.05, -0.02], daz: [0.25, 0.2], psi0: 2.4 },
+  { a: [-1.5, -1.05], el: [0.36, 0.08], roll: [0.08, 0.0], daz: [0.15, 0.05], psi0: 1.0 },
+  { a: [-0.7, -0.25], el: [-0.02, 0.16], roll: [-0.05, 0.03], daz: [0.15, 0.0], psi0: 2.0 },
 ];
+
+/** ROUND 3: how much of the space to a neighbour on its row a posed word may take (each side). */
+const SPACE_USE = 0.2;
+/** ROUND 3: the key (degrees off the lens axis toward the light; degrees of that swung up from the left; its distance
+ *  past the camera's, mm). Look-dev override: sc_key=a,b,d. */
+const KEY = [48, 14, 240];
+/** Where the pool is aimed from the line's centre (frame widths right, up). Look-dev override: sc_aim=x,y. */
+const AIM = [-0.03, -0.02];
+/** The strobe on its side bracket, lower and more grazing than the modelling lamp (same terms; sc_strobe=a,b), so a
+ *  flash throws the letters' walls into longer shadow and harder edge light rather than brightening the skin. */
+const STROBE = [62, 14];
+/** The exhibit photograph's light (line 1's opening framing, the approved 48.75): a flash just off the lens. */
+const EXHIBIT_KEY = [24, 40] as const;
+/** The strobe's pool, in fractions of the frame's width at the subject: full light inside `in`, down to the `floor`
+ *  level by `out`. Look-dev override: sc_pool=in,out,floor. */
+const POOL = [0.22, 0.38, 0.03];
+/** The strobe: its burst over the modelling lamp (x strength) and its decay half-life (s): a few frames. */
+const FLASH_GAIN = 3.2, FLASH_HL = 0.045;
+/** TIER 1 FLASHES (R38): strength by hero (and the opening exhibit photograph); every other beat gets no flash.
+ *  Line 1 sparse and low; line 2 building into the biggest on TEETH; the three NEVERs rising, then GO. */
+const FLASH_K: Record<string, number | number[]> = {
+  open: 0.75, dirty: 0.4, sweet: 0.5, pretty: 0.65, teeth: 1.0, devil: 0.6, hands: 0.65, never: [0.45, 0.62, 0.8], go: 0.95,
+};
 
 interface LWord {
   text: string; key: string; start: number; end: number; hero: boolean; cap: number; depth: number; wax: boolean;
@@ -83,6 +111,8 @@ interface LWord {
   kw: KinWord; x0: number; x1: number; cx: number;
   /** its cap box's centre height over the band's middle (its row) */
   hc: number;
+  /** its row, and how far along the band its posed letters may reach (round 3: the spaces always read) */
+  row: number; lim0: number; lim1: number;
   /** which NEVER (1..3; 0 otherwise) */
   rep: number;
   /** when its moves start: its onset, or earlier for a word already standing at its line's cut (it is read at once) */
@@ -161,6 +191,8 @@ export default class ScalePlate extends Scene {
   private rt = makeRT();
   private lines: Line[] = [];
   private slams: Slam[] = [];
+  /** the strobe's tier-1 firings: time, strength, line */
+  private flashes: { t: number; k: number; line: number }[] = [];
   private clk!: KinClock;
   private L = new Layer2D();
   private pk = new Float32Array(KIN_MAX * 12);
@@ -223,7 +255,9 @@ export default class ScalePlate extends Scene {
       });
       const band = bakeLine(ws.map((w) => ({
         text: w.text, serif: w.wax, chip: w.hero && !w.wax, row: w.row,
-        cap: w.wax ? CAP.serif : w.go ? CAP.go : w.key === 'teeth' ? CAP.teeth : w.hero ? CAP.hero : k === 0 && w.row === 0 ? CAP.open : CAP.sup,
+        // (round 3: line 1 is first seen from the exhibit's distance, so its supporting words and DIRTY are set larger:
+        // R22's 5% floor while the camera is still pushing in, and DIRTY's R21 hero scale)
+        cap: w.wax ? CAP.serif : w.go ? CAP.go : w.key === 'teeth' ? CAP.teeth : w.hero ? (k === 0 ? CAP.hero1 : CAP.hero) : k === 0 && w.row === 0 ? CAP.open : k === 0 ? CAP.sup1 : CAP.sup,
         condense: w.rep > 1 ? [1, 1, 0.8, 0.64][w.rep] : 1,
       })), { top: ROW_TOP[k] ?? 19, gap: ROW_GAP });
       const words: LWord[] = ws.map((w, i) => {
@@ -232,10 +266,17 @@ export default class ScalePlate extends Scene {
           text: w.text, key: w.key, start: w.start, end: w.end, hero: w.hero, wax: w.wax, rep: w.rep, cap: b.cap,
           depth: w.go ? DEPTH.go : w.hero ? DEPTH.hero : DEPTH.sup,
           kw: KinWord.fromCells(w.wax ? w.text.toLowerCase() : w.text.toUpperCase(), b.cap / 0.72, b.cells, { family: w.wax ? 'serif' : 'archivo', width: 62 }),
-          x0: b.x0, x1: b.x1, cx: b.cx, hc: b.hc,
+          x0: b.x0, x1: b.x1, cx: b.cx, hc: b.hc, row: w.row, lim0: -1e9, lim1: 1e9,
           // a word sung at (or before) the cut already stands in the first frame (its letters sprang 0.17 s ahead)
           m0: w.start < t0 + 0.05 ? Math.min(w.start, t0 - 0.12) : w.start,
         };
+      });
+      // ROUND 3 SPACING: how far each posed word may reach (stamps, stretches, NEVER's landing): a fifth of the space
+      // to a neighbour on its row, so at least three fifths of every space always reads; a row's ends a quarter cap
+      words.forEach((w, i) => {
+        const p = words[i - 1], n = words[i + 1];
+        w.lim0 = p && p.row === w.row ? w.x0 - SPACE_USE * (w.x0 - p.x1) : w.x0 - 0.25 * w.cap;
+        w.lim1 = n && n.row === w.row ? w.x1 + SPACE_USE * (n.x0 - w.x1) : w.x1 + 0.25 * w.cap;
       });
       this.lines.push({ k, t0, t1: this.ctx.end, words, band, az0: 0, path: null as unknown as LyricPath, plan });
     });
@@ -253,6 +294,18 @@ export default class ScalePlate extends Scene {
       L2.t1 = t0;
     }
 
+    // ROUND 3 FLASHES: the opening photograph (the approved first flash) and each hero's onset, nothing else
+    this.flashes.push({ t: this.ctx.start, k: FLASH_K.open as number, line: 0 });
+    for (const L of this.lines) {
+      for (const w of L.words) {
+        const s = FLASH_K[w.key];
+        if (!w.hero || s === undefined) continue;
+        const k = Array.isArray(s) ? s[Math.max(0, w.rep - 1)] ?? s[s.length - 1]! : s;
+        this.flashes.push({ t: w.start, k, line: L.k });
+      }
+    }
+    this.flashes.sort((a, b) => a.t - b.t);
+
     // ROUND 2B CAMERA: each line's one move frames the line SO FAR, whole. One key per word, on its onset (less a
     // lead): the box round every word sung by then (rows included), its centre on the frame's centre and the camera
     // as far back as the box needs (title-safe margins), never nearer than DMIN. The move from one key to the next
@@ -262,6 +315,9 @@ export default class ScalePlate extends Scene {
     // opens close (its first word alone fills the frame's middle). Line 1 starts on the exhibit and pushes in.
     const DMIN = 58 * LENS;
     for (const L of this.lines) {
+      // (look-dev overrides per line: sc_daz<k>=from,to and sc_psi<k>=turn)
+      const dq = qv('daz' + L.k), pq0 = qv('psi' + L.k);
+      if (dq || pq0) L.plan = { ...L.plan, daz: (dq as [number, number]) ?? L.plan.daz, psi0: pq0?.[0] ?? L.plan.psi0 };
       const P = L.plan, n = L.words.length;
       const prog = (t: number) => clamp((t - L.t0) / Math.max(1e-3, L.t1 - L.t0));
       const box = (i: number) => {
@@ -306,7 +362,7 @@ export default class ScalePlate extends Scene {
       ssTap: SS_TAP,
       camPos: { value: V(0, 0, 0) }, camR: { value: V(0, 0, 0) }, camU: { value: V(0, 0, 0) }, camF: { value: V(0, 0, 0) },
       tanH: { value: 0.3 },
-      keyPos: { value: V(0, 0, 0) }, keyDir: { value: V(0, -1, 0) }, keyI: { value: 1 }, keyRad: { value: 10 }, keyCone: { value: 0.8 },
+      keyPos: { value: V(0, 0, 0) }, keyDir: { value: V(0, -1, 0) }, keyI: { value: 1 }, keyRad: { value: 10 }, keyCone: { value: 0.8 }, keyOut: { value: 0.74 }, keyFloor: { value: 0.3 },
       fillDir: { value: V(0, 1, 0) }, fillI: { value: 0.02 },
       lineTex: { value: this.lines[0]!.band.tex }, labelTex: { value: label }, digitTex: { value: digits },
       coatK: { value: 1 }, aYaw: { value: new THREE.Vector2(1, 0) },
@@ -358,6 +414,17 @@ export default class ScalePlate extends Scene {
       const f = 1 + 0.35 * (1 - springStep(Math.max(0, t - (w.m0 - 0.045)), 4.5, 0.55));
       for (const g of P.glyphs) { g.cx = w.x0 + (g.cx - w.x0) * f; g.sx *= f; }
     }
+    // ROUND 3: the word is held inside its reach (lim0..lim1): a stamp or stretch that would close a space is taken
+    // up by scaling the word about its own box instead, so the gap to each neighbour never shuts
+    let e0 = 1e9, e1 = -1e9;
+    P.glyphs.forEach((g, i) => {
+      const h = (w.kw.glyphs[i]!.adv / 2) * Math.abs(g.sx);
+      e0 = Math.min(e0, g.cx - h); e1 = Math.max(e1, g.cx + h);
+    });
+    if (e1 > e0 && (e0 < w.lim0 || e1 > w.lim1)) {
+      const n0 = Math.max(e0, w.lim0), n1 = Math.min(e1, w.lim1), k = Math.max(0.05, (n1 - n0) / (e1 - e0));
+      for (const g of P.glyphs) { g.cx = n0 + (g.cx - e0) * k; g.sx *= k; }
+    }
     return P;
   }
 
@@ -396,7 +463,8 @@ export default class ScalePlate extends Scene {
         Hd[nw]!.set(w.hc - hx - 1.5, w.hc + hx + 1.5);
         hmax = Math.max(hmax, Math.abs(w.hc) + hx);
         nw++; g += n; s0 = Math.min(s0, x0); s1 = Math.max(s1, x1);
-        shake = Math.max(shake, P.shake * (!w.hero ? 3 : w.wax ? 4 : w.key === 'go' ? 14 : 10));
+        // (round 3: graded, R79: a supporting word's stamp is a tier-3 hit; a hero's lands with its flash, tier 1)
+        shake = Math.max(shake, P.shake * (!w.hero ? 1.5 : w.wax ? 4 : w.key === 'go' ? 12 : 9));
       }
     }
     m.lnNW!.value = nw;
@@ -427,27 +495,44 @@ export default class ScalePlate extends Scene {
     (m.camR!.value as THREE.Vector3).copy(rt);
     (m.camU!.value as THREE.Vector3).copy(up);
     m.tanH!.value = Math.tan((fov * Math.PI) / 360);
+    if (kinProbeOn()) this.kinProbe(Ln, t, pos, fw, rt, up, psi); // type probe (lint only)
 
-    // ---- the flash: on the camera, a hand above and left of the lens so each bitten letter's walls take light on one
-    // side; it fires on every beat (the head overshoots and settles), the photograph continuing
+    // ---- ROUND 3 LIGHT: one hard key, a strobe head on a stand off to the left, raking LOW across the apple's face
+    // (KEY: degrees off the lens axis, degrees of that swung up from the left), so every bitten letter has black
+    // shadow walls on the side away from it and bright cream edges on the side facing it, and the skin falls off
+    // across the apple's curve toward film-black. Its modelling lamp lights the shot between flashes; the strobe
+    // fires from the same head (the flash: FLASHES, tier 1 only), throwing the letters into hard shadow and edge
+    // light for a few frames, never a whole-frame pop (the light is in the scene, not on the film).
     const Dn = D / LENS, far = clamp((Dn - 60) / 130);
-    const beat = this.clk.lastBeat(t);
-    // ESCALATION (round 2b): the light builds over line 2 into TEETH, one step per beat: each flash brighter, the key
-    // swung a little further out (a steeper rake from a smaller, harder source) and the fill gone, so every frame
-    // reaches lightbox-bright and film-black; the chorus after the hook stays near the top
-    const nb = Math.max(1, Math.round((Ln.t1 - Ln.t0) / (this.clk.nextBeat(Ln.t0) - this.clk.lastBeat(Ln.t0))));
-    const esc = Ln.k === 0 ? 0.25 : Ln.k === 1 ? lerp(0.3, 1, clamp(this.clk.steps(Ln.t0 - 1e-3, t, 0.08) / nb)) : 0.8;
-    const rake = lerp(1, 1.2, esc);
-    const key = pos.clone().addScaledVector(up, (16 + 0.25 * Dn) * LENS * lerp(1, 1.25, esc)).addScaledVector(rt, -(30 + 0.3 * Dn) * LENS * rake);
-    const burst = Math.max(pulse(t, beat, 0.03), pulse(t, Ln.t0, 0.03));
-    const I = lerp(1.95, 1.15, far) * lerp(0.9, 1.4, esc);
+    const kq = qv('key') ?? KEY, sq = qv('strobe') ?? STROBE;
+    const { fl, lamp } = this.light(t);
+    // (the strobe's burst outshines the lamp: the light's direction follows whichever dominates)
+    const wf = (FLASH_GAIN * fl) / (lamp + FLASH_GAIN * fl);
+    // (on the exhibit framing, the approved first flash, the light is the photograph's: near the lens, upper left, so
+    // the bite's flesh, the white scale and its label read; it swings round to the rake as the camera pushes in)
+    const ka = (lerp(lerp(kq[0]!, sq[0]!, wf), EXHIBIT_KEY[0], wide) * Math.PI) / 180;
+    const kb = (lerp(lerp(kq[1]!, sq[1]!, wf), EXHIBIT_KEY[1], wide) * Math.PI) / 180;
+    const kDir = fw.clone().multiplyScalar(-Math.cos(ka)).addScaledVector(rt, -Math.sin(ka) * Math.cos(kb)).addScaledVector(up, Math.sin(ka) * Math.sin(kb)).normalize();
+    const key = at.clone().addScaledVector(kDir, kq[2]! + 0.6 * D);
     (m.keyPos!.value as THREE.Vector3).copy(key);
-    m.keyI!.value = (I * key.distanceToSquared(at)) / 1e5 * (1 + 1.2 * burst);
-    m.keyRad!.value = lerp(3, 5, far) * lerp(1, 0.35, esc);
-    (m.keyDir!.value as THREE.Vector3).copy(at.clone().sub(key).normalize());
-    m.keyCone!.value = 0.8;
+    const I = lerp(2.1, 1.5, far) * (qv('ki')?.[0] ?? 1);
+    m.keyI!.value = (I * key.distanceToSquared(at)) / 1e5 * (lamp + FLASH_GAIN * fl);
+    // the strobe's tube is smaller than the modelling lamp's glow: the flash's shadows are the hardest
+    m.keyRad!.value = lerp(2.4, 3.6, far) * (1 - 0.5 * clamp(fl));
+    // (aimed toward the key's side of the line's centre (AIM, in frame widths): the key side of the face is the
+    // brightest and the apple's own curve carries the light down toward shadow on the far side, a gradient across
+    // the face rather than an even disc; the pool's top and bottom edges fall to film-black)
+    const am = qv('aim') ?? AIM;
+    const aim = at.clone().addScaledVector(rt, am[0]! * FW_D * D * (1 - wide)).addScaledVector(up, am[1]! * FW_D * D * (1 - wide));
+    (m.keyDir!.value as THREE.Vector3).copy(aim.sub(key).normalize());
+    // the pool: a snooted strobe aimed at the line so far, full over the line's middle and falling toward film-black
+    // at the frame's edges (the close openers are never a flat field of yellow); the exhibit's flash is broad
+    const kd = key.distanceTo(at), fwm = FW_D * D, pq = qv('pool') ?? POOL;
+    m.keyCone!.value = lerp(Math.cos(Math.atan((pq[0]! * fwm) / kd)), 0.82, wide);
+    m.keyOut!.value = lerp(Math.cos(Math.atan((pq[1]! * fwm) / kd)), 0.74, wide);
+    m.keyFloor!.value = lerp(pq[2]!, 0.3, wide);
     (m.fillDir!.value as THREE.Vector3).copy(pos.clone().sub(at).normalize());
-    m.fillI!.value = 0.05 * (1 - far) * (1 - 0.8 * esc);
+    m.fillI!.value = qv('fill')?.[0] ?? 0.012;
     m.coatK!.value = lerp(0.4, 1, far);
     this.march.render(renderer, this.rt);
 
@@ -456,14 +541,37 @@ export default class ScalePlate extends Scene {
     d.focusD!.value = onBand.clone().sub(pos).dot(fw);
     d.aper!.value = qv('aper')?.[0] ?? lerp(9 * Math.min(1, 70 / Dn), 2.5, wide);
     this.dof.render(renderer, out);
-    // the flash reaches the film as an exposure kick (multiplicative: the blacks stay black); a few pixels of shake on
-    // every beat, more on a hero's stamp
-    // the flash hits the film as an exposure kick inside the shot (multiplicative: the blacks stay black), with a
-    // punch of zoom and a few pixels of shake on every beat, more on the kicks and a hero's stamp
-    const onKick = this.clk.inBar(Math.round(this.clk.beat(beat))) % 2 === 0;
-    const kick = Math.max(lerp(0.5, 1.0, esc) * (onKick ? 1 : 0.7) * pulse(t, beat, 0.05), (Ln.k === 0 ? 0.8 : 0.6) * pulse(t, Ln.t0, 0.05));
-    shake += (onKick ? 4 : 2.5) * pulse(t, beat, 0.04);
-    return { exposure: 1 + kick, halation: 0.04, shake: kinShake(t, shake), zoom: 1 + 0.022 * (onKick ? 1 : 0.6) * pulse(t, beat, 0.06) };
+    // GRADED IMPACTS (R37, R79): tier 1 (a flash) a shake of up to 12 px and a small punch of zoom; tier 2 (other
+    // downbeats) a nudge of up to 4 px; tier 3 (the other beats) up to 1.5 px. The words' stretch on the kicks and
+    // condense on the snares (kinetic moves) carry the beat between.
+    const beat = this.clk.lastBeat(t);
+    const fp = this.flashes.reduce((a, x) => Math.max(a, x.k * pulse(t, x.t, 0.04)), 0);
+    const down = this.clk.inBar(Math.round(this.clk.beat(beat))) === 0;
+    shake = Math.max(shake, 12 * fp, (down ? 4 : 1.5) * pulse(t, beat, 0.04));
+    return { exposure: 1, halation: 0.04, shake: kinShake(t, Math.min(12, shake)), zoom: 1 + 0.012 * fp };
+  }
+
+  /** The light at t: fl, the strobe's burst (its strength times a few frames' decay); lamp, the modelling lamp's
+   *  level. After each flash the unit recharges: the lamp dips and ticks back up one step per beat until the next
+   *  (the small light change between flashes, tier 2). Line 2 builds: each of its flashes leaves the lamp brighter. */
+  private light(t: number) {
+    let fl = 0, last = -1;
+    for (let i = 0; i < this.flashes.length; i++) {
+      const x = this.flashes[i]!;
+      if (x.t <= t + 1e-6) last = i;
+      fl = Math.max(fl, x.k * pulse(t, x.t, FLASH_HL));
+    }
+    const Lx = this.lineAt(t);
+    // the line's lamp level: line 1 low (sparse), line 2 stepping up with each of its flashes, then high
+    const inL2 = this.flashes.filter((x) => x.line === 1 && x.t <= t + 1e-6).length;
+    const base = Lx.k === 0 ? 0.82 : Lx.k === 1 ? 0.86 + 0.12 * inL2 : 1.0;
+    let rech = 1;
+    if (last >= 0) {
+      const tf = this.flashes[last]!.t, tn = this.flashes[last + 1]?.t ?? tf + 4;
+      const nb = Math.max(1, Math.round(this.clk.beat(tn) - this.clk.beat(tf)));
+      rech = lerp(0.8, 1, clamp(this.clk.steps(tf, t, 0.08) / nb));
+    }
+    return { fl, lamp: base * rech };
   }
 
   /** A full-frame slam (kinetic.ts): flat palette fills in Archivo 900, no outlines or halos, taking the plate's post.
@@ -507,10 +615,22 @@ export default class ScalePlate extends Scene {
         shake += 14 * pulse(t, tb, 0.05);
       }
     }
-    drawKin(c, kw, P, x, base, { fill: trgba(ink), brk });
+    drawKin(c, kw, P, x, base, { fill: trgba(ink), brk, tag: { role: 'hero', start: this.lines[1]?.words.find((w) => w.key === 'teeth')?.start } });
     this.L.upload();
     this.ctx.comp.draw(this.ctx.renderer, this.L.texture, out, { mode: 'replace' });
     return { exposure: 1, halation: 0, shake: kinShake(t, shake), zoom: 1 + 0.03 * P.shake }; // no halation: a slam is never haloed
+  }
+
+  /** The type probe (kinetic.ts THE TYPE PROBE; lint only, never in a normal render): where every word of the line is on
+   *  screen. A word's (s, h) on the band -> its point on the apple's skin and normal, turned with the apple (psi, as the
+   *  camera target in render() is) -> projected by the frame's camera. */
+  private kinProbe(Ln: Line, t: number, pos: THREE.Vector3, fw: THREE.Vector3, rt: THREE.Vector3, up: THREE.Vector3, psi: number) {
+    const cam = kinCam(pos, fw, rt, up, Math.tan((FOV * Math.PI) / 360));
+    const surf = (s: number, h: number) => {
+      const f = flank(Ln.az0 + s / RB, HB + h), C = turn(f.C, psi), N = f.N.clone().applyAxisAngle(UP, psi);
+      return [C.x, C.y, C.z, N.x, N.y, N.z];
+    };
+    for (const w of Ln.words) if (t >= w.m0 - 0.4) kinRecord3D(w.kw, this.wordPose(w, t), w.cap, w.hc, surf, cam, { start: w.start, role: w.hero ? 'hero' : 'sup' });
   }
 
   /** His bite as a break mask: a crescent bitten from the upper right, its rim a row of tooth-width scallops (convex

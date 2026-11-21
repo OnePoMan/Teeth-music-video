@@ -31,6 +31,8 @@ ${GLSL_TEETH_PALETTE}
 ${SS_TAP_GLSL}
 uniform vec3 camPos, camR, camU, camF; uniform float tanH;
 uniform vec3 keyPos, keyDir; uniform float keyI, keyRad, keyCone;
+// (round 3: the strobe's pool: full inside keyCone (cos of its half angle), falling to keyFloor at keyOut)
+uniform float keyOut, keyFloor;
 uniform vec3 fillDir; uniform float fillI;
 uniform sampler2D lineTex, labelTex, digitTex;
 uniform float coatK;
@@ -393,8 +395,9 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   vec3 jit = (hash33(vec3(FRAG_PX * 0.73, tap * 3.1)) - 0.5) * keyRad * 0.6;
   vec3 Ls = normalize(keyPos + jit - P);
   float sh = dot(N, Ls) > 0.0 ? softShadow(P + N * 0.03, Ls, lD, lD / max(keyRad, 0.1) * 0.5) : 0.0;
-  // (the bitten word's floors: soft, the flash fills them from beside the lens)
-  if (m == M_SKIN && ws < 0.0) sh = mix(sh, 1.0, 0.5);
+  // (round 3: the key rakes from the side, so a bitten word's floor keeps its shadow: the wall nearest the light
+  // throws it, the far wall catches the light as a bright edge; only a little light leaks in through the flesh)
+  if (m == M_SKIN && ws < 0.0) sh = mix(sh, 1.0, 0.08);
   float ao = m == M_SKIN ? mix(calcAO(P, N, 0.3), 1.0, 0.35) : calcAO(P, N, 2.0);
   vec3 alb = T_SILVER; float rough = 0.5, f0 = 0.04, wrap = 0.0, sheen = 0.0, coat = 0.0;
   float fleshK = 0.0, waxK = 0.0; vec3 fleshC = vec3(0.0);
@@ -436,7 +439,7 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     float ring = sat((1.0 - smoothstep(lr, lr * 1.9, length(dl))) * on - len);
     alb = mix(alb, CREAM * k * 1.1, ring * 0.12);
     alb = mix(alb, RUSS * k * 0.75, len * 0.7);
-    rough = 0.5 + 0.05 * snoise(PR * 0.4); f0 = 0.03; wrap = 0.2; coat = 0.85;
+    rough = 0.5 + 0.05 * snoise(PR * 0.4); f0 = 0.03; wrap = 0.1; coat = 0.85; // (round 3: less wrap: the face falls off from the key side)
     // (the skin's micro-relief: a fine orange-peel in the wax coat, off the cut flesh)
     float skinOnly = step(0.0, ws) * step(-0.05, body0);
     vec3 pk = vec3(snoise(PR * 1.7), snoise(PR * 1.7 + 17.3), snoise(PR * 1.7 + 31.1)) * 0.6 + vec3(snoise(PR * 4.3 + 5.0), snoise(PR * 4.3 + 9.0), snoise(PR * 4.3 + 2.0)) * 0.4;
@@ -506,7 +509,7 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   }
   float NoL = dot(N, L);
   float difL = sat((NoL + wrap) / (1.0 + wrap));
-  float spot = mix(0.3, 1.0, smoothstep(keyCone - 0.06, keyCone + 0.02, dot(-L, keyDir)));
+  float spot = mix(keyFloor, 1.0, smoothstep(keyOut, keyCone, dot(-L, keyDir)));
   float fall = keyI / (lD * lD) * 1e5 * spot;
   vec3 Hh = normalize(L + V);
   float NoV = max(dot(N, V), 1e-4), NoH = max(dot(N, Hh), 0.0);
@@ -522,7 +525,8 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   col += T_SILVER * sheen * pow(1.0 - NoV, 4.0) * fall * (0.3 + 0.7 * sh) * sat(NoL + 0.6);
   // apple flesh is translucent: the cut carries some of the light that reaches the fruit around it
   // (in the narrow letter cavities the light scattered through the flesh keeps them cream, not grey)
-  if (fleshK > 0.0) col += fleshK * fleshC * T_LIGHTBOX * fall * (0.16 + 0.22 * step(ws, 0.0)) * sat(dot(normalize(P - AC), L) + 0.4);
+  // (round 3: much less in the letter cavities, so their shadowed walls and floors reach film-black)
+  if (fleshK > 0.0) col += fleshK * fleshC * T_LIGHTBOX * fall * (0.16 - 0.11 * step(ws, 0.0)) * sat(dot(normalize(P - AC), L) + 0.2);
   col += alb * T_LIGHTBOX * fillI * sat(0.35 + 0.65 * dot(N, fillDir)) * mix(0.3, 1.0, ao);
   col += alb * T_FILM2 * 0.4 * ao;
   float depth = dot(P - ro, camF);
