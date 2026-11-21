@@ -65,3 +65,26 @@ Lint must show 0 errors (the known false hits are fine). Speed must be no slower
 - the camera helper's API, if you added one;
 - the clip paths and ms/frame;
 - what the self-check showed.
+
+---
+
+## Round 2b: fixes after the blind review (fresh builder)
+
+Round 2 is committed. Its camera follows the words along a band round the apple, and the camera helper `LyricPath`/`LyricCam` is in `kinetic.ts`. A blind reviewer judged it against P(doom)'s chorus 26.3–30.3, using the 8 fps strips `out/gate3/kinetic/r2/scale-strip.png` (52.0–56.0; frame n = 52 + (n−1)/8) and `out/gate3/kinetic/ref/pd-strip.png`. The verdict was "within reach, not below it". P(doom) won on lyric presence, legibility and energy; camera flow was even. Fix these, in order:
+
+1. **Open each line close.** The first words of a line ("TALK SO", "LATE NIGHT") read tiny on a distant apple (52.3–53.0, 55.6–56.4). From a line's first frame, the words are at least 8% of frame height in cap height.
+2. **Keep the line whole as it builds.** Earlier words fall off the left edge and get cropped mid-word ("ETTY", "TY BUT Y", "TE"). Lead the camera, flatten the band's wrap, or pull back gently as the line grows, so the line so far stays in frame and is never cut mid-word. When a line is too long for the band, the first words may leave, but only as whole words, on a beat.
+3. **No sudden push-ins.** The push onto each new word is currently 0.3 s, which reads as a jump at 53.2→53.33. Ease the moves over the word's whole duration and into the downbeat, never faster than the eye can follow.
+4. **Escalate into TEETH and hold the slam.**
+   - The light builds over line 2: each flash brighter and the raking light harder, so every frame reaches lightbox-bright and film-black.
+   - The full-frame TEETH holds until the next line's first word (55.63), with no orphan "TE" frame before it and no blank frame after it.
+   - The cut back lands straight on LATE, already readable.
+5. **Line 4's cut is on "And" (58.87), off the downbeat.** Move it to the nearest downbeat, or carry the cut with the type.
+6. **The 48.75 still crops the label's end.** Show the whole label "08-32 · EXHIBIT 4".
+7. **Energy.** The plate reads muted (dull yellow on dark, a slow turn). Make the flashes visibly hit as exposure kicks inside the shot, and add stretch or stamps on the kicks. Make the chorus feel maximal without cutting.
+
+**Self-check:** render the same 8 fps strip, 52.0–56.0 with `--n 32 --cols 8`, to `out/gate3/kinetic/r2b/scale-strip.png`, and the dense sheet 49.5–56.9 (`--n 30 --cols 6`) to `r2b/scale-dense.png`. Count the frames with no readable lyric or a mid-word crop. The target is 0, apart from the first frame after a cut.
+
+**Deliverables:** clips 48.73–55.5 and 55.0–62.54, with audio, to `out/gate3/kinetic/r2b/`. Speed must stay ≤138 ms/frame, and lint must show 0 errors. The rules from round 2 still hold: don't commit, touch only `scale*.ts` and `kinetic.ts` (additions only), and budget about 15 renders.
+
+**Report** in ≤150 words, including the self-check counts.
