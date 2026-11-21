@@ -134,3 +134,29 @@ The rules are the "Kinetic type" section of `docs/TEETH2.md`; the briefs are in 
 - **The client's verdict:** "Not really". On `scale`, not all lyrics are on screen. The camera pans erratically instead of flowing ("whiplashy"). The client wants the lyrics on screen the entire time and the camera following their motion, at P(doom)'s level.
 - **The lead's finding:** round 1 was never judged blind against P(doom). The gate 3 batch reviews judged plates against the treatment, and the lead alone judged the prototypes. In dense sheets at matched times, 13 of 30 `scale` frames had no readable lyric. P(doom) had a lyric in every sung frame, with the camera riding the line. The cause was the round 1 brief ("the scene, its camera and its timing stay"), which kept each plate's cut-every-beat grammar.
 - **Ruling:** the "Lyric-led camera" section of `docs/TEETH2.md` (binding). Round 2 rebuilds `scale` alone (`docs/gate3/brief-kinetic-r2.md`), and a blind review against P(doom) comes before the client sees it.
+
+## Spec review and the client's answers (2026-11-21)
+An independent review of the spec (`docs/doc-review-2026-11-21.md`) found:
+- supersession debt: the later rules were added without the dead text being struck;
+- no plate status of record;
+- a frame checker that can't see Teeth's type;
+- a Monster critic checklist in use for Teeth;
+- staffing aimed at the wrong place.
+
+**Client calls (binding; they supersede the conflicting text everywhere):**
+1. **Reveal-by-light plates keep their reveal on a readable floor.** Sung words of the current line never drop below readable: halide-level contrast and a cap height of at least 5%. The plate's light (UV beam, luminol glow, articulator reflection, backlight) lifts them from the floor to full. It is never the only thing that makes a word readable. Named exception: GO's slow decay in `uv`.
+2. **A type-led cut or reframe inside a line is allowed.** At most one per line in verses and one per half-line in choruses. It is allowed only when the new framing opens on the word being sung, already readable, with the line so far visible or re-established within 2 frames. Never on every beat, and never to an unrelated view.
+3. **Gaps between lines:** the last line holds through a gap of up to about 2 bars (≈3.5 s), then clears on a beat, so set pieces such as the tag signing (9.3–10.8) play clean if they run longer.
+4. **The outro carry (186.85–193.76) has no lyric,** like the intro and the closing riff. The folder tab's written "never let go" may show as an in-world label.
+
+**Lead calls:**
+- **A slam takes the plate's grain and motion blur, but no halation glow.** This settles the conflict between `TEETH2.md` "Kinetic type" 1 and the r2 brief.
+- **Red at the lock is the traced outline, TEETH, the monogram and the stamp.** The hook plan's every-8th red copies in `match` are cut: no red flood (taste call 3).
+- **Pickups:** a cut between lines lands on the downbeat nearest the new line's first stressed word. Pickup words sung before that downbeat appear in the outgoing shot as the head of the new line. Or the type carries the cut.
+- **Labels:** at most one readable label per *frame*, not per plate.
+- **Value range:** every *shot* reaches film-black and its plate's peak (lightbox, or the glow token in `uv`, `luminol` and `acetate`). A shot of mid-tones only is a defect.
+- **Hero scale:** the hero's cap height is at least 20% of frame height, *or* the word spans at least 30% of frame width, whichever comes first. Exempt: the stripped chorus 3a and the bridge. The supporting-word floor is a 5% cap height; 8% is advised on a line's first frame.
+- **Settled rulings stay settled unless a later client call conflicts.** A reviewer who finds a conflict reports it to the lead and enforces neither.
+- **Review rounds:** at most two per plate at gate 3. That is the single policy; the 4-round and 1-round texts are dead.
+- **Speed at gate 3:** at most 200 ms/frame at 1080p, and report the figure. The real budget is measured at gate 4 by a 4K test render per plate.
+- **The seven plates "done for gate 3"** (polygraph, uv, scene, luminol, chart, voice, articulator) were approved under the camera grammar that is now superseded. Their scene, exhibits and light stand, but their **camera and type need the lyric-led pass**, as do the other seven.
