@@ -8,13 +8,12 @@ Read this first, then `RULES.md`. Rewritten as the last step of every session; h
 
 ## Status
 
-The 14 plates x {scene, camera, type, light} matrix is in `PLATES.md` ("Status of record"). Today: camera and type are "rework" everywhere; scene and light are "approved" for polygraph, uv, scene, luminol, chart, voice, articulator and "unknown" for the rest. `scale` has a lyric-led prototype (r2b), blind-reviewed "within reach, not below", not yet client-approved.
+The 14 plates x {scene, camera, type, light} matrix is in `PLATES.md` ("Status of record"). Today: camera and type are "rework" everywhere; scene and light are "approved" for polygraph, uv, scene, luminol, chart, voice, articulator and "unknown" for the rest. `scale` has a lyric-led prototype (r2b, `cac7a04`, clips in `out/gate3/kinetic/r2b/`). The second blind review preferred it over P(doom) on presence, legibility, camera flow and type as subject; P(doom) won on energy and image quality. The client: "definitely closer to the right direction"; the light and the every-beat flashes still to fix.
 
 ## Next actions
 
-1. **Frame-checker probe for Teeth type:** instrument `app/src/teeth2/kinetic.ts` to record each word's on-screen box (projected through the camera for surface type), and teach `lint.ts` presence of the current line, supporting cap height, hero scale, title-safe, nothing more than 0.4 s early, no mid-word crop.
-2. **`scale` lighting and flash fix:** flashes graded (R38), light building into TEETH, the slam held, line 4's cut on a downbeat; it is the prototype for the rest.
-3. **Lyric-led prototypes on `uv` (the reveal-by-light case) and `chart` (a light plate)**, with a key-frame checkpoint (set, light, materials, type card at 4-6 key frames) reviewed before each full-window build (R73). Fill their type cards first.
+1. **Start these two builders side by side once usage allows (R67): both briefs are written and committed.** (a) The type probe: Sonnet 5.5 high, brief `docs/gate3/brief-probe.md`. (b) `scale` round 3, light and graded flashes: Opus 5.5 high, brief `docs/gate3/brief-scale-r3.md`. It stops at a key-frame checkpoint; the lead looks, then sends it on to the full pass. Then a blind review against P(doom) (R42, R83): `app/scripts/blind-pairs.sh`, or the strips method in the ledger, using `out/gate3/kinetic/ref/pd-strip.png`; then the client sees the clips.
+2. **Merge:** the probe adds one call site in `scale`; check that both changes land together, then lint `scale` with the probe.3. **Lyric-led prototypes on `uv` (the reveal-by-light case) and `chart` (a light plate)**, with a key-frame checkpoint (set, light, materials, type card at 4-6 key frames) reviewed before each full-window build (R73). Fill their type cards first.
 4. Write the transitions table and the energy map (R87) before fan-out.
 5. Then fan out to the other plates on briefs that cite rule IDs; gate 4 items are in `BACKLOG.md`.
 
