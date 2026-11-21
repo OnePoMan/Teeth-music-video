@@ -8,9 +8,10 @@
 import { GLSL_TEETH_PALETTE } from '../palette';
 import { SS_TAP_GLSL, W, H } from '../../engine/gl';
 import { PATCH } from './scale-bite';
-import { glslKinSDF } from '../kinetic';
 
 const f = (x: number) => x.toFixed(4);
+/** The line's letters and words (most per line): uniform array sizes shared with scale.ts. */
+export const LN_G = 40, LN_W = 10;
 
 /** Layout shared with scale.ts. */
 export const LAY = {
@@ -31,11 +32,14 @@ ${SS_TAP_GLSL}
 uniform vec3 camPos, camR, camU, camF; uniform float tanH;
 uniform vec3 keyPos, keyDir; uniform float keyI, keyRad, keyCone;
 uniform vec3 fillDir; uniform float fillI;
-uniform sampler2D wordTex, word2Tex, labelTex, digitTex;
-uniform float wordWax, coatK;
-uniform vec3 W2C, W2N, W2U, W2T;      // the small supporting word: centre on the skin below the bite, normal, up
+uniform sampler2D lineTex, labelTex, digitTex;
+uniform float coatK;
+uniform vec2 aYaw;                // the apple's turn on its stand (cos, sin): the world -> the apple's rest frame
+// the line bitten along a band round the apple (rest frame): band = (azimuth of s = 0, the band's middle over the
+// apple's centre, the arc radius, half height searched); lineRect = the baked patch (s0, h0, 1/w, 1/h)
+uniform vec4 band, lineRect;
+uniform vec4 lnA[${LN_G}], lnB[${LN_G}], lnC[${LN_G}], lnW[${LN_W}]; uniform int lnNW; uniform vec2 lnS;
 uniform vec3 BC, BN, BT, BU;      // the bite: centre on the skin, normal, tangent (photo X), up in its plane (photo Y)
-uniform vec3 WC, WN, WT;          // the word: centre on the skin, normal, tangent
 uniform vec3 SO, SN, SU, SV;      // the scale: outer corner, face normal, along the foot, up the upright (in the bite's plane)
 uniform vec4 POST[2];             // its black posts: x, z, top y, half size
 uniform vec4 upT[6]; uniform vec4 loT[6];   // tooth spans along the bite: x0, x1, depth, n
@@ -67,6 +71,8 @@ vec2 opU(vec2 a, vec2 b) { return a.x < b.x ? a : b; }
 float sdEll(vec3 p, vec3 r) { float k0 = length(p / r), k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / max(k1, 1e-6); }
 
 // ---------------------------------------------------------------- the apple
+/** A world point in the apple's rest frame (the apple turns on its stand about the vertical through its centre). */
+vec3 restP(vec3 p) { vec3 q = p - AC; return AC + vec3(aYaw.x * q.x - aYaw.y * q.z, q.y, aYaw.y * q.x + aYaw.x * q.z); }
 vec3 toApple(vec3 p) { vec3 q = p - AC; float c = cos(AROT), s = sin(AROT); return vec3(c * q.x + s * q.y, -s * q.x + c * q.y, q.z); }
 /** The skin's angle about the stem, its seam turned to the apple's back (no camera sees it). */
 float sPhi(vec3 q) { const float th = 4.47; float c = cos(th), s = sin(th); return atan(q.x * s + q.z * c, q.x * c - q.z * s); }
@@ -106,9 +112,35 @@ float teethCut(float X, bool upper) {
   return g;
 }
 
-${glslKinSDF('kinHero', 'kw', 'wordTex', 'PATCHR')}
-${glslKinSDF('kinSupp', 'k2', 'word2Tex', 'PATCHR')}
-float gCut = 1e3, gWord = 0.0, gWordAmt = 0.0;
+float gCut = 1e3, gWord = 0.0, gWordAmt = 0.0, gWax = 0.0, gK = 1.0, gDep = 0.0;
+/** The line's signed distance at band point X (s, h), mm: every letter posed by the kinetic kit (kinetic.ts packKin:
+ *  A = rest s, posed s, posed h, rotation; B = sx, sy, presence, thin; C = half advance, half cap, rest h, depth (+10:
+ *  wax)), read through its inverse pose from the baked line; words first (lnW: posed s extent, first and end letter)
+ *  so only the letters of the word under X are visited. Outputs the nearest letter's presence, thinness, wax, size
+ *  (half cap / 6.5 mm) and bite depth. */
+float lineSDF(vec2 X, out float on, out float thin) {
+  float best = 6.0; on = 0.0; thin = 0.0;
+  for (int w = 0; w < ${LN_W}; w++) {
+    if (w >= lnNW) break;
+    vec4 W = lnW[w];
+    if (X.x < W.x || X.x > W.y) continue;
+    int g1 = int(W.w);
+    for (int i = int(W.z); i < g1; i++) {
+      vec4 A = lnA[i], B = lnB[i], C = lnC[i];
+      if (B.z <= 0.001) continue;
+      vec2 d = X - A.yz;
+      float rr = (C.x + C.y) * max(B.x, B.y) + 1.5;
+      if (dot(d, d) > rr * rr) continue;
+      float c = cos(A.w), s = sin(A.w);
+      d = vec2(c * d.x + s * d.y, -s * d.x + c * d.y) / B.xy;
+      float ex = abs(d.x) - C.x;
+      vec2 R = vec2(A.x + clamp(d.x, -C.x, C.x), C.z + d.y);
+      float v = max(textureLod(lineTex, (R - lineRect.xy) * lineRect.zw, 0.0).r, ex + 0.3) * min(B.x, B.y);
+      if (v < best) { best = v; on = B.z; thin = B.w; gWax = step(10.0, C.w); gDep = mod(C.w, 10.0); gK = C.y / 6.5; }
+    }
+  }
+  return best;
+}
 /** The bite taken out: the scoop's signed distance (negative inside the removed volume). */
 float scoop(vec3 p) {
   vec3 d = p - BC - BN * SCZ;
@@ -135,33 +167,33 @@ float wordDepth(vec2 X) {
   // the hero, posed per letter by the kinetic kit (kinetic.ts): each letter springs, stretches, stamps and leans on
   // the skin; on = its bite's depth (overshooting as the jaw presses in), thin = the light weight it springs up in
   // (strokes eroded ~0.6 mm) before it snaps heavy
+  // (the tooth marks are his size whatever the letter's: only their depth into a small letter's stroke scales)
   float on, thin;
-  float wd = kinHero(X, on, thin) + 0.62 * thin;
+  float wd = lineSDF(X, on, thin);
+  if (wd > 1.6) { gWord = wd; return 0.0; }
+  float k = gK, ka = min(1.0, 1.2 * k);
+  wd += 0.62 * thin * ka;
   gWordAmt = on;
   // the bitten edge: the outline scalloped at tooth width (~1.6 mm), torn
-  float edge = smoothstep(-0.9, 0.2, wd);
-  wd -= edge * 0.22 * (0.5 + 0.5 * sin(dot(X, vec2(3.9, 0.6)) + 2.0 * snoise(X * 0.6)));
-  float tn = 0.06 * snoise(X * 2.2) + 0.03 * snoise(X * 7.0);
+  float edge = smoothstep(-0.9 * ka, 0.2 * ka, wd);
+  wd -= edge * 0.22 * ka * (0.5 + 0.5 * sin(dot(X, vec2(3.9, 0.6)) + 2.0 * snoise(X * 0.6)));
+  float tn = (0.06 * snoise(X * 2.2) + 0.03 * snoise(X * 7.0)) * ka;
   float s = wd + tn;
   gWord = s;
-  return 2.3 * smoothstep(0.3, -0.5, s) * (0.65 + 0.35 * sqrt(sat(-s / 0.8))) * on;
+  return gDep * smoothstep(0.3 * ka, -0.5 * ka, s) * (0.65 + 0.35 * sqrt(sat(-s / (0.8 * ka)))) * min(on, 1.3);
 }
 
+/** The apple in its rest frame (p already through restP). */
 float apple(vec3 p) {
   float d = appleBody(p);
   gCut = 1e3; gWord = 9.0; gWordAmt = 0.0;
-  if (kwN > 0 && dot(p - AC, WN) > 16.0) {
-    vec2 X = vec2(dot(p - WC, WT), p.y - WC.y);
-    if (abs(X.x) < 27.0 && abs(X.y) < 18.0 && d < 4.0) d += wordDepth(X);
-  }
-  if (k2N > 0 && dot(p - AC, W2N) > 16.0) {
-    // a supporting word: bitten small and shallow below the bite (the hero words bite deep, elsewhere)
-    vec2 X = vec2(dot(p - W2C, W2T), dot(p - W2C, W2U)) * 1.65;
-    if (abs(X.x) < 27.0 && abs(X.y) < 18.0 && d < 3.0) {
-      float on2, thin2;
-      float wd = kinSupp(X, on2, thin2) * 0.5 + 0.03 * snoise(X * 1.5);
-      if (wd * 2.0 < gWord) { gWord = wd * 2.0; gWordAmt = min(on2, 1.0); }
-      d += 0.9 * smoothstep(0.08, -0.2, wd) * on2;
+  if (lnNW > 0 && d < 4.0) {
+    // the line, bitten along the band: s along the arc from the line's start, h over the band's middle
+    vec3 q = p - AC;
+    float h = q.y - band.y;
+    if (abs(h) < band.w) {
+      float s = band.z * (mod(atan(q.x, q.z) - band.x + 0.6, 6.2831853) - 0.6);
+      if (s > lnS.x && s < lnS.y) d += wordDepth(vec2(s, h));
     }
   }
   if (dot(p - AC, BN) > 4.0) {
@@ -226,12 +258,13 @@ float blockD(vec3 p) {
 
 vec2 map(vec3 p) {
   vec2 r = vec2(p.y - clothH(p.xz), M_CLOTH);
+  vec3 pr = restP(p);
   float ab = length(p - AC) - AR - 6.0;
-  if (ab < r.x) r = opU(r, vec2(apple(p), M_SKIN));
+  if (ab < r.x) r = opU(r, vec2(apple(pr), M_SKIN));
   else r = opU(r, vec2(ab + 3.0, M_SKIN));
-  r = opU(r, vec2(stem(p), M_STEM));
-  float lb = length(toApple(p) - LB - LDIR * 26.0) - 30.0;
-  r = opU(r, vec2(lb < r.x ? leaf(p) * 0.6 : lb + 2.0, M_LEAF));
+  r = opU(r, vec2(stem(pr), M_STEM));
+  float lb = length(toApple(pr) - LB - LDIR * 26.0) - 30.0;
+  r = opU(r, vec2(lb < r.x ? leaf(pr) * 0.6 : lb + 2.0, M_LEAF));
   r = opU(r, vec2(scaleD(p), M_SCALE));
   r = opU(r, vec2(blockD(p), M_BLOCK));
   return r;
@@ -245,8 +278,8 @@ vec3 calcN(vec3 p, float e) {
 
 float stepK(vec3 p) {
   vec3 q = p - AC;
-  if (dot(q, WN) > 14.0 && abs(q.y) < 26.0) return 0.32;
-  if (length(p - BC) < 32.0) return 0.45;
+  if (lnNW > 0 && abs(q.y - band.y) < band.w + 1.0 && dot(q.xz, q.xz) > 400.0) return 0.36;
+  if (length(restP(p) - BC) < 32.0) return 0.45;
   if (q.y > 20.0 && length(q.xz) < 16.0) return 0.55;
   return 0.85;
 }
@@ -344,9 +377,10 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   float eN = clamp(0.0006 * t, 0.012, 0.4);
   vec3 N = calcN(P, eN);
   vec3 V = -rd;
-  float body0 = appleBody(P);
-  float dA = apple(P);
-  float cut = gCut, ws = gWord, wAmt = gWordAmt;
+  vec3 PR = restP(P);
+  float body0 = appleBody(PR);
+  float dA = apple(PR);
+  float cut = gCut, ws = gWord, wAmt = gWordAmt, wWax = gWax;
   vec3 L = keyPos - P; float lD = length(L); L /= lD;
   vec3 jit = (hash33(vec3(FRAG_PX * 0.73, tap * 3.1)) - 0.5) * keyRad * 0.6;
   vec3 Ls = normalize(keyPos + jit - P);
@@ -357,14 +391,15 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   vec3 alb = T_SILVER; float rough = 0.5, f0 = 0.04, wrap = 0.0, sheen = 0.0, coat = 0.0;
   float fleshK = 0.0, waxK = 0.0; vec3 fleshC = vec3(0.0);
   if (m == M_SKIN) {
-    vec3 q = toApple(P);
+    vec3 q = toApple(PR);
     float hN = q.y / AH, phi = sPhi(q), cr = length(q.xz);
     float az = atan(q.x, q.z);
     // the skin: a golden apple in dental-stone yellow (a Golden Delicious): the stone ground, greener toward the stem
     // (stone pulled toward silver), a soft mottle, russet freckles and lenticels (darker, warmer shades of stone), one
     // faint wax blush on the cheek away from the bite and the word; a thin waxy coat that takes the flash
-    float mot = fbm(vec2(phi * 1.6, hN * 1.8) + 4.0, 3);
-    float k = 0.37 * (1.0 + 0.09 * mot + 0.04 * snoise(vec2(phi * 16.0, hN * 1.4)));
+    // (the apple turns on its stand, so every side is seen: the skin is seamless all the way round)
+    float mot = fbm(q * 0.041 + 4.0, 3);
+    float k = 0.37 * (1.0 + 0.09 * mot + 0.04 * snoise(vec3(q.x * 0.41, hN * 1.4, q.z * 0.41)));
     vec3 base = mix(T_STONE, T_STONE * T_STONE / 0.807, 0.12 + 0.14 * smoothstep(0.2, -0.6, hN));
     base = mix(base, STONE_G, sat(smoothstep(0.3, 0.92, hN) * 0.75 + 0.1 * sat(0.4 - mot) + 0.08 * smoothstep(-0.4, -0.95, hN)));
     float dAz = mod(az - 2.0 + PI, 2.0 * PI) - PI;
@@ -372,13 +407,17 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     base = mix(base, BLUSH, 0.32 * cheek);
     alb = base * k;
     // freckles: sparse russet dots (~4 mm cells)
-    vec2 fc = vec2(phi * AR, q.y) / 4.3;
-    vec2 fi = floor(fc), ff = fract(fc) - 0.5 - (hash22(fi + 21.0) - 0.5) * 0.6;
+    // (cells round the apple: a whole number of them, so the last meets the first)
+    float u01 = phi / 6.2831853 + 0.5;
+    vec2 fc = vec2(u01 * 57.0, q.y / 4.3);
+    vec2 fi = floor(fc); fi.x = mod(fi.x, 57.0);
+    vec2 ff = fract(fc) - 0.5 - (hash22(fi + 21.0) - 0.5) * 0.6;
     float frk = (1.0 - smoothstep(0.015, 0.05, length(ff))) * step(0.7, hash12(fi + 9.0));
     alb = mix(alb, RUSS * k * 0.9, frk * 0.4);
     // lenticels: small russet points with a paler ring (~1.9 mm cells)
-    vec2 sc = vec2(phi * AR, q.y) / 1.9;
+    vec2 sc = vec2(u01 * 129.0, q.y / 1.9);
     vec2 ci = floor(sc), cf = fract(sc) - 0.5;
+    ci.x = mod(ci.x, 129.0);
     vec2 jo = (hash22(ci) - 0.5) * 0.6;
     float ang = hash12(ci + 11.0) * 6.2832;
     vec2 dl = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * (cf - jo);
@@ -389,10 +428,10 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     float ring = sat((1.0 - smoothstep(lr, lr * 1.9, length(dl))) * on - len);
     alb = mix(alb, CREAM * k * 1.1, ring * 0.12);
     alb = mix(alb, RUSS * k * 0.75, len * 0.7);
-    rough = 0.5 + 0.05 * snoise(P * 0.4); f0 = 0.03; wrap = 0.2; coat = 0.85;
+    rough = 0.5 + 0.05 * snoise(PR * 0.4); f0 = 0.03; wrap = 0.2; coat = 0.85;
     // (the skin's micro-relief: a fine orange-peel in the wax coat, off the cut flesh)
     float skinOnly = step(0.0, ws) * step(-0.05, body0);
-    vec3 pk = vec3(snoise(P * 1.7), snoise(P * 1.7 + 17.3), snoise(P * 1.7 + 31.1)) * 0.6 + vec3(snoise(P * 4.3 + 5.0), snoise(P * 4.3 + 9.0), snoise(P * 4.3 + 2.0)) * 0.4;
+    vec3 pk = vec3(snoise(PR * 1.7), snoise(PR * 1.7 + 17.3), snoise(PR * 1.7 + 31.1)) * 0.6 + vec3(snoise(PR * 4.3 + 5.0), snoise(PR * 4.3 + 9.0), snoise(PR * 4.3 + 2.0)) * 0.4;
     N = normalize(N + 0.05 * (pk - N * dot(pk, N)) * skinOnly);
     // the stem well: russet netting in the cavity (rougher, warmer, darker)
     float well = smoothstep(0.72, 0.9, hN) * smoothstep(12.0, 4.0, cr);
@@ -404,14 +443,14 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     float inWord = smoothstep(0.1, -0.25, ws) * sat(wAmt);
     float flesh = max(inBite, inWord);
     if (flesh > 0.0) {
-      float gr = 0.6 * snoise(P * 18.0) + 0.4 * snoise(P * 40.0);
+      float gr = 0.6 * snoise(PR * 18.0) + 0.4 * snoise(PR * 40.0);
       float wall = sat(0.5 - 0.5 * gr) * 0.5;
       // pale cream (stone toward lightbox), a little translucent; faint oxidation a millimetre in from the cut skin
       float brown = inBite * (1.0 - smoothstep(-0.4, -2.4, body0)) + inWord * (1.0 - smoothstep(-0.05, -0.6, ws));
       vec3 cream = CREAM * 0.5 * (1.0 - 0.18 * wall);
       vec3 flc = mix(cream, OXID * 0.5, sat(brown) * 0.4);
       // SWEET (the tender word): its bitten flesh takes the wax pink
-      waxK = inWord * wordWax;
+      waxK = inWord * wWax;
       flc = mix(flc, T_WAX * 0.78, waxK);
       alb = mix(alb, flc, flesh);
       rough = mix(rough, 0.55 + 0.15 * wall, flesh); f0 = mix(f0, 0.025, flesh); wrap = mix(wrap, 0.3, flesh); coat *= 1.0 - flesh;
@@ -423,14 +462,14 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
       rough = mix(rough, 0.85, star); coat *= 1.0 - star;
     }
   } else if (m == M_STEM) {
-    vec3 q = toApple(P);
+    vec3 q = toApple(PR);
     alb = mix(T_STONE * 0.09, T_FILM2, 0.3) * (0.75 + 0.35 * snoise(vec3(q.x * 3.0, q.y * 0.6, q.z * 3.0)));
     alb = mix(alb, gmix(T_SILVER, T_STONE, 0.4) * 0.3, smoothstep(42.0, 45.0, q.y));
     rough = 0.6;
   } else if (m == M_LEAF) {
     // a leaf: a cold green-grey (between silver and stone), darker than the skin, a waxy upper face, its midrib and
     // veins lighter
-    vec3 l = leafL(P);
+    vec3 l = leafL(PR);
     float x = l.x - 6.0;
     float rib = 1.0 - smoothstep(0.25, 0.6, abs(l.y));
     float vu = abs(l.y) * 1.4 - x * 0.55;

@@ -173,8 +173,8 @@ export function bakeWord(word: string, serif = false, minW = 0): { tex: THREE.Da
 
 /** Euclidean distance transform (Felzenszwalb–Huttenlocher), in pixels: distance from each pixel to the nearest pixel
  *  whose mask value equals `target`. */
-function edt(mask: Uint8Array, target: number): Float32Array {
-  const W = PATCH_W, H = PATCH_H, INF = 1e12;
+function edt(mask: Uint8Array, target: number, W = PATCH_W, H = PATCH_H): Float32Array {
+  const INF = 1e12;
   const f = new Float64Array(Math.max(W, H)), d = new Float64Array(Math.max(W, H));
   const v = new Int32Array(Math.max(W, H)), z = new Float64Array(Math.max(W, H) + 1);
   const g = new Float64Array(W * H);
@@ -196,4 +196,148 @@ function edt(mask: Uint8Array, target: number): Float32Array {
   const out = new Float32Array(W * H);
   for (let k = 0; k < W * H; k++) out[k] = Math.sqrt(g[k]!);
   return out;
+}
+
+// ================================================================================================== a line along a band
+/** One word of a line bitten along the band round the apple: its cap height (mm), Cormorant (SWEET), his chip (in the
+ *  letter over #8's position), pre-condensed (NEVER's repeats). */
+export interface BandWord { text: string; cap: number; serif?: boolean; chip?: boolean; condense?: number }
+export interface BandLine {
+  tex: THREE.DataTexture;
+  /** the patch for the shader: s0, h0, 1 / (s1 - s0), 1 / (h1 - h0) (mm) */
+  rect: [number, number, number, number];
+  /** per word: its letters' cells along the band (centre s and advance, mm), its extent, centre and cap height */
+  words: { cells: { cx: number; adv: number }[]; x0: number; x1: number; cx: number; cap: number }[];
+  /** the band's length (mm) and half height */
+  len: number; half: number;
+}
+
+/**
+ * A whole lyric line bitten along a band (s = arc length, mm, h = height over the band's middle): every word's
+ * letters baked once into one signed distance field (negative inside), each stroke a chain of tooth-width scallop
+ * bites as in bakeWord, the pitch scaled with each word's size. The kinetic kit then poses every letter on it.
+ */
+export function bakeLine(words: BandWord[]): BandLine {
+  const meas = document.createElement('canvas').getContext('2d')!;
+  const lay = words.map((w) => {
+    const chars = Array.from(w.serif ? w.text.toLowerCase() : w.text.toUpperCase());
+    const fam = w.serif ? F.serif(600, true) : F.archivo(62, 900);
+    const em = w.cap / 0.72, c = w.condense ?? 1;
+    meas.font = font(fam, 100);
+    const adv = chars.map((ch) => (meas.measureText(ch).width / 100) * em * c);
+    const track = 0.09 * w.cap;
+    const width = adv.reduce((a, b) => a + b, 0) + track * (chars.length - 1);
+    return { w, chars, fam, em, c, adv, track, width, x0: 0 };
+  });
+  const M = 4;
+  let s = M;
+  lay.forEach((l, i) => {
+    if (i > 0) s += 0.3 * Math.max(l.em, lay[i - 1]!.em);
+    l.x0 = s;
+    s += l.width;
+  });
+  const len = s + M;
+  const half = Math.max(...words.map((w) => w.cap)) * 0.5 + 3;
+  const ppm = Math.min(20, 4000 / len);
+  const PW = Math.ceil(len * ppm), PH = Math.ceil(2 * half * ppm);
+  const cv = document.createElement('canvas');
+  cv.width = PW; cv.height = PH;
+  const c = cv.getContext('2d', { willReadFrequently: true })!;
+  c.fillStyle = '#fff';
+  c.textAlign = 'center';
+  c.textBaseline = 'alphabetic';
+  const out: BandLine['words'] = [];
+  const glyphBox: { i0: number; i1: number; cap: number }[] = [];
+  const colCap = new Float32Array(PW).fill(words[0]?.cap ?? 9);
+  for (const l of lay) {
+    const cells: { cx: number; adv: number }[] = [];
+    let x = l.x0;
+    // the letter over #8's position (his chip): ~4.2 mm right of the word's middle at round 1's size, scaled
+    const mid = l.x0 + l.width / 2;
+    let chipI = -1;
+    if (l.w.chip && !l.w.serif) {
+      let best = Infinity;
+      let xx = l.x0;
+      l.adv.forEach((a, i) => { const cx = xx + a / 2; const dd = Math.abs(cx - (mid + (4.22 * l.w.cap) / 9)); if (dd < best) { best = dd; chipI = i; } xx += a + l.track; });
+    }
+    const baseH = l.w.serif ? -0.3 * l.w.cap : -l.w.cap / 2;
+    l.chars.forEach((ch, i) => {
+      const a = l.adv[i]!, cx = x + a / 2;
+      cells.push({ cx, adv: a + l.track });
+      c.save();
+      c.font = font(l.fam, l.em * ppm);
+      c.translate(cx * ppm, (half - baseH) * ppm);
+      c.scale(l.c, 1);
+      c.fillText(ch, 0, 0);
+      if (i === chipI) {
+        // the kit's chip: a small diagonal break off the mesial-incisal corner (an unbitten wedge)
+        const mt = c.measureText(ch);
+        const L = -mt.actualBoundingBoxLeft, R = mt.actualBoundingBoxRight, T = -l.w.cap * ppm, capPx = l.w.cap * ppm, wpx = R - L;
+        c.globalCompositeOperation = 'destination-out';
+        c.beginPath();
+        c.moveTo(L - 4, T - 4); c.lineTo(L + 0.17 * wpx, T - 4); c.lineTo(L + 0.17 * wpx, T); c.lineTo(L, T + 0.13 * capPx); c.lineTo(L - 4, T + 0.13 * capPx);
+        c.closePath(); c.fill();
+        c.globalCompositeOperation = 'source-over';
+      }
+      c.restore();
+      glyphBox.push({ i0: Math.max(0, Math.floor((x - 0.3) * ppm)), i1: Math.min(PW - 1, Math.ceil((x + a + 0.3) * ppm)), cap: l.w.cap });
+      x += a + l.track;
+    });
+    for (let i = Math.max(0, Math.floor((l.x0 - 2) * ppm)); i < Math.min(PW, Math.ceil((l.x0 + l.width + 2) * ppm)); i++) colCap[i] = l.w.cap;
+    out.push({ cells, x0: l.x0, x1: l.x0 + l.width, cx: mid, cap: l.w.cap });
+  }
+  const img = c.getImageData(0, 0, PW, PH).data;
+  const inMask = new Uint8Array(PW * PH);
+  for (let k = 0; k < PW * PH; k++) inMask[k] = img[k * 4 + 3]! > 127 ? 1 : 0;
+  const dOut = edt(inMask, 1, PW, PH), dIn = edt(inMask, 0, PW, PH);
+  // the scallop bites, per letter (each its own stroke width and pitch)
+  const discs: number[] = [];
+  for (const g of glyphBox) {
+    let hw = 0;
+    for (let j = 0; j < PH; j++) for (let i = g.i0; i <= g.i1; i++) if (inMask[j * PW + i]) hw = Math.max(hw, dIn[j * PW + i]!);
+    hw /= ppm;
+    const pitch = (WORD.pitch * g.cap) / 9;
+    for (let row = 0, y = 0; y < PH; row++, y += pitch * 0.866 * ppm) {
+      for (let x = g.i0 + (row % 2) * pitch * 0.5 * ppm; x <= g.i1; x += pitch * ppm) {
+        const ci = Math.round(x), cj = Math.round(y);
+        if (ci < 0 || cj < 0 || ci >= PW || cj >= PH) continue;
+        const r = dIn[cj * PW + ci]! / ppm;
+        if (r > 0.72 * hw) discs.push(ci / ppm, cj / ppm, r + (0.12 * g.cap) / 9);
+      }
+    }
+  }
+  const CELL = 2.5, buckets = new Map<number, number[]>();
+  const key = (a: number, b: number) => a * 4096 + b;
+  for (let k = 0; k < discs.length; k += 3) {
+    const kk = key(Math.floor(discs[k]! / CELL), Math.floor(discs[k + 1]! / CELL));
+    let l = buckets.get(kk);
+    if (!l) buckets.set(kk, (l = []));
+    l.push(k);
+  }
+  // texture rows run bottom-up (row 0 = h0); the mask's rows top-down
+  const data = new Float32Array(PW * PH);
+  for (let j = 0; j < PH; j++) {
+    const mj = PH - 1 - j, py = (mj + 0.5) / ppm;
+    for (let i = 0; i < PW; i++) {
+      const idx = mj * PW + i, k9 = colCap[i]! / 9;
+      const sLetter = (dOut[idx]! - dIn[idx]!) / ppm;
+      if (sLetter > 1.5 * k9) { data[j * PW + i] = Math.min(FAR, sLetter); continue; }
+      const px = (i + 0.5) / ppm, bx = Math.floor(px / CELL), by = Math.floor(py / CELL);
+      let sd = FAR;
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+        const list = buckets.get(key(bx + a, by + b));
+        if (!list) continue;
+        for (const k of list) sd = Math.min(sd, Math.hypot(px - discs[k]!, py - discs[k + 1]!) - discs[k + 2]!);
+      }
+      data[j * PW + i] = Math.max(sLetter - 0.08 * k9, Math.min(sd, sLetter + 0.22 * k9));
+    }
+  }
+  const h = new Uint16Array(data.length);
+  for (let k = 0; k < data.length; k++) h[k] = THREE.DataUtils.toHalfFloat(data[k]!);
+  const tex = new THREE.DataTexture(h, PW, PH, THREE.RedFormat, THREE.HalfFloatType);
+  tex.minFilter = tex.magFilter = THREE.LinearFilter;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return { tex, rect: [0, -half, 1 / (PW / ppm), 1 / (PH / ppm)], words: out, len, half };
 }

@@ -38,6 +38,22 @@
 //  Units are whatever the word was built in (px for a layer, mm on a surface). Pose y is DOWN (canvas); packKin flips
 //  it for y-up surfaces.
 //
+// ---------------------------------------------------------------------------------------------- LYRIC-LED CAMERA
+// docs/TEETH2.md "Lyric-led camera" (binding): the line is the subject of its shot and the camera follows the words,
+// ONE continuous move per line (no cuts or reframes inside it), easing into the beats; the beat is an impact inside
+// the shot (flash, nudge, stamp), never a new shot. The kit's helper for it:
+//   const path = LyricPath.fromWords(line.words, (w, i) => [sAlong(w), dist(i)], { clk, lead: 0.06 }, [startKey, holdKey]);
+//   const [s, d] = path.at(t);   // where the camera looks along the line, and how far it stands, at song time t
+//   const cam = new LyricCam([{ t, target: [x, y, z], pos: [x, y, z], roll, fov }, ...], { clk }); cam.at(t)
+// * Keys are the words' positions at their onsets (any numbers: an arc length along a band, a world point, a distance,
+//   an angle), shifted `lead` s earlier so the camera is on the word as it lands.
+// * Between keys: a monotone cubic per component (Fritsch-Carlson): it never overshoots a key, so a component whose
+//   keys move one way moves one way (no direction reversals, no snapping between framings).
+// * The time is warped so the move eases INTO each beat (`settle`, the pace dips on the beat) and further into each
+//   downbeat (`down`), with a continuous velocity: the move breathes with the stomp but never stops or jerks. Beats stay
+//   on their beats (the warp is the identity at every beat), so a key on a beat is met exactly then.
+// * Before the first key and after the last the path holds. Give each line its own path; cut only between lines.
+//
 // ---------------------------------------------------------------------------------------------- THE TEETH HOOK
 // TEETH, in each "...got teeth" line, is ONE recurring full-frame slam whose look escalates on every return (P(doom)'s
 // hook idiom). The slam is always flat palette fills in Archivo 900, no outlines or halos, taking the plate's post.
@@ -488,4 +504,90 @@ float ${fn}(vec2 X, out float on, out float thin) {
   }
   return best;
 }`;
+}
+
+// ================================================================================================== lyric-led camera
+/** One key of a lyric path: at song time t the path passes through v (a word's place along its line, a camera's
+ *  distance, an angle, a world point: any numbers, the same count in every key). */
+export interface PathKey { t: number; v: number[] }
+export interface PathOpts {
+  /** The clock whose beats the move eases into (none: plain time, no easing). */
+  clk?: KinClock;
+  /** How much the pace dips into every beat (0 = even, 0.9 = nearly stops). Default 0.3. */
+  settle?: number;
+  /** A further dip into every downbeat (the bar's first beat). Default 0.2. settle + down must stay below 1. */
+  down?: number;
+  /** Keys made by fromWords land this long before their word's onset (s), so the camera is there as it lands. */
+  lead?: number;
+}
+
+/** A continuous move through keyed positions, eased into the beats (see LYRIC-LED CAMERA in the header). */
+export class LyricPath {
+  private k: PathKey[];
+  private m: number[][] = [];
+  constructor(keys: PathKey[], public o: PathOpts = {}) {
+    this.k = keys.slice().sort((a, b) => a.t - b.t).filter((x, i, a) => i === 0 || x.t > a[i - 1]!.t + 1e-6);
+    // Fritsch-Carlson tangents per component: monotone between keys, no overshoot
+    const n = this.k.length, dim = this.k[0]?.v.length ?? 0;
+    for (let i = 0; i < n; i++) this.m.push(new Array(dim).fill(0));
+    for (let c = 0; c < dim; c++) {
+      const d: number[] = [];
+      for (let i = 0; i + 1 < n; i++) d.push((this.k[i + 1]!.v[c]! - this.k[i]!.v[c]!) / (this.k[i + 1]!.t - this.k[i]!.t));
+      for (let i = 0; i < n; i++) {
+        const a = d[i - 1], b = d[i];
+        let m = a === undefined ? (b ?? 0) : b === undefined ? a : a * b <= 0 ? 0 : (a + b) / 2;
+        if (a !== undefined && b !== undefined && a * b > 0) {
+          // limit so the cubic stays monotone (alpha^2 + beta^2 <= 9)
+          const al = m / a, be = m / b, s = al * al + be * be;
+          if (s > 9) m *= 3 / Math.sqrt(s);
+        } else if (a === undefined || b === undefined) m = 0; // ease out of the first key and into the last
+        this.m[i]![c] = m;
+      }
+    }
+  }
+  /** Keys at each word's onset (minus `lead`), plus any extra keys (a start before the first word, a hold after). */
+  static fromWords<W extends { start: number }>(words: W[], place: (w: W, i: number) => number[], o: PathOpts = {}, extra: PathKey[] = []) {
+    const lead = o.lead ?? 0;
+    return new LyricPath([...extra, ...words.map((w, i) => ({ t: w.start - lead, v: place(w, i) }))], o);
+  }
+  /** Song time warped so the pace dips into each beat (and further into each downbeat); identity on every beat. */
+  warp(t: number) {
+    const clk = this.o.clk;
+    if (!clk) return t;
+    const settle = this.o.settle ?? 0.3, down = this.o.down ?? 0.2, TAU = Math.PI * 2;
+    const b = clk.beat(t);
+    let b1 = b - (settle / TAU) * Math.sin(TAU * b);
+    if (down > 0) {
+      const i = Math.floor(b1 + 1e-6), x = (clk.inBar(i) + (b1 - i)) / 4;
+      b1 += (4 * -down / TAU) * Math.sin(TAU * x);
+    }
+    return clk.beatTime(b1);
+  }
+  /** The path at song time t. */
+  at(t: number): number[] {
+    const k = this.k, n = k.length;
+    if (!n) return [];
+    const tw = this.warp(t);
+    if (tw <= k[0]!.t) return k[0]!.v.slice();
+    if (tw >= k[n - 1]!.t) return k[n - 1]!.v.slice();
+    let i = 0;
+    while (i + 2 < n && tw >= k[i + 1]!.t) i++;
+    const a = k[i]!, b = k[i + 1]!, h = b.t - a.t, u = (tw - a.t) / h;
+    const h00 = (1 + 2 * u) * (1 - u) * (1 - u), h10 = u * (1 - u) * (1 - u), h01 = u * u * (3 - 2 * u), h11 = u * u * (u - 1);
+    return a.v.map((va, c) => h00 * va + h10 * h * this.m[i]![c]! + h01 * b.v[c]! + h11 * h * this.m[i + 1]![c]!);
+  }
+}
+
+/** A camera key: where it looks, where it stands, its roll (rad) and vertical fov (deg). */
+export interface CamKey { t: number; target: [number, number, number]; pos: [number, number, number]; roll?: number; fov?: number }
+/** A lyric-led camera: target, position, roll and fov through keys as one LyricPath (eased into the beats). */
+export class LyricCam {
+  private p: LyricPath;
+  constructor(keys: CamKey[], o: PathOpts = {}) {
+    this.p = new LyricPath(keys.map((x) => ({ t: x.t, v: [...x.target, ...x.pos, x.roll ?? 0, x.fov ?? 27] })), o);
+  }
+  at(t: number) {
+    const v = this.p.at(t);
+    return { target: [v[0]!, v[1]!, v[2]!] as [number, number, number], pos: [v[3]!, v[4]!, v[5]!] as [number, number, number], roll: v[6]!, fov: v[7]! };
+  }
 }
