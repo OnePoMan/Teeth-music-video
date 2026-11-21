@@ -232,7 +232,7 @@ try {
     const dur: number = await page.evaluate(() => (window as any).__pdoom.duration);
     const from = +opt('from', '0')!, to = +opt('to', String(dur))!;
     process.exitCode = await lint(page, {
-      from, to, fps: +opt('fps', '30')!, draw: flag('draw'), strict: flag('strict'),
+      from, to, fps: +opt('fps', '30')!, draw: flag('draw'), strict: flag('strict'), song: SONG,
       lyrics: path.join(ROOT, `data/${SONG}/lyrics.json`),
       out: path.resolve(opt('out', path.join(ROOT, `out/lint/${from}-${to}.json`))!),
     });

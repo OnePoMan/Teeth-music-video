@@ -55,25 +55,27 @@
 // * Before the first key and after the last the path holds. Give each line its own path; cut only between lines.
 //
 // ---------------------------------------------------------------------------------------------- THE TEETH HOOK
-// TEETH, in each "...got teeth" line, is ONE recurring full-frame slam whose look escalates on every return (P(doom)'s
-// hook idiom). The slam is always flat palette fills in Archivo 900, no outlines or halos, taking the plate's post.
-//   1. scale 54.66 (chorus 1a), the statement: TEETH is first bitten into the apple on its onset (stamp + shake, the
-//      approved 55.00 still); on the next beat (55.20) it slams full-frame: film-black Archivo 62/900 stretched tall on
-//      a stone-yellow field, 2 inverted punch frames, stamp 1.3 -> 1, stretch on the kick; on the 8th note a scalloped
-//      bite (his arch, #8's chip a flat notch) BREAKS a piece out of the word and it flies off; the next flash
-//      (55.63) cuts back to the apple. Clean, one slam, one break.
-//   2. uv 68.47 (chorus 1b): two slams, on the onset and on the next beat: fluor letters on film, the second a
-//      condensed copy stamped over the first (pressure x2); the beam's sweep is the break line (a straight wipe edge).
-//   3. pour 109.91 (chorus 2a): film letters slam onto the wet stone field and the table's shake re-stamps them on
-//      every 8th of the hold (stretch kick / condense snare); the break is a crack in stone, pieces staying put.
-//   4. articulator 123.72 (chorus 2b): TEETH split along the occlusal line into an upper and a lower half that slam
-//      shut on the word (break inverted: the halves arrive), film on studio-card white; frame shake doubled.
-//   5. acetate 151.35 (chorus 3a, stripped): the breakdown, no slam: hairline weight 300, small, tracked wide, lots of
-//      black, a slow lean; it is traced, not stamped (P(doom)'s hook 3).
-//   6. match 165.16 (chorus 3b), maximal: the first red. Match-red TEETH re-slams on every 8th of its hold, each a
-//      condensed copy packing the frame (pressure on the kicks), max shake, until the copies lock onto the red outline.
-//   7. filed 175.66 / 179.06 / 182.08 (outro), falling: three slams, each heavier and held longer, set huge across
-//      his exhibits as they swing past; the red drains; the last one holds and does not exit.
+// SUPERSEDED here: the hook plan (TEETH as one recurring full-frame slam that escalates on each return, plate by plate)
+// lives in docs/teeth2/TYPE.md section 8, with the 2026-11-21 lead call applied. A slam is flat palette fills in
+// Archivo 900, no outlines or halos, taking the plate's grain and motion blur and no halation (R24).
+//
+// ---------------------------------------------------------------------------------------------- THE TYPE PROBE
+// (for plate builders) The frame checker (app/scripts/lint.ts, Teeth mode) cannot see type painted into canvases or baked
+// into SDFs, so the kit REPORTS what it draws. It is off in a normal render (one global check); lint switches it on.
+// Per word and frame the kit records {text, role, lyric onset (+ line/k when known), box in OUTPUT px, cap height px,
+// alpha, glyph range, lit, scene}. How a plate feeds it:
+//  * drawKin(c, kw, P, x, base, { fill, tag })      2D: recorded automatically. tag = { start: word.start, role: 'hero' | 'sup' }
+//    (start is how lint finds the word's line in lyrics.json; line/k may be given instead). The canvas must be a
+//    full-frame Layer2D (16:9, 1920 x k px), or register a map first: kinMapCanvas(canvas, (x, y) => [X, Y] | null).
+//    Any other canvas is recorded as UNMAPPED: lint counts it and checks nothing.
+//  * drawPressure(c, text, rows, x0, tones, { start })   one record per copy (role 'pressure').
+//  * Type on a 3D surface (scale's SDF letters): once per word, after the camera is set,
+//      if (kinProbeOn()) kinRecord3D(kw, P, cap, restCy, (s, h) => [x, y, z, nx, ny, nz], kinCam(pos, fwd, right, up, tanH), { start, role });
+//    `surf` maps surface units (s along the line, h up, as packKin takes them) to a world point (normal optional: a
+//    point facing away from the camera counts as hidden). See scale.ts kinProbe().
+//  * Own sprite drawing (no drawKin, e.g. lightbox)? call kinRecord2D(c, kw, P, x, base, tag) after drawing.
+// Records are made only while drawing: a plate that caches a canvas and skips drawing leaves no record on those frames.
+// The checks (PRESENCE, SMALL, HERO, SAFE, EARLY, CROP) and their numbers are in lint.ts; rules R18-R22, R29, R31-R33.
 import { F, font, measure, layout, ARCHIVO_WIDTHS, ARCHIVO_WEIGHTS } from '../engine/type';
 import type { AudioData } from '../engine/audio';
 import { clamp, ease, lerp, noise1, pulse, springStep } from '../engine/util';
@@ -348,11 +350,18 @@ export interface DrawOpts {
   /** Multiplies every glyph's presence (alpha). */
   alpha?: number;
   brk?: KinBreak;
+  /** What the type probe should know about this word (role, lyric onset, lit): see THE TYPE PROBE. */
+  tag?: KinTag;
 }
 
 /** Draw a posed word at (x, baseline). Each glyph: its pose about its baseline centre, at the Archivo instance nearest
  *  its width/weight, the horizontal scale carrying the continuous width. */
 export function drawKin(c: CanvasRenderingContext2D, kw: KinWord, P: KinPose, x: number, base: number, o: DrawOpts) {
+  const pr = kinProbeOn();
+  if (pr) { pr.draw++; kinRecord2D(c, kw, P, x, base, o.tag, o.alpha ?? 1); }
+  try { drawKin0(c, kw, P, x, base, o); } finally { if (pr) pr.draw--; }
+}
+function drawKin0(c: CanvasRenderingContext2D, kw: KinWord, P: KinPose, x: number, base: number, o: DrawOpts) {
   const one = () => drawGlyphs(c, kw, P, x, base, o);
   const b = o.brk;
   if (!b || b.k <= 0) { one(); return; }
@@ -426,7 +435,8 @@ export function pressureRows(text: string, t: number, t0: number, clk: KinClock,
   return rows;
 }
 /** Draw pressure rows in two alternating flat tones. */
-export function drawPressure(c: CanvasRenderingContext2D, text: string, rows: PressureRow[], x0: number, tones: [string, string]) {
+export function drawPressure(c: CanvasRenderingContext2D, text: string, rows: PressureRow[], x0: number, tones: [string, string], tag?: KinTag) {
+  const pr = kinProbeOn();
   for (const r of rows) {
     c.save();
     c.font = font(archivoAt(r.width, r.weight), r.size);
@@ -434,7 +444,12 @@ export function drawPressure(c: CanvasRenderingContext2D, text: string, rows: Pr
     c.fillStyle = tones[r.tone]!;
     c.translate(x0, r.y);
     c.scale(r.sx, 1);
-    c.fillText(text, 0, 0);
+    if (pr) {
+      // the copy's box in its own frame (origin = baseline start, x scaled by sx): the line's advance by the cap height
+      pr.draw++;
+      kinRecordRect(c, text, { role: 'pressure', ...tag }, [0, -r.size * (tag?.capRatio ?? ARCHIVO_CAP), c.measureText(text).width, 0], c.globalAlpha, Array.from(text).length);
+    }
+    try { c.fillText(text, 0, 0); } finally { if (pr) pr.draw--; }
     c.restore();
   }
 }
@@ -590,4 +605,160 @@ export class LyricCam {
     const v = this.p.at(t);
     return { target: [v[0]!, v[1]!, v[2]!] as [number, number, number], pos: [v[3]!, v[4]!, v[5]!] as [number, number, number], roll: v[6]!, fov: v[7]! };
   }
+}
+
+// ================================================================================================== the type probe
+// See THE TYPE PROBE in the header. Everything below is inert unless lint has installed globalThis.__kin = { on: true, ... }.
+/** The output frame the records are in (logical px; the checker's W x H). */
+const KIN_W = 1920, KIN_H = 1080;
+/** Cap height / em: Archivo; Cormorant italic (lowercase: the height of its tall letters). */
+const ARCHIVO_CAP = 0.686, SERIF_CAP = 0.62;
+
+export type KinRole = 'hero' | 'sup' | 'pressure' | 'unknown';
+/** What a plate tells the probe about a word it draws (all optional; start is how lint finds the word's line). */
+export interface KinTag {
+  /** The lyric word's onset (lyrics.json `start`, s). */
+  start?: number;
+  /** The lyric line (`lines[].i`) and word index in it, when the plate knows them (else lint matches text + start). */
+  line?: number; k?: number;
+  /** hero, sup (supporting) or pressure (copies of a hero). Untagged words are 'unknown': checked for presence, crop and safe only. */
+  role?: KinRole;
+  /** Lit as sung (default true); false for words shown unsung (halide). EARLY checks lit words only. */
+  lit?: boolean;
+  /** Cap height / em when it is not Archivo's 0.686. */
+  capRatio?: number;
+  /** Record this text instead of the word's (a pressure copy of a hero). */
+  text?: string;
+}
+/** One word on one frame (box in output px, y down). */
+export interface KinRec {
+  scene: string; text: string; role: KinRole; start: number; line: number; k: number; lit: boolean;
+  box: [number, number, number, number];
+  /** Cap height on screen (px): the tallest glyph's. */
+  cap: number;
+  /** Presence 0..1: alpha times the most present glyph. */
+  a: number;
+  /** First and last glyph shown, and the glyph count. */
+  g0: number; g1: number; n: number;
+  /** false: drawn into a canvas with no known mapping to the frame (box is in that canvas's px; not checked). */
+  mapped: boolean;
+}
+export interface KinProbeState { on: boolean; scene: string; recs: KinRec[]; /** > 0 while the kit is drawing glyphs (lint's fillText hook ignores them) */ draw: number }
+/** The probe's state when lint has switched it on, else null (one property read: free in a normal render). */
+export function kinProbeOn(): KinProbeState | null {
+  const p = (globalThis as { __kin?: KinProbeState }).__kin;
+  return p && p.on ? p : null;
+}
+
+export type KinMap = (x: number, y: number) => [number, number] | null;
+const canvasMaps = new WeakMap<object, KinMap>();
+/** Declare how a canvas's logical px land in the output frame (a flat texture on a screen, a paper): [X, Y] in frame px,
+ *  or null where it is not visible. Full-frame canvases (16:9, 1920 x k px) need none. */
+export function kinMapCanvas(canvas: object, map: KinMap) { canvasMaps.set(canvas, map); }
+const IDENT: KinMap = (x, y) => [x, y];
+function mapOf(canvas: HTMLCanvasElement): { map: KinMap; mapped: boolean } {
+  const m = canvasMaps.get(canvas);
+  if (m) return { map: m, mapped: true };
+  if (canvas.width * 9 === canvas.height * 16 && canvas.width % KIN_W === 0) return { map: IDENT, mapped: true };
+  return { map: IDENT, mapped: false };
+}
+
+function kinPush(pr: KinProbeState, tag: KinTag | undefined, text: string, box: number[], cap: number, a: number, g0: number, g1: number, n: number, mapped: boolean) {
+  pr.recs.push({
+    scene: pr.scene, text: tag?.text ?? text, role: tag?.role ?? 'unknown', start: tag?.start ?? -1, line: tag?.line ?? -1, k: tag?.k ?? -1,
+    lit: tag?.lit ?? true, box: [box[0]!, box[1]!, box[2]!, box[3]!], cap, a, g0, g1, n, mapped,
+  });
+}
+
+/** Record a posed word drawn with drawKin's geometry at (x, baseline) in context c (drawKin calls this itself). */
+export function kinRecord2D(c: CanvasRenderingContext2D, kw: KinWord, P: KinPose, x: number, base: number, tag?: KinTag, alphaOpt = 1) {
+  const pr = kinProbeOn();
+  if (!pr) return;
+  const { map, mapped } = mapOf(c.canvas);
+  const m = c.getTransform();
+  const h0 = (tag?.capRatio ?? (kw.style.family === 'serif' ? SERIF_CAP : ARCHIVO_CAP)) * kw.style.size;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, cap = 0, on = 0, g0 = -1, g1 = -1;
+  P.glyphs.forEach((p, i) => {
+    const g = kw.glyphs[i]!;
+    if (p.on <= 0.001 || !g.ch.trim()) return;
+    const hw = (g.adv * p.sx) / 2, h = h0 * p.sy, cs = Math.cos(p.rot), sn = Math.sin(p.rot);
+    // glyph-local (lx, ly: y down from the baseline) -> canvas -> frame
+    const pt = (lx: number, ly: number) => {
+      const rx = lx * cs - ly * sn + x + p.cx, ry = lx * sn + ly * cs + base + p.y;
+      return map(m.a * rx + m.c * ry + m.e, m.b * rx + m.d * ry + m.f);
+    };
+    const q = [pt(-hw, -h), pt(hw, -h), pt(hw, 0), pt(-hw, 0)];
+    if (q.some((v) => !v)) return;
+    for (const v of q) { x0 = Math.min(x0, v![0]); x1 = Math.max(x1, v![0]); y0 = Math.min(y0, v![1]); y1 = Math.max(y1, v![1]); }
+    const t = pt(0, -h), b = pt(0, 0);
+    if (t && b) cap = Math.max(cap, Math.hypot(t[0] - b[0], t[1] - b[1]));
+    on = Math.max(on, p.on);
+    if (g0 < 0) g0 = i;
+    g1 = i;
+  });
+  if (g0 < 0) return;
+  kinPush(pr, tag, kw.text, [x0, y0, x1, y1], cap, clamp(c.globalAlpha * alphaOpt * clamp(on * 3)), g0, g1, P.glyphs.length, mapped);
+}
+
+/** Record a text run whose box is `rect` = [x0, y0, x1, y1] in the CURRENT transform of c (y0 the cap top, y1 the baseline). */
+export function kinRecordRect(c: CanvasRenderingContext2D, text: string, tag: KinTag | undefined, rect: number[], alpha: number, n: number) {
+  const pr = kinProbeOn();
+  if (!pr) return;
+  const { map, mapped } = mapOf(c.canvas);
+  const m = c.getTransform();
+  const pt = (lx: number, ly: number) => map(m.a * lx + m.c * ly + m.e, m.b * lx + m.d * ly + m.f);
+  const q = [pt(rect[0]!, rect[1]!), pt(rect[2]!, rect[1]!), pt(rect[2]!, rect[3]!), pt(rect[0]!, rect[3]!)];
+  if (q.some((v) => !v)) return;
+  const xs = q.map((v) => v![0]), ys = q.map((v) => v![1]);
+  const t = pt((rect[0]! + rect[2]!) / 2, rect[1]!), b = pt((rect[0]! + rect[2]!) / 2, rect[3]!);
+  kinPush(pr, tag, text, [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], t && b ? Math.hypot(t[0] - b[0], t[1] - b[1]) : 0, clamp(alpha), 0, n - 1, n, mapped);
+}
+
+// ---- 3D: type on a surface
+export interface KinV3 { x: number; y: number; z: number }
+/** A pinhole camera as the plates' shaders have it: position, forward/right/up unit vectors, tan(vertical fov / 2), aspect. */
+export interface KinCam { pos: KinV3; fwd: KinV3; right: KinV3; up: KinV3; tanH: number; aspect: number }
+export function kinCam(pos: KinV3, fwd: KinV3, right: KinV3, up: KinV3, tanH: number, aspect = KIN_W / KIN_H): KinCam {
+  return { pos, fwd, right, up, tanH, aspect };
+}
+/** World point -> output px [x, y (down), depth]; null at or behind the camera. */
+export function kinProject(cam: KinCam, p: ArrayLike<number>): [number, number, number] | null {
+  const dx = p[0]! - cam.pos.x, dy = p[1]! - cam.pos.y, dz = p[2]! - cam.pos.z;
+  const d = dx * cam.fwd.x + dy * cam.fwd.y + dz * cam.fwd.z;
+  if (d <= 0.05) return null;
+  const X = (dx * cam.right.x + dy * cam.right.y + dz * cam.right.z) / (d * cam.tanH * cam.aspect);
+  const Y = (dx * cam.up.x + dy * cam.up.y + dz * cam.up.z) / (d * cam.tanH);
+  return [(X * 0.5 + 0.5) * KIN_W, (0.5 - Y * 0.5) * KIN_H, d];
+}
+/**
+ * Record a word set on a 3D surface (packKin's convention). `surf(s, h)` maps a surface point (s along the line, h up, in
+ * the word's units) to [x, y, z] in world space, optionally with its outward normal [x, y, z, nx, ny, nz]: a point whose
+ * normal faces away from the camera is hidden. The box is the projection of every posed glyph cell (centre
+ * (cx, restCy - y), size (adv * sx, cap * sy), rotated by -rot), the cap height the on-screen height of the tallest cell.
+ * Not seen: the post pass's zoom and shake (a few px), occlusion by other geometry, depth of field.
+ */
+export function kinRecord3D(kw: KinWord, P: KinPose, cap: number, restCy: number, surf: (s: number, h: number) => number[], cam: KinCam, tag?: KinTag) {
+  const pr = kinProbeOn();
+  if (!pr) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, capPx = 0, on = 0, g0 = -1, g1 = -1;
+  P.glyphs.forEach((p, i) => {
+    const g = kw.glyphs[i]!;
+    if (p.on <= 0.001 || !g.ch.trim()) return;
+    const cx = p.cx, cy = restCy - p.y, hx = (g.adv * p.sx) / 2, hy = (cap * p.sy) / 2, th = -p.rot, cs = Math.cos(th), sn = Math.sin(th);
+    const pt = (lx: number, ly: number) => {
+      const w = surf(cx + lx * cs - ly * sn, cy + lx * sn + ly * cs);
+      if (w.length >= 6 && (cam.pos.x - w[0]!) * w[3]! + (cam.pos.y - w[1]!) * w[4]! + (cam.pos.z - w[2]!) * w[5]! <= 0) return null; // faces away
+      return kinProject(cam, w);
+    };
+    const q = [pt(-hx, hy), pt(hx, hy), pt(hx, -hy), pt(-hx, -hy)];
+    if (q.some((v) => !v)) return;
+    for (const v of q) { x0 = Math.min(x0, v![0]); x1 = Math.max(x1, v![0]); y0 = Math.min(y0, v![1]); y1 = Math.max(y1, v![1]); }
+    const t = pt(0, hy), b = pt(0, -hy);
+    if (t && b) capPx = Math.max(capPx, Math.hypot(t[0] - b[0], t[1] - b[1]));
+    on = Math.max(on, p.on);
+    if (g0 < 0) g0 = i;
+    g1 = i;
+  });
+  if (g0 < 0) return;
+  kinPush(pr, tag, kw.text, [x0, y0, x1, y1], capPx, clamp(on), g0, g1, P.glyphs.length, true);
 }

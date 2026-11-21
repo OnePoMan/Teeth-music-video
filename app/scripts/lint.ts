@@ -22,9 +22,17 @@
 //  - SLOW-RISE: a word not fully up within min(RISE = 0.12 s, its sung length) of its onset, per run that shows it:
 //    fully up = every letter shown and the word's median facing at least RISE_SQUARE (90%) of its best facing with
 //    all letters shown in the first RISE_LOOK (0.5 s) (and not edge-on). Words shown late are left to LATE.
+//
+// TEETH MODE (`--song teeth`): the kit (src/teeth2/kinetic.ts, THE TYPE PROBE) reports every word a plate draws through
+// it (drawKin, drawPressure, kinRecord3D): text, role, box in output px, cap height, presence, glyph range, lit. Those
+// records feed the Teeth checks below (analyseKit): PRESENCE, SMALL, HERO, SAFE, EARLY, CROP, with a summary of the
+// share of sung frames that carry a word of the current line. LINGER is retired (it contradicts R31), MISSING skips
+// words the kit saw, and the fillText hook ignores glyphs the kit draws (no more single-letter BLINK / NO LYRIC hits).
+// A plate with no records says so (NO KIT RECORDS) and is not checked for presence. Rules: docs/teeth2/RULES.md.
 import type { Page } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import type { KinRec } from '../src/teeth2/kinetic';
 
 const W = 1920, H = 1080;
 /** Title-safe margin (logical px), docs/critic-checklist.md item 3. */
@@ -66,8 +74,9 @@ interface LW { id: string; line: number; k: number; w: string; n: string; start:
 type LetterRec = [number, number, number, number, number, number, number, number, number, number[]];
 interface RunRec { ri: number; text: string; wl: number[]; L: LetterRec[] }
 interface Cap { scene: string; stage: string; cam?: number[]; runs: RunRec[]; error?: string }
-/** `texts`: strings drawn with fillText on a 2D canvas during a scene's render (drawPhrase), with their alpha. */
-interface Frame { t: number; scenes: string[]; caps: Cap[]; texts: { scene: string; text: string; a: number }[] }
+/** `texts`: strings drawn with fillText on a 2D canvas during a scene's render (drawPhrase), with their alpha.
+ *  `kin`: the kit's word records of the frame (Teeth). */
+interface Frame { t: number; scenes: string[]; caps: Cap[]; texts: { scene: string; text: string; a: number }[]; kin?: KinRec[] }
 
 // ------------------------------------------------------------------ the page side
 /** Runs in the page: stubs the draw calls, finds the stages, wraps their render. Self-contained (serialised). */
@@ -143,11 +152,14 @@ function installProbe(draw: boolean) {
   const caps = new Map<string, any[]>(), rendered: string[] = [];
   // 2D type (drawPhrase): every fillText inside a scene's render, with its alpha (globalAlpha x the fill's)
   let texts: { scene: string; text: string; a: number }[] = [], current: string | null = null, recording = false;
+  // the kit's probe (Teeth, kinetic.ts THE TYPE PROBE): switched on here; the kit pushes a record per word it draws
+  const kin: { on: boolean; scene: string; recs: any[]; draw: number } = { on: true, scene: '', recs: [], draw: 0 };
+  (globalThis as any).__kin = kin;
   for (const C2 of [globalThis.CanvasRenderingContext2D, (globalThis as any).OffscreenCanvasRenderingContext2D]) {
     if (!C2) continue;
     const fill = C2.prototype.fillText;
     C2.prototype.fillText = function (this: any, text: string, ...rest: any[]) {
-      if (recording && current) {
+      if (recording && current && kin.draw <= 0) {   // (glyphs the kit draws are reported by the kit itself)
         let a = this.globalAlpha;
         const m = typeof this.fillStyle === 'string' ? /rgba\(([^)]*)\)/.exec(this.fillStyle) : null;
         if (m) a *= parseFloat(m[1]!.split(',')[3] ?? '1');
@@ -196,20 +208,25 @@ function installProbe(draw: boolean) {
     s.render = function (this: any, ...a: any[]) {
       caps.set(id, []);
       texts = texts.filter((x) => x.scene !== id);
+      kin.recs = kin.recs.filter((x) => x.scene !== id);   // (only the frame's own render counts)
       if (!rendered.includes(id)) rendered.push(id);
-      const was = current;
+      const was = current, wasKin = kin.scene;
       current = id;
-      try { return origS.apply(this, a); } finally { current = was; }
+      kin.scene = id;
+      try { return origS.apply(this, a); } finally { current = was; kin.scene = wasKin; }
     };
   }
+  const rk = (v: number) => Math.round(v * 10) / 10;
   (window as any).__lint = {
     frames(ts: number[], dt: number) {
       return ts.map((t) => {
         rendered.length = 0;
         texts = [];
+        kin.recs = [];
         recording = true;
         try { E.render(t, dt, false, 1, 0.5); } finally { recording = false; }
-        return { t, scenes: [...rendered], caps: rendered.flatMap((id) => caps.get(id) ?? []), texts };
+        const k = kin.recs.map((r) => ({ ...r, box: r.box.map(rk), cap: rk(r.cap), a: r3(r.a) }));
+        return { t, scenes: [...rendered], caps: rendered.flatMap((id) => caps.get(id) ?? []), texts, kin: k };
       });
     },
   };
@@ -285,7 +302,7 @@ function mapRun(words: string[], seen: (number | undefined)[], lyr: LW[]): (LW |
   });
 }
 
-export function analyse(frames: Frame[], timeline: Entry[], loaded: string[], lyrics: any, from: number, to: number, fps: number) {
+export function analyse(frames: Frame[], timeline: Entry[], loaded: string[], lyrics: any, from: number, to: number, fps: number, kit?: { audio: any }) {
   const issues: Issue[] = [];
   const add = (sev: Sev, code: string, f0: number, f1: number, what: string, detail: string) =>
     issues.push({ sev, code, t0: +frames[f0]!.t.toFixed(3), t1: +frames[f1]!.t.toFixed(3), what, detail });
@@ -400,6 +417,9 @@ export function analyse(frames: Frame[], timeline: Entry[], loaded: string[], ly
   }
   const onFrames = new Map([...onSet].map(([k, fs]) => [k, [...fs].sort((a, b) => a - b)] as const));
 
+  // Teeth: the kit's records (PRESENCE, SMALL, HERO, SAFE, EARLY, CROP)
+  const kitRes = kit ? analyseKit(frames, timeline, loaded, lyrics, lyr, kit.audio, from, to, fps, add, issues) : null;
+
   // timing: early, late, pre-cut pops, blinks
   for (const [k, fs] of onFrames) {
     const v = sample.get(k)!, lw = v.lw;
@@ -419,7 +439,7 @@ export function analyse(frames: Frame[], timeline: Entry[], loaded: string[], ly
 
   // missing: sung in the checked range, inside a loaded scene, never on screen
   const covered = (t: number) => timeline.some((e) => loaded.includes(e.id) && t >= e.start && t < e.end);
-  for (const w of lyr) if (w.start >= from && w.start < to - dt && covered(w.start) && !onFrames.has(w.id))
+  for (const w of lyr) if (w.start >= from && w.start < to - dt && covered(w.start) && !onFrames.has(w.id) && !kitRes?.seen.has(w.id))
     issues.push({ sev: 'WARN', code: 'MISSING', t0: w.start, t1: w.end, what: `'${w.w}' (L${w.line}.${w.k}, ${w.voice})`, detail: 'sung but never on screen' });
 
   // two lyric lines on screen together (not sung together)
@@ -498,7 +518,7 @@ export function analyse(frames: Frame[], timeline: Entry[], loaded: string[], ly
   for (const w of lyr) { const a = lineSung.get(w.line) ?? []; a.push([w.start, w.end]); lineSung.set(w.line, a); }
   for (const [k, fs] of onFrames) {
     const v = sample.get(k)!, lw = v.lw;
-    if (!lw || !isHero(v.text)) continue;
+    if (kit || !lw || !isHero(v.text)) continue;   // (retired for Teeth: a line holds, R31)
     const later = lyr.filter((x) => x.line === lw.line && x.k > lw.k);
     const sung = (t: number) => later.some((x) => t >= x.start && t < x.end);
     for (const [s0, s1] of spans(fs.filter((f) => frames[f]!.t > lw.end + LINGER && sung(frames[f]!.t))))
@@ -535,14 +555,183 @@ export function analyse(frames: Frame[], timeline: Entry[], loaded: string[], ly
     const fs = onFrames.get(w.id);
     return { id: w.id, w: w.w, sung: [w.start, w.end], shown: fs ? [frames[fs[0]!]!.t, frames[fs[fs.length - 1]!]!.t] : null };
   });
-  return { issues, cuts: cuts.map((c) => ({ t: +frames[c.f]!.t.toFixed(3), why: c.why })), words };
+  return { issues, cuts: cuts.map((c) => ({ t: +frames[c.f]!.t.toFixed(3), why: c.why })), words, kit: kitRes?.summary ?? null };
+}
+
+// ------------------------------------------------------------------ the Teeth checks
+/** The numbers of the Teeth checks (docs/teeth2/RULES.md). */
+const KIT = {
+  /** A word with presence below this is not on screen. */
+  VIS: 0.2,
+  /** A SMALL / CROP / SAFE state must last this long (s) to count. */
+  HOLD: 0.1,
+  /** R22: a supporting word's cap height is at least 5% of the frame height (measured from LANDED_S after its onset). */
+  SMALL: 0.05 * H, LANDED_S: 0.12,
+  /** R21: a hero reaches a cap height of 20% of the frame height, or a span of 30% of its width. */
+  HERO_CAP: 0.2 * H, HERO_W: 0.3 * W,
+  /** R19: nothing lit more than this before its start (s). */
+  EARLY: 0.4,
+  /** R32: the last line holds through a gap of up to about 2 bars; R75: named set pieces clear it on the beat after its last word. */
+  GAP: 3.5,
+  /** Slack (px) on the frame edge. */
+  TOL: 2,
+  /** PRESENCE: a stretch with no word of the current line on screen this long is an error, shorter a warning (s). */
+  MISS: 0.1,
+};
+/** R21's exemptions: the stripped chorus 3a (`acetate`) and the bridge (`luminol`), where the section's energy sets the hero. */
+const HERO_EXEMPT = new Set(['acetate', 'luminol']);
+/** R75: set pieces that play in a lyric gap (the tag signing); the line before clears on the beat after its last word. */
+const SET_PIECES: [number, number][] = [[9.34, 10.79]];
+
+/**
+ * The Teeth checks on the kit's records. `add` and `issues` are analyse's. Returns the words the kit saw (so MISSING can
+ * skip them) and a summary: presence (% of sung frames that carry a word of the current line), per-scene record counts
+ * and a per-word table (shown, peak cap and span).
+ */
+function analyseKit(frames: Frame[], timeline: Entry[], loaded: string[], lyrics: any, lyr: LW[], audio: any, from: number, to: number, fps: number,
+  add: (sev: Sev, code: string, f0: number, f1: number, what: string, detail: string) => void, issues: Issue[]) {
+  const N = frames.length, dt = 1 / fps;
+  const byId = new Map(lyr.map((w) => [w.id, w] as const));
+  const lines: { i: number; start: number; end: number }[] = lyrics.lines;
+  const beats: number[] = audio?.beats ?? [];
+  const cache = new Map<string, LW | null>();
+  /** The lyric word a record stands for: its line/k when the plate gave them, else the word of that text whose onset is
+   *  nearest the record's `start` (or, untagged, to the frame's time, within the word's sung span and the gap hold). */
+  const resolve = (r: KinRec, t: number): LW | null => {
+    if (r.line >= 0 && r.k >= 0) return byId.get(`L${r.line}.${r.k}`) ?? null;
+    const n = norm(r.text), ref = r.start >= 0 ? r.start : t, key = `${n}|${r.start >= 0 ? 'S' : 'T'}|${ref.toFixed(3)}`;
+    if (cache.has(key)) return cache.get(key)!;
+    let best: LW | null = null, bc = Infinity;
+    for (const x of lyr) {
+      if (x.n !== n) continue;
+      if (r.start < 0 && !(t >= x.start - 0.5 && t <= x.end + KIT.GAP + 0.1)) continue;
+      const c = Math.abs(x.start - ref);
+      if (c < bc) { bc = c; best = x; }
+    }
+    if (best && r.start >= 0 && bc > 0.6) best = null;
+    cache.set(key, best);
+    return best;
+  };
+
+  // per frame: the resolved, on-screen records
+  interface KR { r: KinRec; lw: LW | null; key: string; f: number }
+  const rows: KR[][] = frames.map((fr, f) => (fr.kin ?? []).map((r) => {
+    const lw = resolve(r, fr.t);
+    return { r, lw, key: lw ? lw.id : `?${r.scene}|${norm(r.text)}`, f };
+  }));
+  const inFrame = (b: number[]) => {
+    const w = Math.max(0, Math.min(b[2]!, W) - Math.max(b[0]!, 0)), h = Math.max(0, Math.min(b[3]!, H) - Math.max(b[1]!, 0)), A = (b[2]! - b[0]!) * (b[3]! - b[1]!);
+    return A > 0 ? (w * h) / A : 0;
+  };
+  const shown = (k: KR) => k.r.mapped && k.r.a >= KIT.VIS;
+  const present = (k: KR) => shown(k) && inFrame(k.r.box) >= 0.5;
+
+  // scenes: which plates report at all
+  const scenes: Record<string, { words: number; frames: number; unmapped: number }> = {};
+  rows.forEach((rs) => { const seen = new Set<string>(); for (const k of rs) {
+    const s = scenes[k.r.scene] ??= { words: 0, frames: 0, unmapped: 0 };
+    s.words++; if (!k.r.mapped) s.unmapped++;
+    if (!seen.has(k.r.scene)) { seen.add(k.r.scene); s.frames++; }
+  } });
+  const activeAt = (t: number) => timeline.filter((e) => t >= e.start && t < e.end).map((e) => e.id);
+  const wanted = loaded.filter((id) => timeline.some((e) => e.id === id && e.start < to && e.end > from));
+  for (const id of wanted) if (!scenes[id]?.words)
+    issues.push({ sev: 'WARN', code: 'NO KIT RECORDS', t0: from, t1: to, what: `'${id}'`, detail: 'the plate reported no words through the kit in this range (it does not call kinetic.ts drawKin / kinRecord3D yet, or draws nothing): presence, size, crop and safe are NOT checked' });
+  for (const [id, s] of Object.entries(scenes)) if (s.unmapped)
+    issues.push({ sev: 'INFO', code: 'UNMAPPED', t0: from, t1: to, what: `'${id}'`, detail: `${s.unmapped} word-frame(s) drawn into a canvas with no mapping to the frame (kinMapCanvas / kinRecord3D): not checked, and presence is not judged on frames that have them` });
+
+  // words per key
+  const keys = new Map<string, KR[]>();
+  rows.forEach((rs) => { for (const k of rs) { const a = keys.get(k.key) ?? []; a.push(k); keys.set(k.key, a); } });
+  const seen = new Set<string>();
+  for (const [k, rs] of keys) if (rs.some(shown) && byId.has(k)) seen.add(k);
+  const label = (k: KR) => `'${k.r.text}'${k.lw ? ` (${k.lw.id})` : ' (no lyric match)'} [${k.r.scene}]`;
+  const px = (v: number) => `${v.toFixed(0)} px`;
+  // frame spans where `pred` holds for any record of a key, kept when at least `hold` s long
+  const heldRows = (rs: KR[], pred: (k: KR) => boolean, hold: number, code: string, sev: Sev, detail: (ks: KR[]) => string) => {
+    const byF = new Map<number, KR[]>();
+    for (const k of rs) if (pred(k)) { const a = byF.get(k.f) ?? []; a.push(k); byF.set(k.f, a); }
+    for (const [s0, s1] of spans([...byF.keys()].sort((a, b) => a - b))) {
+      if ((s1 - s0 + 1) * dt < hold - 1e-6) continue;
+      const ks: KR[] = []; for (let f = s0; f <= s1; f++) ks.push(...(byF.get(f) ?? []));
+      add(sev, code, s0, s1, label(ks[0]!), detail(ks));
+    }
+  };
+
+  const words: { id: string; w: string; role: string; scene: string; shown: [number, number] | null; peakCap: number; peakSpan: number; minCap: number }[] = [];
+  for (const [key, rs] of keys) {
+    const lw = rs[0]!.lw;
+    const vis = rs.filter(shown);
+    if (!vis.length) continue;
+    const scene = vis[0]!.r.scene, hero = vis.some((k) => k.r.role === 'hero');
+    const spanOf = (k: KR) => Math.max(0, Math.min(k.r.box[2], W) - Math.max(k.r.box[0], 0));
+    const peakCap = Math.max(...vis.map((k) => k.r.cap)), peakSpan = Math.max(...vis.map(spanOf));
+    words.push({ id: key, w: vis[0]!.r.text, role: hero ? 'hero' : vis[0]!.r.role, scene, shown: [frames[vis[0]!.f]!.t, frames[vis[vis.length - 1]!.f]!.t],
+      peakCap: +peakCap.toFixed(1), peakSpan: +peakSpan.toFixed(1), minCap: +Math.min(...vis.map((k) => k.r.cap)).toFixed(1) });
+
+    // EARLY: lit more than 0.4 s before its start (R19)
+    if (lw) {
+      const e = rs.find((k) => k.r.mapped && k.r.lit && k.r.a >= 0.05 && lw.start - frames[k.f]!.t > KIT.EARLY);
+      if (e) add('ERROR', 'EARLY', e.f, e.f, label(e), `lit ${(lw.start - frames[e.f]!.t).toFixed(2)} s before it is sung (${lw.start.toFixed(2)}; limit ${KIT.EARLY})`);
+    }
+    // SMALL: a supporting word under 5% cap height once it has landed (R22)
+    heldRows(rs, (k) => k.r.role === 'sup' && shown(k) && !!k.lw && frames[k.f]!.t >= k.lw.start + KIT.LANDED_S && k.r.cap < KIT.SMALL, KIT.HOLD, 'SMALL', 'ERROR',
+      (ks) => `cap height ${px(Math.min(...ks.map((k) => k.r.cap)))} at most ${px(Math.max(...ks.map((k) => k.r.cap)))} (${((Math.max(...ks.map((k) => k.r.cap)) / H) * 100).toFixed(1)}% of the frame; needs ${(KIT.SMALL / H) * 100}%)`);
+    // CROP: the box cut by the frame edge, or wholly off it (R29)
+    heldRows(rs, (k) => shown(k) && (k.r.box[0] < -KIT.TOL || k.r.box[1] < -KIT.TOL || k.r.box[2] > W + KIT.TOL || k.r.box[3] > H + KIT.TOL), KIT.HOLD, 'CROP', 'ERROR',
+      (ks) => { const b = ks[Math.floor(ks.length / 2)]!.r.box; return `box ${b.map((v) => v.toFixed(0)).join(', ')} leaves the frame (${(inFrame(b) * 100).toFixed(0)}% inside)`; });
+    // SAFE: inside the frame but outside title-safe (R18)
+    heldRows(rs, (k) => shown(k) && k.r.box[0] >= -KIT.TOL && k.r.box[1] >= -KIT.TOL && k.r.box[2] <= W + KIT.TOL && k.r.box[3] <= H + KIT.TOL
+      && (k.r.box[0] < SAFE - KIT.TOL || k.r.box[1] < SAFE - KIT.TOL || k.r.box[2] > W - SAFE + KIT.TOL || k.r.box[3] > H - SAFE + KIT.TOL), KIT.HOLD, 'SAFE', 'WARN',
+    (ks) => `${Math.min(...ks.map((k) => Math.min(k.r.box[0], k.r.box[1], W - k.r.box[2], H - k.r.box[3]))).toFixed(0)} px from the edge (title-safe ${SAFE})`);
+    // HERO: a hero reaches 20% cap height or 30% span at its peak (R21); pressure copies count as the hero
+    if (hero && lw && !HERO_EXEMPT.has(scene) && lw.start >= from - 1e-6 && lw.start < to - 0.5) {
+      const ok = peakCap >= KIT.HERO_CAP || peakSpan >= KIT.HERO_W;
+      if (!ok) {
+        const pk = vis.reduce((a, b) => (b.r.cap > a.r.cap ? b : a));
+        add('ERROR', 'HERO', pk.f, pk.f, label(pk), `peaks at cap ${px(peakCap)} (${((peakCap / H) * 100).toFixed(1)}% of the frame height) and spans ${px(peakSpan)} (${((peakSpan / W) * 100).toFixed(1)}% of the width); needs ${(KIT.HERO_CAP / H) * 100}% or ${(KIT.HERO_W / W) * 100}%`);
+      }
+    }
+  }
+
+  // PRESENCE: every sung frame (inside a line's span, or its R32 hold) carries a word of the current line (R31-R33, R75)
+  const reqEnd = (i: number) => {
+    const l = lines[i]!, nx = lines[i + 1];
+    if (!nx) return l.end;                                   // the outro carry is lyric-free (R33)
+    if (SET_PIECES.some(([a]) => Math.abs(a - l.end) < 0.05)) return beats.find((b) => b > l.end + 1e-3) ?? l.end;
+    return Math.min(nx.start, l.end + KIT.GAP);
+  };
+  const lineAt = (t: number) => { let k = -1; for (let i = 0; i < lines.length && lines[i]!.start <= t + 1e-9; i++) k = i; return k; };
+  const noKit = new Set(wanted.filter((id) => !scenes[id]?.words));
+  let sung = 0, ok = 0;
+  const miss: number[] = [];
+  frames.forEach((fr, f) => {
+    const ids = activeAt(fr.t);
+    if (!ids.length || ids.some((id) => noKit.has(id)) || !ids.some((id) => loaded.includes(id))) return;
+    if (rows[f]!.some((k) => !k.r.mapped)) return;   // type in an unmapped canvas: the frame cannot be judged (see UNMAPPED)
+    const li = lineAt(fr.t);
+    if (li < 0 || fr.t >= reqEnd(li)) return;
+    sung++;
+    if (rows[f]!.some((k) => present(k) && k.lw?.line === lines[li]!.i)) ok++; else miss.push(f);
+  });
+  for (const [s0, s1] of spans(miss)) {
+    const t = frames[s0]!.t, L = lines[lineAt(t)]!, n = s1 - s0 + 1;
+    const on = rows[s0]!.filter(present).map((k) => k.r.text);
+    add(n * dt >= KIT.MISS - 1e-6 ? 'ERROR' : 'WARN', 'PRESENCE', s0, s1, `L${L.i} '${(lyrics.lines.find((x: any) => x.i === L.i)?.text ?? '').slice(0, 40)}'`,
+      `no word of the current line on screen for ${(n * dt).toFixed(2)} s (${n} frame(s))${on.length ? `; on screen: ${on.join(' ')}` : '; nothing from the kit on screen'}`);
+  }
+  const pct = sung ? (100 * ok) / sung : null;
+  return { seen, summary: { sung, present: ok, pct: pct === null ? null : +pct.toFixed(2), scenes, noKit: [...noKit], words } };
 }
 
 // ------------------------------------------------------------------ the mode
-export async function lint(page: Page, o: { from: number; to: number; fps: number; draw: boolean; lyrics: string; out: string; strict: boolean }) {
+export async function lint(page: Page, o: { from: number; to: number; fps: number; draw: boolean; lyrics: string; out: string; strict: boolean; song?: string }) {
   const probe: { stagesOf: Record<string, string[]>; loaded: string[] } = await page.evaluate(installProbe, o.draw);
   const timeline: Entry[] = await page.evaluate(() => (window as any).__pdoom.timeline);
   const lyrics = await Bun.file(o.lyrics).json();
+  // Teeth mode: the kit's records are checked (needs the beat grid for the R75 set pieces)
+  const teeth = o.song === 'teeth';
+  const audio = teeth ? await Bun.file(path.join(path.dirname(o.lyrics), 'audio.json')).json() : null;
   const n = Math.max(1, Math.round((o.to - o.from) * o.fps));
   const frames: Frame[] = [];
   const t0 = performance.now();
@@ -554,7 +743,7 @@ export async function lint(page: Page, o: { from: number; to: number; fps: numbe
   process.stdout.write('\n');
   const errs = frames.flatMap((f) => f.caps.filter((c) => c.error).map((c) => `${f.t.toFixed(3)} ${c.scene}/${c.stage}: ${c.error}`));
   if (errs.length) console.error(`probe errors (${errs.length}):\n${errs.slice(0, 5).join('\n')}`);
-  const res = analyse(frames, timeline, probe.loaded, lyrics, o.from, o.to, o.fps);
+  const res = analyse(frames, timeline, probe.loaded, lyrics, o.from, o.to, o.fps, teeth ? { audio } : undefined);
   const stages = Object.entries(probe.stagesOf).map(([id, s]) => `${id}: ${s.join(', ') || '(none)'}`).join('; ');
   console.log(`lint ${o.from}-${o.to} s at ${o.fps} fps: ${n} frames; stages ${stages}; ${res.cuts.length} cut(s)`);
   if (res.cuts.length) console.log(`cuts: ${res.cuts.map((c) => `${c.t.toFixed(3)} ${c.why}`).join(', ')}`);
@@ -562,6 +751,10 @@ export async function lint(page: Page, o: { from: number; to: number; fps: numbe
   for (const i of res.issues) {
     const when = i.t1 > i.t0 ? `${i.t0.toFixed(3)}-${i.t1.toFixed(3)}` : i.t0.toFixed(3);
     console.log(`${i.sev.padEnd(5)}  ${i.code.padEnd(11)}  ${when.padEnd(15)}  ${i.what}: ${i.detail}`);
+  }
+  if (res.kit) {
+    const k = res.kit, sc = Object.entries(k.scenes).map(([id, s]) => `${id} ${s.words} word-frames`).join(', ') || 'none';
+    console.log(`kit: presence ${k.pct === null ? 'n/a (no sung frame checked)' : `${k.pct.toFixed(1)}% (${k.present} of ${k.sung} sung frames)`}; records: ${sc}${k.noKit.length ? `; NO KIT RECORDS: ${k.noKit.join(', ')}` : ''}; ${k.words.length} word(s) seen`);
   }
   console.log(`${count('ERROR')} error(s), ${count('WARN')} warning(s), ${count('INFO')} note(s)`);
   mkdirSync(path.dirname(o.out), { recursive: true });
