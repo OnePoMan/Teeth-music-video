@@ -107,6 +107,17 @@ The lyric is **motion-graphics type at P(doom)'s level**, not still words in a m
 - The stakes guards.
 - "Supporting words are physical things, never flat captions": the supporting words. Only heroes may go full-frame graphic.
 
+## Lyric-led camera (client, 2026-11-21, after the kinetic prototypes; binding)
+
+The client rejected the first kinetic prototypes. Lyrics were missing from many frames (13 of 30 frames of `scale` showed no readable lyric), and the camera cut or reframed erratically on every beat ("whiplashy"). P(doom)'s grammar is the bar: the line is always on screen, and **the camera follows the words**. Compare P(doom)'s "There was a sudden drop in your training loss" (9.5–13.2): the spark writes the line along the curve, and the camera plunges with it down the landscape. This section **supersedes** rule 4's "sub-cuts" and every plate paragraph that cuts or reframes on each beat (`scale`'s "cutting on every beat", "never cycling", and the like).
+
+1. **The lyric is on screen the whole time it is sung.** From the first sung word (7.23) to the last, every frame carries the current line: built word by word as it is sung, sung words staying, the line held until the next line takes over on the beat. The supporting words are as readable as the hero (cap height at least 5% of the frame height), never shrunk to a label. Only the instrumental intro (0–7.23) and the closing riff (193.76 on) are without a lyric.
+2. **The camera follows the type.** Each line is the subject of its shot. The camera moves with the words as they arrive: riding along the line as it is written, bitten, engraved or lit; pushing into the hero on its onset; keeping the newest word in the frame's sweet spot. The scene plays around and behind the line.
+3. **One continuous move per line.** Within a line there are no cuts and no reframes. A move is a smooth spline that eases into the downbeats, without direction reversals or snapping between unrelated framings. The beat lands as an impact *within* the shot (a flash's exposure kick, a nudge or shake of a few pixels, a stamp, a stretch), not as a new shot.
+4. **Cuts only between lines,** on a downbeat, each motivated and carried by the type where possible (a match on a word, a slam that takes the cut with it, the camera following a word out of one world into the next). A hero slam may cut to full frame and back.
+5. **Plates may be re-staged** to give the line a path (a band around the apple, a row along the jaw, a trace across the paper), as long as the exhibit, palette, stakes guards and approved still times hold.
+6. **Review:** before the client sees any prototype, a fresh reviewer judges it blind against P(doom) at matched energy. The reviewer gets dense frame strips (8 per second) of each, unlabelled and in random order, and must not prefer P(doom) on lyric presence, legibility, or camera flow.
+
 ## Song map and plates
 
 | # | plate | window (s) | lyric | technique / look |

@@ -129,3 +129,8 @@ The client wants motion-graphics lyrics at P(doom)'s level. Locking letter posit
 - A prototype comes first: a shared kit (`kinetic.ts`) plus `scale`, `voice` and `lightbox` as clips with audio, for the client's approval before the other 11 plates.
 
 The rules are the "Kinetic type" section of `docs/TEETH2.md`; the briefs are in `docs/gate3/brief-kinetic.md`. Scene, camera and timing work in every plate stands; only the lyric layer is redone. Reviews hold their lyric findings until the type pass. The batch review of the five gate 2 plates waits for it.
+
+## Client rejection of kinetic round 1 (2026-11-21)
+- **The client's verdict:** "Not really". On `scale`, not all lyrics are on screen. The camera pans erratically instead of flowing ("whiplashy"). The client wants the lyrics on screen the entire time and the camera following their motion, at P(doom)'s level.
+- **The lead's finding:** round 1 was never judged blind against P(doom). The gate 3 batch reviews judged plates against the treatment, and the lead alone judged the prototypes. In dense sheets at matched times, 13 of 30 `scale` frames had no readable lyric. P(doom) had a lyric in every sung frame, with the camera riding the line. The cause was the round 1 brief ("the scene, its camera and its timing stay"), which kept each plate's cut-every-beat grammar.
+- **Ruling:** the "Lyric-led camera" section of `docs/TEETH2.md` (binding). Round 2 rebuilds `scale` alone (`docs/gate3/brief-kinetic-r2.md`), and a blind review against P(doom) comes before the client sees it.
