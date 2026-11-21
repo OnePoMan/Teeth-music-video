@@ -8,6 +8,7 @@
 import { GLSL_TEETH_PALETTE } from '../palette';
 import { SS_TAP_GLSL, W, H } from '../../engine/gl';
 import { PATCH } from './scale-bite';
+import { glslKinSDF } from '../kinetic';
 
 const f = (x: number) => x.toFixed(4);
 
@@ -31,7 +32,7 @@ uniform vec3 camPos, camR, camU, camF; uniform float tanH;
 uniform vec3 keyPos, keyDir; uniform float keyI, keyRad, keyCone;
 uniform vec3 fillDir; uniform float fillI;
 uniform sampler2D wordTex, word2Tex, labelTex, digitTex;
-uniform float wordAmt, wordWax, coatK, word2Amt, wordThin;
+uniform float wordWax, coatK;
 uniform vec3 W2C, W2N, W2U, W2T;      // the small supporting word: centre on the skin below the bite, normal, up
 uniform vec3 BC, BN, BT, BU;      // the bite: centre on the skin, normal, tangent (photo X), up in its plane (photo Y)
 uniform vec3 WC, WN, WT;          // the word: centre on the skin, normal, tangent
@@ -105,7 +106,9 @@ float teethCut(float X, bool upper) {
   return g;
 }
 
-float gCut = 1e3, gWord = 0.0;
+${glslKinSDF('kinHero', 'kw', 'wordTex', 'PATCHR')}
+${glslKinSDF('kinSupp', 'k2', 'word2Tex', 'PATCHR')}
+float gCut = 1e3, gWord = 0.0, gWordAmt = 0.0;
 /** The bite taken out: the scoop's signed distance (negative inside the removed volume). */
 float scoop(vec3 p) {
   vec3 d = p - BC - BN * SCZ;
@@ -129,31 +132,36 @@ float scoop(vec3 p) {
 }
 
 float wordDepth(vec2 X) {
-  // (wordThin: the light weight the hero springs up in, its strokes eroded ~0.6 mm, before it snaps heavy)
-  float wd = textureLod(wordTex, (X - PATCHR.xy) * PATCHR.zw, 0.0).r + 0.62 * wordThin;
+  // the hero, posed per letter by the kinetic kit (kinetic.ts): each letter springs, stretches, stamps and leans on
+  // the skin; on = its bite's depth (overshooting as the jaw presses in), thin = the light weight it springs up in
+  // (strokes eroded ~0.6 mm) before it snaps heavy
+  float on, thin;
+  float wd = kinHero(X, on, thin) + 0.62 * thin;
+  gWordAmt = on;
   // the bitten edge: the outline scalloped at tooth width (~1.6 mm), torn
   float edge = smoothstep(-0.9, 0.2, wd);
   wd -= edge * 0.22 * (0.5 + 0.5 * sin(dot(X, vec2(3.9, 0.6)) + 2.0 * snoise(X * 0.6)));
   float tn = 0.06 * snoise(X * 2.2) + 0.03 * snoise(X * 7.0);
   float s = wd + tn;
   gWord = s;
-  return 2.3 * smoothstep(0.3, -0.5, s) * (0.65 + 0.35 * sqrt(sat(-s / 0.8))) * wordAmt;
+  return 2.3 * smoothstep(0.3, -0.5, s) * (0.65 + 0.35 * sqrt(sat(-s / 0.8))) * on;
 }
 
 float apple(vec3 p) {
   float d = appleBody(p);
-  gCut = 1e3; gWord = 9.0;
-  if (dot(p - AC, WN) > 16.0) {
+  gCut = 1e3; gWord = 9.0; gWordAmt = 0.0;
+  if (kwN > 0 && dot(p - AC, WN) > 16.0) {
     vec2 X = vec2(dot(p - WC, WT), p.y - WC.y);
     if (abs(X.x) < 27.0 && abs(X.y) < 18.0 && d < 4.0) d += wordDepth(X);
   }
-  if (word2Amt > 0.0 && dot(p - AC, W2N) > 16.0) {
+  if (k2N > 0 && dot(p - AC, W2N) > 16.0) {
     // a supporting word: bitten small and shallow below the bite (the hero words bite deep, elsewhere)
     vec2 X = vec2(dot(p - W2C, W2T), dot(p - W2C, W2U)) * 1.65;
     if (abs(X.x) < 27.0 && abs(X.y) < 18.0 && d < 3.0) {
-      float wd = textureLod(word2Tex, (X - PATCHR.xy) * PATCHR.zw, 0.0).r * 0.5 + 0.03 * snoise(X * 1.5);
-      gWord = min(gWord, wd * 2.0);
-      d += 0.9 * smoothstep(0.08, -0.2, wd) * word2Amt;
+      float on2, thin2;
+      float wd = kinSupp(X, on2, thin2) * 0.5 + 0.03 * snoise(X * 1.5);
+      if (wd * 2.0 < gWord) { gWord = wd * 2.0; gWordAmt = min(on2, 1.0); }
+      d += 0.9 * smoothstep(0.08, -0.2, wd) * on2;
     }
   }
   if (dot(p - AC, BN) > 4.0) {
@@ -338,7 +346,7 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   vec3 V = -rd;
   float body0 = appleBody(P);
   float dA = apple(P);
-  float cut = gCut, ws = gWord;
+  float cut = gCut, ws = gWord, wAmt = gWordAmt;
   vec3 L = keyPos - P; float lD = length(L); L /= lD;
   vec3 jit = (hash33(vec3(FRAG_PX * 0.73, tap * 3.1)) - 0.5) * keyRad * 0.6;
   vec3 Ls = normalize(keyPos + jit - P);
@@ -393,7 +401,7 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
     rough = mix(rough, 0.85, net); coat *= 1.0 - net;
     // the flesh: inside the bite (below the original skin) and in the word's cavities
     float inBite = smoothstep(-0.05, -0.35, body0) * step(cut, 1.0);
-    float inWord = smoothstep(0.1, -0.25, ws) * wordAmt;
+    float inWord = smoothstep(0.1, -0.25, ws) * sat(wAmt);
     float flesh = max(inBite, inWord);
     if (flesh > 0.0) {
       float gr = 0.6 * snoise(P * 18.0) + 0.4 * snoise(P * 40.0);

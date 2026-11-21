@@ -16,9 +16,11 @@
 // light overshoots as the shutter fires and exposure kicks (multiplicative: blacks stay black).
 import * as THREE from 'three';
 import { Scene, type Frame, type PostOverrides } from '../../engine/scene';
-import { FSPass, SS_TAP, makeRT } from '../../engine/gl';
+import { FSPass, Layer2D, SS_TAP, makeRT, W as FW, H as FH } from '../../engine/gl';
 import { F, font } from '../../engine/type';
-import { clamp, ease, hash, pulse } from '../../engine/util';
+import { clamp, ease, hash, lerp, pulse } from '../../engine/util';
+import { trgba } from '../palette';
+import { KinClock, KinWord, KIN_MAX, drawKin, kinShake, packKin, setKinUniforms, type KinPose, type Moves } from '../kinetic';
 import { DOF_FRAG, LAY, MARCH_FRAG } from './scale-glsl';
 import { bakeWord, toothSpans } from './scale-bite';
 
@@ -32,7 +34,7 @@ const HEROES: [string, number][] = [
   ['And never, never', 1], ['And never, never', 6],
 ];
 
-type Kind = 'wide' | 'oblique' | 'ruler' | 'profile' | 'macro' | 'rake' | 'corner' | 'chip';
+type Kind = 'wide' | 'oblique' | 'ruler' | 'profile' | 'macro' | 'rake' | 'corner' | 'chip' | 'slam';
 /** One camera per beat (the hero beats are 'rake'), designed in order so nothing repeats. */
 const KINDS: Kind[] = [
   'wide', 'ruler', 'rake', 'profile', 'oblique', 'macro', 'rake', 'corner',
@@ -41,7 +43,14 @@ const KINDS: Kind[] = [
   'rake', 'macro', 'oblique', 'chip', 'profile', 'wide', 'wide', 'rake',
 ];
 
-interface Hero { word: string; start: number; cut: number; leave: number; tex: THREE.DataTexture; wax: boolean; chip: [number, number]; width: number; hold: boolean }
+interface Hero {
+  word: string; start: number; cut: number; leave: number; tex: THREE.DataTexture; wax: boolean; chip: [number, number]; width: number; hold: boolean;
+  /** the word's letters as a kinetic word on the flank (mm), its cap height; when it first shows bitten (after a slam:
+   *  the cut back to the apple, where it springs in again); the onsets of a held hero's repeats (never x3) */
+  kw: KinWord; cap: number; appleAt: number; reps: number[];
+}
+/** A full-frame slam (kinetic.ts): the hero breaks out of the photograph as flat type, from t0 to the next flash. */
+interface Slam { hero: number; t0: number; t1: number; land: number; kw: KinWord; teeth: boolean }
 /** line: which lyric line of the window the shot falls in (0..3: each line has its own camera move); sub: the n-th
  *  photograph of a held hero (NEVER: one new photograph per beat while it is sung three times). */
 interface Shot { i: number; t0: number; t1: number; kind: Kind; hero: number; sub: number; line: number }
@@ -149,6 +158,10 @@ export default class ScalePlate extends Scene {
   private heroes: Hero[] = [];
   private shots: Shot[] = [];
   private c8: [number, number] = [4.2, 12.5];
+  private slams: Slam[] = [];
+  private clk!: KinClock;
+  private L = new Layer2D();
+  private pk = new Float32Array(KIN_MAX * 12);
 
   override init() {
     const { lyrics, audio } = this.ctx;
@@ -199,7 +212,9 @@ export default class ScalePlate extends Scene {
       const leave = beats.find((b) => b >= end + 0.25) ?? this.ctx.end;
       const wax = word.toLowerCase() === 'sweet';
       const bw = bakeWord(word, wax, 18);
-      this.heroes.push({ word, start: w.start, cut, leave, tex: bw.tex, wax, chip: bw.chip, width: bw.width, hold: k > wi });
+      const kw = KinWord.fromCells(wax ? word.toLowerCase() : word.toUpperCase(), bw.cap / 0.72, bw.cells, { family: wax ? 'serif' : 'archivo', width: 62 });
+      const reps = l.words.slice(wi, k + 1).map((x) => x.start);
+      this.heroes.push({ word, start: w.start, cut, leave, tex: bw.tex, wax, chip: bw.chip, width: bw.width, hold: k > wi, kw, cap: bw.cap, appleAt: cut, reps });
     }
     for (let k = 0; k + 1 < this.heroes.length; k++) this.heroes[k]!.leave = Math.min(this.heroes[k]!.leave, this.heroes[k + 1]!.cut);
     const lineStarts = lyrics.lines.map((l) => l.start).filter((x) => x >= this.ctx.start - 0.05 && x < this.ctx.end);
@@ -216,6 +231,34 @@ export default class ScalePlate extends Scene {
       for (const s of this.shots) if (s.t0 > h.cut + 1e-3 && s.t0 < h.leave - 1e-3) { s.hero = k; s.kind = 'rake'; s.sub = ++n; }
     });
 
+    // the slams: up to two heroes break out of the photograph as full-frame type (kinetic.ts), cutting back to the
+    // apple on the next flash. DIRTY on its onset, the chorus's first hero; TEETH (the hook's first statement) bitten
+    // into the apple on its onset first (the approved still), slamming on the next beat (see kinetic.ts, THE TEETH HOOK)
+    const slamAt = (k: number, onset: boolean) => {
+      const h = this.heroes[k]!;
+      const i = onset ? this.shots.findIndex((x) => Math.abs(x.t0 - h.cut) < 1e-3) : this.shots.findIndex((x) => x.t0 > h.cut + 0.1);
+      if (i < 0 || i + 1 >= this.shots.length) return;
+      const s = this.shots[i]!, nx = this.shots[i + 1]!;
+      s.kind = 'slam'; s.hero = k;
+      const teeth = h.word.toLowerCase() === 'teeth';
+      const kw = teeth ? new KinWord('TEETH', { size: 520, width: 62, weight: 900 }) : new KinWord(h.word.toUpperCase(), { size: 300, width: 112, weight: 900 });
+      // fit the word inside title safe (the stamp's overshoot included)
+      // (the stamp lands 1.2x: at its peak the word just fills title safe, 96 px each side)
+      const fit = (FW - 2 * 96) / (1.2 * kw.width);
+      const kf = teeth ? new KinWord('TEETH', { size: 520 * fit, width: 62, weight: 900 }) : new KinWord(h.word.toUpperCase(), { size: 300 * fit, width: 112, weight: 900 });
+      this.slams.push({ hero: k, t0: s.t0, t1: nx.t0, land: Math.max(s.t0, h.start), kw: kf, teeth });
+      if (onset) { nx.kind = 'rake'; nx.hero = k; h.appleAt = nx.t0; }
+      else h.leave = Math.min(h.leave, nx.t0); // the bite took it: the next photograph is the next line's
+    };
+    // the supporting words are baked up front (no bake mid-render)
+    for (const l of lyrics.linesIn(this.ctx.start, this.ctx.end)) for (const x of l.words) {
+      const wd = x.w.replace(/[^A-Za-z]/g, '');
+      if (wd && !this.heroes.some((h) => Math.abs(h.start - x.start) < 1e-3)) this.bakeSupport(wd);
+    }
+    slamAt(0, true);
+    slamAt(3, false);
+    this.clk = new KinClock(audio, { backbeat: true });
+    const v4s = () => Array.from({ length: KIN_MAX }, () => new THREE.Vector4());
     this.march = new FSPass(MARCH_FRAG, {
       ssTap: SS_TAP,
       camPos: { value: V(0, 0, 0) }, camR: { value: V(0, 0, 0) }, camU: { value: V(0, 0, 0) }, camF: { value: V(0, 0, 0) },
@@ -223,21 +266,36 @@ export default class ScalePlate extends Scene {
       keyPos: { value: V(0, 0, 0) }, keyDir: { value: V(0, -1, 0) }, keyI: { value: 1 }, keyRad: { value: 10 }, keyCone: { value: 0.8 },
       fillDir: { value: V(0, 1, 0) }, fillI: { value: 0.02 },
       wordTex: { value: this.empty }, labelTex: { value: label }, digitTex: { value: digits },
-      wordAmt: { value: 0 }, wordWax: { value: 0 }, wordThin: { value: 0 }, coatK: { value: 1 },
+      wordWax: { value: 0 }, coatK: { value: 1 },
+      kwA: { value: v4s() }, kwB: { value: v4s() }, kwC: { value: v4s() }, kwN: { value: 0 },
+      k2A: { value: v4s() }, k2B: { value: v4s() }, k2C: { value: v4s() }, k2N: { value: 0 },
       BC: { value: BITE.C }, BN: { value: BITE.N }, BT: { value: BITE.T }, BU: { value: BITE.U }, POST: { value: POSTS },
       WC: { value: WORDF.C }, WN: { value: WORDF.N }, WT: { value: WORDF.T },
       SO: { value: SO }, SN: { value: BITE0.N }, SU: { value: BITE0.T }, SV: { value: BITE0.U },
-      word2Tex: { value: this.empty }, word2Amt: { value: 0 }, W2C: { value: W2.C }, W2N: { value: W2.N }, W2U: { value: W2.U }, W2T: { value: W2.T },
+      word2Tex: { value: this.empty }, W2C: { value: W2.C }, W2N: { value: W2.N }, W2U: { value: W2.U }, W2T: { value: W2.T },
       upT: { value: v4(spans.upper) }, loT: { value: v4(spans.lower) },
     });
     this.dof = new FSPass(DOF_FRAG, { src: { value: null }, focusD: { value: 100 }, aper: { value: 10 }, maxCoc: { value: 18 } });
   }
 
-  private support = new Map<string, THREE.DataTexture>();
-  /** The supporting word being sung at t (a word of the current line that is not a hero), baked on first use. */
-  private supportWord(t: number): { tex: THREE.DataTexture; amt: number } | null {
+  private support = new Map<string, { tex: THREE.DataTexture; kw: KinWord; cap: number }>();
+  /** The supporting word being sung at t (a word of the current line that is not a hero), baked on first use, and its
+   *  kinetic pose: its letters spring up into the skin one by one, the line drifts a step along the flank on every
+   *  beat (slide) with its spacing opening on the beat (track), and it collapses on the beat after the line ends. */
+  private bakeSupport(word: string) {
+    let e = this.support.get(word);
+    if (!e) {
+      const bw = bakeWord(word);
+      e = { tex: bw.tex, kw: KinWord.fromCells(word.toUpperCase(), bw.cap / 0.72, bw.cells, { width: 62 }), cap: bw.cap };
+      this.support.set(word, e);
+    }
+    return e;
+  }
+  private supportWord(t: number): { tex: THREE.DataTexture; kw: KinWord; cap: number; P: KinPose } | null {
     const line = this.ctx.lyrics.lineAt(t + 0.045) ?? this.ctx.lyrics.lastLine(t);
-    if (!line || t > line.end + 0.3) return null;
+    if (!line) return null;
+    const exitAt = this.clk.leave(line.end);
+    if (t > exitAt + 0.2) return null;
     let w = null as (typeof line.words)[number] | null;
     for (const x of line.words) if (x.start - 0.045 <= t) w = x;
     if (!w) return null;
@@ -246,9 +304,13 @@ export default class ScalePlate extends Scene {
     // a repeat of the hero being held (the second and third "never") is the hero itself, not a second word
     const [hk] = this.heroAt(t);
     if (hk >= 0 && this.heroes[hk]!.word.toLowerCase() === word.toLowerCase()) return null;
-    let tex = this.support.get(word);
-    if (!tex) { tex = bakeWord(word).tex; this.support.set(word, tex); }
-    return { tex, amt: clamp((t - (w.start - 0.045)) / 0.05) };
+    const e = this.bakeSupport(word);
+    const P = e.kw.pose(t, this.clk, {
+      t0: w.start, spring: { stagger: 0.018, rise: 0.3, freq: 6 }, weight: { from: 300, to: 900, dur: 0.06 },
+      track: { amt: 0.06 }, slide: { perBeat: [0.9, 0], from: line.start }, stretch: { kick: 0.08, snare: 0.08 },
+      exit: { at: exitAt, kind: 'collapse', dur: 0.14 },
+    });
+    return { ...e, P };
   }
 
   private shotAt(t: number): Shot {
@@ -257,20 +319,46 @@ export default class ScalePlate extends Scene {
     return s;
   }
 
-  /** The hero word in the bite at t (or -1), how far it has bitten in (0..1), and how light it still is (1 = the
-   *  light weight it springs up in, 0 = the heavy weight it snaps to on its onset; the letters stay where they are). */
-  private heroAt(t: number): [number, number, number] {
+  /** The hero word bitten in the apple at t (or -1). */
+  private heroAt(t: number): [number] {
     for (let k = 0; k < this.heroes.length; k++) {
       const h = this.heroes[k]!;
-      if (t >= h.cut && t < h.leave) {
-        // the jaw closes: the letters press in over ~50 ms from the cut, a hair past full, settling
-        const u = clamp((t - h.cut) / 0.05);
-        // light to heavy on the onset: the bite's strokes widen to the full black weight in ~40 ms
-        const thin = t < h.start ? 1 : 1 - ease.outCubic(clamp((t - h.start) / 0.04));
-        return [k, u >= 1 ? 1 : ease.outBack(u, 1.2), thin];
-      }
+      if (t >= h.cut && t < h.leave) return [k];
     }
-    return [-1, 0, 0];
+    return [-1];
+  }
+
+  /** The hero's letters on the flank (kinetic.ts), chorus energy: each letter springs into the skin 20 ms after the
+   *  last, the jaw pressing a hair past full depth and settling; the word STAMPS (lands 1.3x and settles, the frame
+   *  shakes); light to heavy on the onset; wider on the kicks, condensed on the snares, tracking open on the beat.
+   *  Per word: SWEET springs softer; PRETTY slides; DEVIL leans further on each beat (askew); HANDS tracks wide; NEVER
+   *  re-stamps on each "never", condensing harder each time; GO lands biggest. */
+  private heroPose(k: number, t: number): KinPose {
+    const h = this.heroes[k]!;
+    const after = h.appleAt > h.cut + 1e-3; // back from a slam: it springs in again on the cut
+    const t0 = after ? h.appleAt : h.start;
+    const m: Moves = {
+      t0, lead: after ? 0 : h.start - h.cut,
+      spring: { stagger: 0.02, freq: 5, damp: 0.36, rise: 0.12 },
+      stamp: { at: h.hold ? h.reps.map((x) => Math.max(x - 0.045, h.cut)) : t0 - (after ? 0 : h.start - h.cut), over: 1.3 },
+      weight: after ? undefined : { from: 300, to: 900, dur: 0.04 },
+      stretch: { kick: 0.1, snare: 0.08 }, track: { amt: 0.05 },
+    };
+    const w = h.word.toLowerCase();
+    if (w === 'sweet') { m.spring = { stagger: 0.025, freq: 4, damp: 0.45, rise: 0.15 }; m.stamp!.over = 1.15; m.stretch = { kick: 0.05, snare: 0.04 }; }
+    if (w === 'pretty') m.slide = { perBeat: [-1.2, 0] };
+    if (w === 'devil') m.lean = { perBeat: 0.13, max: 0.3, fan: 1, from: h.cut - 0.1 };
+    if (w === 'hands') m.track = { amt: 0.16, hl: 0.12 };
+    if (w === 'go') { m.stamp!.over = 1.45; m.stretch = { kick: 0.16, snare: 0.06 }; }
+    const P = h.kw.pose(t, this.clk, m);
+    if (h.hold) {
+      // NEVER, NEVER, NEVER: each repeat condenses the word harder (pressure on the surface)
+      const n = h.reps.filter((x) => x - 0.045 <= t).length;
+      const c = [1, 1, 0.84, 0.7][Math.min(3, n)]!;
+      const mid = (h.kw.glyphs[0]!.cx + h.kw.glyphs[h.kw.glyphs.length - 1]!.cx) / 2;
+      for (const g of P.glyphs) { g.cx = mid + (g.cx - mid) * c; g.sx *= c; g.sy *= 1 + 0.5 * (1 - c); }
+    }
+    return P;
   }
 
   /** The camera and the flash for a shot at local progress u (0..1) through it. */
@@ -412,6 +500,10 @@ export default class ScalePlate extends Scene {
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
     const t = f.t, { renderer } = this.ctx;
     const s = this.shotAt(t);
+    if (s.kind === 'slam') {
+      const sl = this.slams.find((x) => Math.abs(x.t0 - s.t0) < 1e-3);
+      if (sl) return this.renderSlam(sl, t, out);
+    }
     const u = (t - s.t0) / Math.max(1e-3, s.t1 - s.t0);
     const { P, L } = this.pose(s, u);
     const qc = qv('cam');
@@ -439,15 +531,27 @@ export default class ScalePlate extends Scene {
     (m.fillDir!.value as THREE.Vector3).copy(L.fillDir);
     m.fillI!.value = L.fill;
     m.coatK!.value = L.coat ?? 1;
-    const [hk, amt, thin] = this.heroAt(t);
+    const [hk] = this.heroAt(t);
+    let shake = 0;
     m.wordTex!.value = hk >= 0 ? this.heroes[hk]!.tex : this.empty;
-    m.wordAmt!.value = hk >= 0 ? amt : 0;
-    m.wordThin!.value = hk >= 0 ? thin : 0;
     m.wordWax!.value = hk >= 0 && this.heroes[hk]!.wax ? 1 : 0;
+    m.kwN!.value = 0;
+    if (hk >= 0 && t >= this.heroes[hk]!.appleAt - 1e-4) {
+      const h = this.heroes[hk]!, P = this.heroPose(hk, t);
+      packKin(h.kw, P, h.cap, 0, this.pk);
+      setKinUniforms(this.pk, m.kwA!.value, m.kwB!.value, m.kwC!.value);
+      m.kwN!.value = Math.min(KIN_MAX, h.kw.glyphs.length);
+      shake = P.shake * (h.word.toLowerCase() === 'sweet' ? 4 : 10);
+    }
     // the line's other words, one at a time as sung, bitten small and shallow below the bite (the hero is elsewhere)
     const sw = this.supportWord(t);
     m.word2Tex!.value = sw ? sw.tex : this.empty;
-    m.word2Amt!.value = sw ? sw.amt : 0;
+    m.k2N!.value = 0;
+    if (sw) {
+      packKin(sw.kw, sw.P, sw.cap, 0, this.pk);
+      setKinUniforms(this.pk, m.k2A!.value, m.k2B!.value, m.k2C!.value);
+      m.k2N!.value = Math.min(KIN_MAX, sw.kw.glyphs.length);
+    }
     this.march.render(renderer, this.rt);
 
     const d = this.dof.u;
@@ -457,6 +561,75 @@ export default class ScalePlate extends Scene {
     this.dof.render(renderer, out);
     // the flash reaches the film as an exposure kick (multiplicative: the blacks stay black)
     const kick = s.i === 0 ? 0.7 * pulse(t, s.t0, 0.045) : 0.25 * pulse(t, s.t0, 0.025);
-    return { exposure: 1 + kick, halation: 0.04 };
+    return { exposure: 1 + kick, halation: 0.04, shake: kinShake(t, shake) };
+  }
+
+  /** A full-frame slam (kinetic.ts): flat palette fills in Archivo 900, no outlines or halos, taking the plate's post.
+   *  DIRTY: lightbox on film, wide (width 112), its letters springing up from below 22 ms apart, stamped 1.22x; it
+   *  stretches on the kick and condenses on the snare. TEETH, the hook's first statement: film-black Archivo 62/900
+   *  stretched tall on a stone-yellow field (the apple's, the cast's colour), inverted punch frames, stamped 1.3x;
+   *  on the 8th note a scalloped bite (his arch: one tooth-width scallop per tooth, #8's chipped) breaks a piece out
+   *  of the word and it flies off. The next flash cuts back to the apple. */
+  private renderSlam(sl: Slam, t: number, out: THREE.WebGLRenderTarget): PostOverrides {
+    const c = this.L.ctx, au = this.ctx.audio;
+    const punch = sl.teeth && t < sl.t0 + 0.05;
+    const field = sl.teeth ? (punch ? 'film' : 'stone') : 'film';
+    const ink = sl.teeth ? (punch ? 'stone' : 'film') : 'lightbox';
+    this.L.clear(trgba(field));
+    c.textBaseline = 'alphabetic';
+    const kw = sl.kw;
+    // TEETH stands tall: its cap height ~690 px at rest, ~830 px at the stamp's peak (inside title safe)
+    const tall = sl.teeth ? Math.min(1.8, 690 / (0.686 * kw.style.size)) : 1.0;
+    const cap = kw.style.size * 0.686 * tall;
+    const base = FH / 2 + cap / 2;
+    const x = (FW - kw.width) / 2;
+    const P = kw.pose(t, this.clk, {
+      t0: sl.land, lead: sl.land - sl.t0,
+      spring: { stagger: sl.teeth ? 0.018 : 0.022, freq: 5.5, damp: 0.4, rise: sl.teeth ? 0.45 : 0.7 },
+      stamp: { at: sl.t0, over: 1.2 },
+      stretch: sl.teeth ? { kick: 0.25, snare: 0 } : { kick: 0.1, snare: 0.12 },
+      weight: sl.teeth ? undefined : { from: 500, to: 900, dur: 0.05 },
+      track: { amt: 0.03 },
+    });
+    if (tall !== 1) for (const g of P.glyphs) g.sy *= tall;
+    let brk;
+    let shake = P.shake * (sl.teeth ? 22 : 16);
+    if (sl.teeth) {
+      // the bite: on the 8th after the slam
+      const tb = au.timeOfBeat(au.beatAt(sl.t0) + 0.5);
+      // (the bitten piece is snatched out of frame in ~3 frames; the rest of the word jolts and holds, bitten)
+      const k = clamp((t - tb) / 0.1);
+      if (t >= tb) {
+        const bx = x + kw.width * 0.97, by = base - cap * 1.05;
+        brk = { mask: this.biteMask(bx, by, cap * 0.42), k: ease.outCubic(k), a: { dx: 1400, dy: -900, rot: 0.6 }, b: { dx: -26, dy: 18, rot: -0.012 }, pivot: [bx, by] as [number, number] };
+        shake += 14 * pulse(t, tb, 0.05);
+      }
+    }
+    drawKin(c, kw, P, x, base, { fill: trgba(ink), brk });
+    this.L.upload();
+    this.ctx.comp.draw(this.ctx.renderer, this.L.texture, out, { mode: 'replace' });
+    return { exposure: 1, halation: 0, shake: kinShake(t, shake), zoom: 1 + 0.03 * P.shake }; // no halation: a slam is never haloed
+  }
+
+  /** His bite as a break mask: a crescent bitten from the upper right, its rim a row of tooth-width scallops (convex
+   *  arcs meeting in points, as incisal edges leave them), #8's scallop flattened at one corner (the chip). */
+  private biteMask(cx: number, cy: number, R: number): Path2D {
+    const p = new Path2D();
+    const N = 7, a0 = Math.PI * 0.35, a1 = Math.PI * 1.25; // the rim facing the word (lower left)
+    const pts: [number, number][] = [];
+    for (let j = 0; j <= 280; j++) {
+      const a = lerp(a0, a1, j / 280);
+      const u = ((a - a0) / (a1 - a0)) * N, k = Math.floor(Math.min(u, N - 1e-6)), f = u - k;
+      let bulge = Math.sqrt(Math.max(0, 1 - (2 * f - 1) ** 2));
+      if (k === 3 && f < 0.45) bulge = Math.min(bulge, 0.35 + f); // #8: the chipped corner
+      const r = R * (1 + 0.075 * bulge);
+      pts.push([cx + r * Math.cos(a) * 1.25, cy + r * Math.sin(a)]);
+    }
+    p.moveTo(cx + 3 * R * Math.cos(a0), cy + 3 * R * Math.sin(a0));
+    for (const [px, py] of pts) p.lineTo(px, py);
+    p.lineTo(cx + 3 * R * Math.cos(a1), cy + 3 * R * Math.sin(a1));
+    p.lineTo(cx + 3 * R, cy - 3 * R);
+    p.closePath();
+    return p;
   }
 }
