@@ -12,7 +12,7 @@ The 14 plates x {scene, camera, type, light} matrix is in `PLATES.md` ("Status o
 
 ## Next actions
 
-1. **The client decides on `scale` r4:** hold it as the reference and move on to `uv` and `chart` (energy and camera then go to the energy map, R87), or run a round 5 on camera motion and energy. A round 5 needs a fresh window: a builder round costs about 20% of the 5-hour window.
+1. **`scale` round 5, camera and energy** (client 2026-11-22: bigger continuous moves plus one hero macro per half-line, carving debris, motion between r4 and P(doom)). Brief `docs/gate3/brief-scale-r5.md`, checkpoint first.
 2. **Clean up:** the two builder worktrees in `.claude/worktrees/` are merged. Remove each `app/node_modules` junction with `cmd //c rmdir` before `git worktree remove`, so the main copy is untouched.
 3. **Lyric-led prototypes on `uv` (the reveal-by-light case) and `chart` (a light plate)**, with a key-frame checkpoint (set, light, materials, type card at 4-6 key frames) reviewed before each full-window build (R73). Fill their type cards first.
 4. Write the transitions table and the energy map (R87) before fan-out.
