@@ -33,9 +33,23 @@ uniform vec3 camPos, camR, camU, camF; uniform float tanH;
 uniform vec3 keyPos, keyDir; uniform float keyI, keyRad, keyCone;
 // (round 3: the strobe's pool: full inside keyCone (cos of its half angle), falling to keyFloor at keyOut)
 uniform float keyOut, keyFloor;
+// (round 4: the pool's shape: 0 = the even disc (the exhibit's broad flash), 1 = a feathered pool, hottest at its aim and
+// falling steadily (linear in angle, raised to keyGam) toward keyFloor at keyOut: a gradient across the face, not a disc)
+uniform float keyShape, keyGam;
 uniform vec3 fillDir; uniform float fillI;
 uniform sampler2D lineTex, labelTex, digitTex;
 uniform float coatK;
+// (round 4: the wax coat's own specular lobe, the key's hot streak on the skin: its roughness and gain; and the cut
+// flesh's wet sheen gain, so the lit walls of the bitten letters catch near-lightbox edges)
+uniform vec2 coatS; uniform float wetS;
+// (round 4: the strobe head's tube is a strip (half its length along keyStrip, mm): its reflection in the waxy skin is a
+// streak, not a dot)
+uniform vec3 keyStrip, keyStripC; uniform vec2 coatB;
+// (round 4 fix: the streak is the modelling lamp's tube; the strobe fires from its grazing side bracket, whose reflection
+// falls off the face: coatF = the lamp's share of the key at this frame, so a flash never blows the streak out)
+uniform float coatF;
+// (round 4: the bitten letters' flesh albedo (r3 0.5): pale enough that a wall facing the key reads near lightbox)
+uniform float cutK;
 uniform vec2 aYaw;                // the apple's turn on its stand (cos, sin): the world -> the apple's rest frame
 // the line bitten along a band round the apple (rest frame): band = (azimuth of s = 0, the band's middle over the
 // apple's centre, the arc radius, half height searched); lineRect = the baked patch (s0, h0, 1/w, 1/h)
@@ -400,6 +414,9 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   if (m == M_SKIN && ws < 0.0) sh = mix(sh, 1.0, 0.08);
   float ao = m == M_SKIN ? mix(calcAO(P, N, 0.3), 1.0, 0.35) : calcAO(P, N, 2.0);
   vec3 alb = T_SILVER; float rough = 0.5, f0 = 0.04, wrap = 0.0, sheen = 0.0, coat = 0.0;
+  // (round 4: the coat lobe reads the skin's smooth normal: the orange-peel relief only grains its fringe faintly, so the
+  // streak has a clean hot core and a smooth falloff, never a sandy halo)
+  vec3 Nc = N;
   float fleshK = 0.0, waxK = 0.0; vec3 fleshC = vec3(0.0);
   if (m == M_SKIN) {
     vec3 q = toApple(PR);
@@ -458,7 +475,7 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
       float wall = sat(0.5 - 0.5 * gr) * 0.5;
       // pale cream (stone toward lightbox), a little translucent; faint oxidation a millimetre in from the cut skin
       float brown = inBite * (1.0 - smoothstep(-0.4, -2.4, body0)) + inWord * (1.0 - smoothstep(-0.05, -0.6, ws));
-      vec3 cream = CREAM * 0.5 * (1.0 - 0.18 * wall);
+      vec3 cream = CREAM * mix(0.5, cutK, inWord) * (1.0 - 0.18 * wall);
       vec3 flc = mix(cream, OXID * 0.5, sat(brown) * 0.4);
       // SWEET (the tender word): its bitten flesh takes the wax pink
       waxK = inWord * wWax;
@@ -509,7 +526,10 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   }
   float NoL = dot(N, L);
   float difL = sat((NoL + wrap) / (1.0 + wrap));
-  float spot = mix(keyFloor, 1.0, smoothstep(keyOut, keyCone, dot(-L, keyDir)));
+  float cDir = dot(-L, keyDir);
+  float aIn = acos(clamp(keyCone, -1.0, 1.0)), aOut = acos(clamp(keyOut, -1.0, 1.0));
+  float rP = sat((acos(clamp(cDir, -1.0, 1.0)) - aIn) / max(aOut - aIn, 1e-4));
+  float spot = mix(keyFloor, 1.0, mix(smoothstep(keyOut, keyCone, cDir), pow(1.0 - rP, keyGam), keyShape));
   float fall = keyI / (lD * lD) * 1e5 * spot;
   vec3 Hh = normalize(L + V);
   float NoV = max(dot(N, V), 1e-4), NoH = max(dot(N, Hh), 0.0);
@@ -520,7 +540,28 @@ vec4 shade(vec3 ro, vec3 rd, float tap) {
   if (coat > 0.0) {
     // a crisp image of the flash head: a hard-edged small disc with no tail (no orb, nothing for the halation to catch)
     float disc = smoothstep(0.99972, 0.99986, NoH);
-    col += T_LIGHTBOX * coat * disc * max(NoL, 0.0) * min(fall, 1.0) * sh * 0.75 * coatK;
+    // (round 4: only on the exhibit framing; on the close framings the coat lobe below is the key's reflection, and this
+    // disc, read through the orange-peel relief, left a cream speckle beside the opening words)
+    col += T_LIGHTBOX * coat * disc * max(NoL, 0.0) * min(fall, 1.0) * sh * 0.75 * coatK * (1.0 - step(1e-3, coatS.y));
+    // ROUND 4 WHITES: the waxy coat's sheen, a hot white streak where the skin turns its face to the key (broken up by
+    // the orange-peel relief), never a lighter base colour: the apple stays stone yellow
+    // (the strip's representative point: the point on the tube nearest the reflected ray)
+    Nc = normalize(mix(Nc, N, 0.12));
+    vec3 Rr = reflect(-V, Nc), l0 = keyStripC - keyStrip - P, ld = 2.0 * keyStrip;
+    float ra = dot(Rr, ld);
+    vec3 Lc = normalize(l0 + ld * sat((dot(Rr, l0) * ra - dot(l0, ld)) / max(dot(ld, ld) - ra * ra, 1e-4)));
+    vec3 Hc = normalize(Lc + V);
+    float NoLc = max(dot(Nc, Lc), 0.0), NoHc = max(dot(Nc, Hc), 0.0), NoVc = max(dot(Nc, V), 1e-4), FrC = F_Sch(0.05, max(dot(V, Hc), 0.0));
+    // two lobes: a tight hot core (coatS) and a soft wide shoulder (coatB: roughness, gain) that carries it smoothly down
+    float ac = coatS.x * coatS.x, ab = coatB.x * coatB.x;
+    float cs = FrC * NoLc * (coatS.y * D_GGX(NoHc, ac) * V_SmithJ(NoVc, NoLc, ac) + coatB.y * D_GGX(NoHc, ab) * V_SmithJ(NoVc, NoLc, ab));
+    col += T_LIGHTBOX * coat * cs * fall * sh * coatF;
+  }
+  if (fleshK > 0.0 && wetS > 0.0) {
+    // the fresh cut is wet: the walls of the bitten letters that face the key catch a crisp white edge
+    float aw = 0.09;
+    float ws2 = F_Sch(0.04, max(dot(V, Hh), 0.0)) * D_GGX(NoH, aw) * V_SmithJ(NoV, max(NoL, 0.0), aw) * max(NoL, 0.0);
+    col += T_LIGHTBOX * fleshK * wetS * ws2 * fall * sh;
   }
   col += T_SILVER * sheen * pow(1.0 - NoV, 4.0) * fall * (0.3 + 0.7 * sh) * sat(NoL + 0.6);
   // apple flesh is translucent: the cut carries some of the light that reaches the fruit around it

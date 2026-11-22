@@ -88,7 +88,7 @@ const SPACE_USE = 0.2;
  *  past the camera's, mm). Look-dev override: sc_key=a,b,d. */
 const KEY = [48, 14, 240];
 /** Where the pool is aimed from the line's centre (frame widths right, up). Look-dev override: sc_aim=x,y. */
-const AIM = [-0.03, -0.02];
+const AIM = [-0.22, 0.08];
 /** The strobe on its side bracket, lower and more grazing than the modelling lamp (same terms; sc_strobe=a,b), so a
  *  flash throws the letters' walls into longer shadow and harder edge light rather than brightening the skin. */
 const STROBE = [62, 14];
@@ -96,9 +96,28 @@ const STROBE = [62, 14];
 const EXHIBIT_KEY = [24, 40] as const;
 /** The strobe's pool, in fractions of the frame's width at the subject: full light inside `in`, down to the `floor`
  *  level by `out`. Look-dev override: sc_pool=in,out,floor. */
-const POOL = [0.22, 0.38, 0.03];
+const POOL = [0.0, 0.62, 0.0];
+/** ROUND 4: the pool is feathered (hottest at its aim, falling linearly in angle raised to this power), so the face runs
+ *  from the key side to black on the far side. Look-dev override: sc_gam=g. */
+const POOL_GAM = 2.2;
 /** The strobe: its burst over the modelling lamp (x strength) and its decay half-life (s): a few frames. */
 const FLASH_GAIN = 3.2, FLASH_HL = 0.045;
+/** ROUND 4: the burst on the close framings (look-dev override: sc_fg=g). */
+const FLASH_GAIN_CLOSE = 2.4;
+/** ROUND 4 WHITES: the wax coat's specular lobe (roughness, gain), the key's hot streak on the skin; the wet sheen of the
+ *  cut flesh (gain). Look-dev overrides: sc_coat=rough,gain, sc_wet=gain. */
+const COAT = [0.28, 3.5], WET = 8, CUT = 0.95;
+/** ROUND 4: the key's level on the close framings (the feathered pool spends less light than the even disc; the
+ *  exhibit framing keeps its approved level). Look-dev override: sc_ki=k. */
+const KEY_I = 1.5;
+/** ROUND 4: the strobe's strip tube: half length (mm) and tilt from the frame's vertical (degrees), so its reflection on the
+ *  skin is a streak. Look-dev override: sc_strip=half,tilt. */
+const STRIP = [110, 30];
+/** ROUND 4 (fix): where the strip hangs from the key's point, per line (mm up, right of the frame), so the hot core lands
+ *  above or beside the line's opening word, never behind it. Look-dev override: sc_stripc<k>=up,right. */
+const STRIP_C: number[][] = [[0, 0], [200, -100], [80, -40], [0, 0]];
+/** ROUND 4 (fix): the coat's soft shoulder lobe (roughness, gain) under the tight core (COAT). Override: sc_coatb=r,g. */
+const COAT_B = [0.5, 0.08];
 /** TIER 1 FLASHES (R38): strength by hero (and the opening exhibit photograph); every other beat gets no flash.
  *  Line 1 sparse and low; line 2 building into the biggest on TEETH; the three NEVERs rising, then GO. */
 const FLASH_K: Record<string, number | number[]> = {
@@ -362,10 +381,10 @@ export default class ScalePlate extends Scene {
       ssTap: SS_TAP,
       camPos: { value: V(0, 0, 0) }, camR: { value: V(0, 0, 0) }, camU: { value: V(0, 0, 0) }, camF: { value: V(0, 0, 0) },
       tanH: { value: 0.3 },
-      keyPos: { value: V(0, 0, 0) }, keyDir: { value: V(0, -1, 0) }, keyI: { value: 1 }, keyRad: { value: 10 }, keyCone: { value: 0.8 }, keyOut: { value: 0.74 }, keyFloor: { value: 0.3 },
+      keyPos: { value: V(0, 0, 0) }, keyDir: { value: V(0, -1, 0) }, keyI: { value: 1 }, keyRad: { value: 10 }, keyCone: { value: 0.8 }, keyOut: { value: 0.74 }, keyFloor: { value: 0.3 }, keyShape: { value: 0 }, keyGam: { value: 1 },
       fillDir: { value: V(0, 1, 0) }, fillI: { value: 0.02 },
       lineTex: { value: this.lines[0]!.band.tex }, labelTex: { value: label }, digitTex: { value: digits },
-      coatK: { value: 1 }, aYaw: { value: new THREE.Vector2(1, 0) },
+      coatK: { value: 1 }, coatS: { value: new THREE.Vector2(COAT[0]!, COAT[1]!) }, wetS: { value: WET }, cutK: { value: 0.5 }, keyStrip: { value: V(0, 0, 0) }, keyStripC: { value: V(0, 0, 0) }, coatB: { value: new THREE.Vector2() }, coatF: { value: 1 }, aYaw: { value: new THREE.Vector2(1, 0) },
       band: { value: new THREE.Vector4() }, lineRect: { value: new THREE.Vector4() },
       lnA: { value: v4s(LN_G) }, lnB: { value: v4s(LN_G) }, lnC: { value: v4s(LN_G) }, lnW: { value: v4s(LN_W) }, lnH: { value: Array.from({ length: LN_W }, () => new THREE.Vector2()) }, lnNW: { value: 0 },
       lnS: { value: new THREE.Vector2() },
@@ -506,8 +525,11 @@ export default class ScalePlate extends Scene {
     const Dn = D / LENS, far = clamp((Dn - 60) / 130);
     const kq = qv('key') ?? KEY, sq = qv('strobe') ?? STROBE;
     const { fl, lamp } = this.light(t);
+    // (round 4: on the close framings the burst is a little lower (FLASH_GAIN_CLOSE), so a flash rakes the letters into
+    // edge light without washing the brighter, feathered face toward white; the exhibit's first flash is unchanged)
+    const FG = lerp(qv('fg')?.[0] ?? FLASH_GAIN_CLOSE, FLASH_GAIN, wide);
     // (the strobe's burst outshines the lamp: the light's direction follows whichever dominates)
-    const wf = (FLASH_GAIN * fl) / (lamp + FLASH_GAIN * fl);
+    const wf = (FG * fl) / (lamp + FG * fl);
     // (on the exhibit framing, the approved first flash, the light is the photograph's: near the lens, upper left, so
     // the bite's flesh, the white scale and its label read; it swings round to the rake as the camera pushes in)
     const ka = (lerp(lerp(kq[0]!, sq[0]!, wf), EXHIBIT_KEY[0], wide) * Math.PI) / 180;
@@ -515,8 +537,8 @@ export default class ScalePlate extends Scene {
     const kDir = fw.clone().multiplyScalar(-Math.cos(ka)).addScaledVector(rt, -Math.sin(ka) * Math.cos(kb)).addScaledVector(up, Math.sin(ka) * Math.sin(kb)).normalize();
     const key = at.clone().addScaledVector(kDir, kq[2]! + 0.6 * D);
     (m.keyPos!.value as THREE.Vector3).copy(key);
-    const I = lerp(2.1, 1.5, far) * (qv('ki')?.[0] ?? 1);
-    m.keyI!.value = (I * key.distanceToSquared(at)) / 1e5 * (lamp + FLASH_GAIN * fl);
+    const I = lerp(2.1, 1.5, far) * lerp(qv('ki')?.[0] ?? KEY_I, 1, wide);
+    m.keyI!.value = (I * key.distanceToSquared(at)) / 1e5 * (lamp + FG * fl);
     // the strobe's tube is smaller than the modelling lamp's glow: the flash's shadows are the hardest
     m.keyRad!.value = lerp(2.4, 3.6, far) * (1 - 0.5 * clamp(fl));
     // (aimed toward the key's side of the line's centre (AIM, in frame widths): the key side of the face is the
@@ -531,9 +553,26 @@ export default class ScalePlate extends Scene {
     m.keyCone!.value = lerp(Math.cos(Math.atan((pq[0]! * fwm) / kd)), 0.82, wide);
     m.keyOut!.value = lerp(Math.cos(Math.atan((pq[1]! * fwm) / kd)), 0.74, wide);
     m.keyFloor!.value = lerp(pq[2]!, 0.3, wide);
+    m.keyShape!.value = 1 - wide;
+    m.keyGam!.value = qv('gam')?.[0] ?? POOL_GAM;
     (m.fillDir!.value as THREE.Vector3).copy(pos.clone().sub(at).normalize());
     m.fillI!.value = qv('fill')?.[0] ?? 0.012;
     m.coatK!.value = lerp(0.4, 1, far);
+    const cq = qv('coat') ?? COAT;
+    // (round 4: the whites belong to the close framings; the exhibit photograph (the approved 48.75) keeps its look)
+    (m.coatS!.value as THREE.Vector2).set(cq[0]!, cq[1]! * (1 - wide));
+    m.wetS!.value = (qv('wet')?.[0] ?? WET) * (1 - wide);
+    m.cutK!.value = lerp(qv('cut')?.[0] ?? CUT, 0.5, wide);
+    // (the strip: STRIP = its half length (mm), its tilt from the frame's vertical toward the right (degrees))
+    const stq = qv('strip') ?? STRIP, sa = (stq[1]! * Math.PI) / 180;
+    (m.keyStrip!.value as THREE.Vector3).copy(up).multiplyScalar(Math.cos(sa)).addScaledVector(rt, Math.sin(sa)).multiplyScalar(stq[0]! * (1 - wide));
+    // (the strip hangs above and beside the key's point: STRIP_C (mm up, right of the frame), so the streak's hot core
+    // lands above and beside a line's opening word, never behind it; the diffuse key and its shadows are unchanged)
+    const scq = qv('stripc' + Ln.k) ?? STRIP_C[Ln.k] ?? [0, 0];
+    (m.keyStripC!.value as THREE.Vector3).copy(key).addScaledVector(up, scq[0]!).addScaledVector(rt, scq[1]!);
+    const cbq = qv('coatb') ?? COAT_B;
+    (m.coatB!.value as THREE.Vector2).set(cbq[0]!, cbq[1]! * (1 - wide));
+    m.coatF!.value = lamp / (lamp + FG * fl);
     this.march.render(renderer, this.rt);
 
     const d = this.dof.u;
