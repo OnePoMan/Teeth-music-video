@@ -44,21 +44,23 @@ const HB = -2, RB = 39;
 /** Cap heights (mm): supporting words, heroes, SWEET (Cormorant lowercase), GO, TEETH, and line 1's opening row
  *  (read from the exhibit's distance). Round 2b: supporting words bigger and heroes smaller than round 2, so a whole
  *  line sets as a short page on the apple's front. */
-const CAP = { sup: 4.4, hero: 8.0, serif: 10, go: 10.5, teeth: 8.5, open: 8.5, sup1: 5.6, hero1: 8.8 };
+const CAP = { sup: 4.4, hero: 8.0, serif: 11, go: 10.5, teeth: 8.5, open: 8.5, sup1: 5.6, hero1: 8.8 };
 /** Bite depth (mm): supporting words shallow, heroes deep. */
 const DEPTH = { sup: 1.3, hero: 2.3, go: 2.8 };
 
 /** The hero words by line (word index in the line): DIRTY, SWEET; PRETTY, TEETH; DEVIL, HANDS; NEVER x3, GO. */
 const HEROES: number[][] = [[2, 7], [2, 7], [2, 5], [1, 2, 3, 6]];
 /** ROUND 2B: each line is set in left-aligned rows (the first word index of each row), running down the apple's
- *  front, so the line so far is always whole in frame (P(doom)'s two-row cards):
+ *  front, so the line so far is always whole in frame (P(doom)'s two-row cards). ROUND 5 (lead 2026-11-22): line 4 in
+ *  three wider rows; line 1 keeps four (three would need a 78 mm first row, 115 deg of the apple's curve, which no
+ *  framing can read whole) but is set higher (ROW_TOP), so SWEET sits off the apple's underside:
  *    FIGHT / SO DIRTY / BUT YOUR LOVE'S / SO sweet         TALK SO / PRETTY BUT / YOUR HEART GOT / TEETH
- *    LATE NIGHT / DEVIL, PUT / YOUR HANDS / ON ME AND        AND NEVER, / NEVER, NEVER / EVER LET / GO
- *  (the hook words, TEETH and GO, close their lines alone on the last row: short, so they stay on the apple's front)
+ *    LATE NIGHT / DEVIL, PUT / YOUR HANDS / ON ME AND        AND NEVER, / NEVER, NEVER / EVER LET GO
  *  (line 3 carries AND across the cut to line 4, which lands on the downbeat 59.08) */
-const ROWS: number[][] = [[0, 1, 3, 6], [0, 2, 4, 7], [0, 2, 4, 6], [0, 2, 4, 6]];
-/** The first row's cap top over the band's middle, and the gap between rows (mm). */
-const ROW_TOP = [20, 17, 17, 19], ROW_GAP = 2.6;
+const ROWS: number[][] = [[0, 1, 3, 6], [0, 2, 4, 7], [0, 2, 4, 6], [0, 2, 4]];
+/** The first row's cap top over the band's middle, and the gap between rows (mm). (round 5: line 3 raised, so its
+ *  last row is not on the apple's underside) */
+const ROW_TOP = [27, 17, 21, 22], ROW_GAP = 2.6;
 
 /** Round 2b: a longer lens (18 deg vertical, was 27) from further back, so the close apple's curve does not crowd the
  *  ends of a row against its silhouette; LENS: how much further back the camera stands for the same framing. */
@@ -73,14 +75,47 @@ const FH_D = 2 * Math.tan((FOV * Math.PI) / 360), FW_D = FH_D * (16 / 9);
  * from the bite. dEx: line 1's distance on the exhibit (the approved first flash).
  */
 interface Plan { a: [number, number]; el: [number, number]; roll: [number, number]; daz: [number, number]; psi0: number; wide?: boolean; dEx?: number }
+// ROUND 5 (client 2026-11-22: bigger continuous moves): each line its own framing family and a move 2-3x round 4's
+// (r4: a [-0.3,0.2] [-0.3,0.15] [-1.5,-1.05] [-0.7,-0.25]; el [0.5,-0.1] [0.06,0.12] [0.36,0.08] [-0.02,0.16]; daz
+// [0.5,-0.04] [0.25,0.2] [0.15,0.05] [0.15,0]). Line 1 keeps its start (the approved 48.75) and line 2 its end (the
+// approved 55.00).
+//   line 1: the three-quarter exhibit, pushing in and swinging round the apple to the line's left;
+//   line 2: a low raking profile across the skin (from below and well off the rows' right), rising and squaring up
+//           into TEETH;
+//   line 3: a high angle, craning down over the rows as they fill;
+//   line 4: an orbit across the face, from the rows' left round to their right.
 const PLANS: Plan[] = [
-  { a: [-0.3, 0.2], el: [0.5, -0.1], roll: [0, -0.02], daz: [0.5, -0.04], psi0: 0, wide: true, dEx: 190 * LENS },
-  // (round 3: lines 2-4 seen from right of their normal as they grow (easing back to square as the left-aligned rows
-  // fill), so each row's last word stays on the lit face; line 2's BUT whole)
-  { a: [-0.3, 0.15], el: [0.06, 0.12], roll: [0.05, -0.02], daz: [0.25, 0.2], psi0: 2.4 },
-  { a: [-1.5, -1.05], el: [0.36, 0.08], roll: [0.08, 0.0], daz: [0.15, 0.05], psi0: 1.0 },
-  { a: [-0.7, -0.25], el: [-0.02, 0.16], roll: [-0.05, 0.03], daz: [0.15, 0.0], psi0: 2.0 },
+  { a: [-0.3, 0.6], el: [0.5, -0.4], roll: [0, -0.07], daz: [0.5, -0.6], psi0: 0, wide: true, dEx: 190 * LENS },
+  { a: [-0.7, 0.15], el: [-0.14, 0.1], roll: [0.1, -0.02], daz: [-0.3, 0.2], psi0: 2.4 },
+  { a: [-1.9, -0.8], el: [0.5, -0.12], roll: [0.1, -0.05], daz: [-0.1, 0.55], psi0: 1.0 },
+  { a: [-1.3, 0.1], el: [0.3, -0.1], roll: [-0.09, 0.07], daz: [-0.7, 0.6], psi0: 2.0 },
 ];
+/** ROUND 5: how far the line's framing leans from the line so far's centre toward its newest word (R81: the newest
+ *  word in the sweet spot, the camera riding along the words as they are bitten). Look-dev override: sc_ride=k. */
+const RIDE = 0.32;
+
+/** ROUND 5 HERO MACROS (R36; client 2026-11-22): one tight reframe per half-line onto its hero, opening on the hero's
+ *  onset, already readable, at about MACRO_K x the line framing, close enough to see the bitten walls, the line so far
+ *  still whole in frame (receding behind the hero). It leaves by a cut on the onset of a later word (a type-led
+ *  reframe), at the line's cut, or (ease = 1, where a cut would make a second reframe in the half-line: lead
+ *  2026-11-22) by a continuous eased pull-back into the line's own move (MACRO_EASE s, starting before the exit word).
+ *  [line, hero word, exit word (-1: the cut), ease] (word indices in the line):
+ *    DIRTY -> eases out from 50.58 onto SO (BUT YOUR LOVE'S bitten in the macro) | SWEET -> the cut
+ *    PRETTY -> HEART (53.90, a downbeat) | (TEETH is the slam)
+ *    DEVIL -> HANDS (its own macro, 57.36, a downbeat) | HANDS -> the cut (ON ME AND bitten in it)
+ *    NEVER (the cut, 59.08) -> the second NEVER (59.73) | GO -> the plate's end */
+const MACROS: [number, number, number, number][] = [[0, 2, 6, 1], [0, 7, -1, 0], [1, 2, 5, 0], [2, 2, 5, 0], [2, 5, -1, 0], [3, 1, 2, 0], [3, 6, -1, 0]];
+/** The eased exit: it starts this long before the exit word and lasts MACRO_EASE (>= 0.5 s). */
+const MACRO_EASE = 0.6, MACRO_EASE_LEAD = 0.3;
+/** The macro's hero scale over the line framing's (the brief: about 2x), the push inside it (the framing at its onset
+ *  this much wider, eased in over the hero word: R80 <= 20%), and its slow drift round the hero (radians, whole macro). */
+const MACRO_K = 2.0, MACRO_PUSH = 1.16, MACRO_DRIFT = 0.07;
+
+/** ROUND 5 CARVING DEBRIS (R37, R79): chips of skin and flesh and a little dust from each bitten letter, graded:
+ *  [chips per letter, dust per letter, speed (mm/s), life (s)] for a hero (tier 1) and a supporting word. */
+const DEBRIS = { hero: [9, 7, 1.0, 0.55], sup: [2, 2, 0.55, 0.38] };
+/** Gravity on the chips and the dust (mm/s^2, slowed: the macro's scale) and the dust's drag (1/s). */
+const DEB_G = [210, 50], DEB_DRAG = 3.5;
 
 /** ROUND 3: how much of the space to a neighbour on its row a posed word may take (each side). */
 const SPACE_USE = 0.2;
@@ -116,6 +151,8 @@ const STRIP = [110, 30];
 /** ROUND 4 (fix): where the strip hangs from the key's point, per line (mm up, right of the frame), so the hot core lands
  *  above or beside the line's opening word, never behind it. Look-dev override: sc_stripc<k>=up,right. */
 const STRIP_C: number[][] = [[0, 0], [200, -100], [80, -40], [0, 0]];
+/** ROUND 5: the strip's length per line (x STRIP), so line 2's lower, more raking opener keeps r4's tight hot core. */
+const STRIP_K = [1, 0.45, 0.8, 1];
 /** ROUND 4 (fix): the coat's soft shoulder lobe (roughness, gain) under the tight core (COAT). Override: sc_coatb=r,g. */
 const COAT_B = [0.5, 0.08];
 /** TIER 1 FLASHES (R38): strength by hero (and the opening exhibit photograph); every other beat gets no flash.
@@ -140,6 +177,14 @@ interface LWord {
 interface Line { k: number; t0: number; t1: number; words: LWord[]; band: BandLine; az0: number; path: LyricPath; plan: Plan }
 /** A full-frame slam (kinetic.ts): the hero breaks out of the photograph as flat type, from t0 to the next line. */
 interface Slam { t0: number; t1: number; land: number; kw: KinWord; teeth: boolean }
+/** A hero macro (MACROS), solved in the apple's rest frame: it looks at T from T + dir * dist (pushed in over pushDur),
+ *  through a lens of half-height tanH, rolled, the apple held at turn psi; Ph the hero's centre (the focus); ratio its
+ *  hero size over the line framing's, off its angle off square (deg), fov (deg). */
+interface MacroF { T: THREE.Vector3; dir: THREE.Vector3; dist: number }
+interface Macro { line: number; hero: string; t0: number; t1: number; ease: boolean; te: number; A: MacroF; path: LyricPath | null; tanH: number; ratioB: number; Ph: THREE.Vector3; psi: number; roll: number; pushDur: number; ratio: number; off: number; fov: number }
+/** A debris particle (CARVING DEBRIS): born at ts at p0 (rest frame) with velocity v0, chips tumbling (axis ax, rate
+ *  spin; the skin side n0), dust drifting. kind 0 a chip, 1 dust. */
+interface Chip { line: number; ts: number; life: number; p0: THREE.Vector3; v0: THREE.Vector3; size: number; kind: number; flesh: boolean; ax: THREE.Vector3; n0: THREE.Vector3; spin: number; seed: number }
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const UP = V(0, 1, 0);
@@ -150,18 +195,25 @@ function flank(az: number, h: number, el = 0) {
   const N = V(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)), T = V(Math.cos(az), 0, -Math.sin(az));
   const U = new THREE.Vector3().crossVectors(N, T);
   // the body without its noise and wells (scale-glsl.ts appleBody): bisect outward along N
-  const c = Math.cos(LAY.AROT), s = Math.sin(LAY.AROT);
-  const body = (p: THREE.Vector3) => {
-    const qx = p.x - AC.x, qy = p.y - AC.y, qz = p.z - AC.z;
-    const lx = c * qx + s * qy, ly = -s * qx + c * qy;
-    const hh = ly / LAY.AH;
-    const rad = LAY.AR * (1 + 0.08 * hh - 0.06 * hh * hh) - 6.5 * Math.max(-hh, 0) ** 2;
-    return Math.hypot(Math.hypot(lx, qz), (ly * LAY.AR) / LAY.AH) - rad;
-  };
   const at = (k: number) => AC.clone().add(V(0, h, 0)).addScaledVector(N, k);
   let lo = 0, hi = 60;
-  for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (body(at(m)) > 0) hi = m; else lo = m; }
+  for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (appleBody(at(m)) > 0) hi = m; else lo = m; }
   return { C: at(lo), N, T, U };
+}
+/** The apple's body without its noise and wells (scale-glsl.ts appleBody): signed distance-like, 0 on the skin. */
+function appleBody(p: THREE.Vector3) {
+  const c = Math.cos(LAY.AROT), s = Math.sin(LAY.AROT);
+  const qx = p.x - AC.x, qy = p.y - AC.y, qz = p.z - AC.z;
+  const lx = c * qx + s * qy, ly = -s * qx + c * qy;
+  const hh = ly / LAY.AH;
+  const rad = LAY.AR * (1 + 0.08 * hh - 0.06 * hh * hh) - 6.5 * Math.max(-hh, 0) ** 2;
+  return Math.hypot(Math.hypot(lx, qz), (ly * LAY.AR) / LAY.AH) - rad;
+}
+/** ROUND 5: the skin's true outward normal at p (the body's gradient; flank()'s N is level, the skin tilts away
+ *  above and below the apple's middle). */
+function skinN(p: THREE.Vector3) {
+  const e = 0.05, d = (x: number, y: number, z: number) => appleBody(V(p.x + x, p.y + y, p.z + z));
+  return V(d(e, 0, 0) - d(-e, 0, 0), d(0, e, 0) - d(0, -e, 0), d(0, 0, e) - d(0, 0, -e)).normalize();
 }
 // the bite sits on the apple's upper shoulder, facing up and out
 const BITE0 = flank(LAY.BAZ, 0, LAY.BEL);
@@ -204,12 +256,27 @@ function canvasTex(w: number, h: number, draw: (c: CanvasRenderingContext2D) => 
 }
 const v4s = (n: number) => Array.from({ length: n }, () => new THREE.Vector4());
 
+/** A camera: where it stands and looks, its basis, tan of its half fov; the apple's turn under it; D the framing's
+ *  distance at the plate's lens (sizes the light and the focus); wide (the exhibit's share); onBand (the focus point);
+ *  macro (the index of the hero macro in use, -1 on the line's own move). */
+interface Cam { pos: THREE.Vector3; at: THREE.Vector3; fw: THREE.Vector3; rt: THREE.Vector3; up: THREE.Vector3; roll: number; tanH: number; psi: number; D: number; wide: number; onBand: THREE.Vector3; macro: number }
+/** The camera's basis looking from pos at at, rolled by roll about its axis. */
+function basis(pos: THREE.Vector3, at: THREE.Vector3, roll = 0) {
+  const fw = at.clone().sub(pos).normalize();
+  let rt = new THREE.Vector3().crossVectors(fw, UP).normalize();
+  let up = new THREE.Vector3().crossVectors(rt, fw);
+  if (roll) { rt = rt.applyAxisAngle(fw, roll); up = up.applyAxisAngle(fw, roll); }
+  return { fw, rt, up };
+}
+
 export default class ScalePlate extends Scene {
   private march!: FSPass;
   private dof!: FSPass;
   private rt = makeRT();
   private lines: Line[] = [];
   private slams: Slam[] = [];
+  private macros: Macro[] = [];
+  private chips: Chip[] = [];
   /** the strobe's tier-1 firings: time, strength, line */
   private flashes: { t: number; k: number; line: number }[] = [];
   private clk!: KinClock;
@@ -270,7 +337,7 @@ export default class ScalePlate extends Scene {
         const wax = key === 'sweet', go = key === 'go';
         const rep = hero && key === 'never' ? ++nev : 0;
         const row = rows.filter((r) => r <= i).length - 1;
-        return { text, key, start: w.start, end: w.end, hero, wax, go, rep, row };
+        return { text, key, start: w.start, end: w.end, hero, wax, go, rep, row, i };
       });
       const band = bakeLine(ws.map((w) => ({
         text: w.text, serif: w.wax, chip: w.hero && !w.wax, row: w.row,
@@ -339,17 +406,23 @@ export default class ScalePlate extends Scene {
       if (dq || pq0) L.plan = { ...L.plan, daz: (dq as [number, number]) ?? L.plan.daz, psi0: pq0?.[0] ?? L.plan.psi0 };
       const P = L.plan, n = L.words.length;
       const prog = (t: number) => clamp((t - L.t0) / Math.max(1e-3, L.t1 - L.t0));
+      const ride = qv('ride')?.[0] ?? RIDE;
       const box = (i: number) => {
         let s0 = 1e9, s1 = -1e9, h0 = 1e9, h1 = -1e9;
         for (const w of L.words.slice(0, i + 1)) {
           s0 = Math.min(s0, w.x0); s1 = Math.max(s1, w.x1 + (w.rep ? 0.12 * (w.x1 - w.x0) : 0));
           h1 = Math.max(h1, w.hc + (w.wax ? 0.75 : 0.5) * w.cap); h0 = Math.min(h0, w.hc - (w.wax ? 0.3 : 0.5) * w.cap);
         }
+        // (round 5: the framing leans down toward the newest word's row (RIDE), so the camera rides down the rows as they
+        // are bitten and the newest sits nearer the frame's middle; the box is still framed whole round that point; only
+        // down, never back along a row, so the move never reverses)
+        const wn = L.words[i]!, s = (s0 + s1) / 2, h = lerp((h0 + h1) / 2, wn.hc, ride);
+        const ws = 2 * Math.max(s1 - s, s - s0), hs = 2 * Math.max(h1 - h, h - h0);
         // on the curved band the line's ends turn away: frame its chord, and leave room for stamps and stretch
-        const chord = 2 * RB * Math.sin(Math.min(1.5, (s1 - s0) / (2 * RB)));
-        const D = Math.max(DMIN, (chord + 8) / (FW_D * 0.8), (h1 - h0 + 4) / (FH_D * 0.76));
+        const chord = 2 * RB * Math.sin(Math.min(1.5, ws / (2 * RB)));
+        const D = Math.max(DMIN, (chord + 8) / (FW_D * 0.77), (hs + 4) / (FH_D * 0.74));
         // hn: the newest row's height (the camera tilts to sit square to it, so the row being written reads flat)
-        return { s: (s0 + s1) / 2, h: (h0 + h1) / 2, D, hn: L.words[i]!.hc };
+        return { s, h, D, hn: wn.hc };
       };
       const vec = (t: number, b: { s: number; h: number; hn: number }, D: number, wide: number) => {
         const u = prog(t);
@@ -377,6 +450,40 @@ export default class ScalePlate extends Scene {
       L.az0 = P.a[0] - P.daz[0] - P.psi0 - boxes[i0]!.s / RB;
     }
 
+    if (QP?.get("sc_rows")) for (const L of this.lines) console.warn("SCROWS " + L.k + " " + L.words.map((w) => `${w.text}[r${w.row} ${w.x0.toFixed(0)}..${w.x1.toFixed(0)} h${w.hc.toFixed(0)} c${w.cap}]`).join(" "));
+    // ROUND 5 HERO MACROS: solved once (each against the line framing alone, so a macro chained onto another is sized
+    // against the line), then opened
+    const solved = QP?.get("sc_rows") ? [] : MACROS.filter(([k]) => this.lines[k]).map(([k, hi, xi, ez], idx) => this.solveMacro(this.lines[k]!, hi, xi, idx, !!ez));
+    this.macros = solved;
+
+    // ROUND 5 CARVING DEBRIS: as each letter is bitten (its spring's onset), chips of skin (stone yellow on one side,
+    // cream flesh on the other) and a little dust spray from the cut, out of the skin and away down the apple (the
+    // rows below are not bitten yet, so nothing crosses a standing word), falling out of frame or gone within ~0.5 s.
+    // Graded: heroes (tier 1) a real burst; supporting words a small puff; nothing between words.
+    let seed = 0x5ca1e;
+    const rnd = () => { seed = (seed + 0x6d2b79f5) | 0; let x = Math.imul(seed ^ (seed >>> 15), 1 | seed); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+    const rv = () => V(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1).normalize();
+    for (const L of this.lines) {
+      for (const w of L.words) {
+        const [nc, nd, sp, life] = w.hero ? DEBRIS.hero : DEBRIS.sup;
+        const stagger = w.hero ? (w.key === 'sweet' ? 0.025 : 0.02) : 0.018;
+        w.kw.glyphs.forEach((g, gi) => {
+          const ts = w.m0 - 0.045 + gi * stagger;
+          for (let j = 0; j < nc! + nd!; j++) {
+            const dust = j >= nc!;
+            const f = flank(L.az0 + (g.cx + (rnd() - 0.5) * g.adv * 0.8) / RB, HB + w.hc + (rnd() - 0.5) * w.cap * 0.9);
+            const s = sp! * (0.5 + rnd());
+            const v0 = skinN(f.C).multiplyScalar((22 + 30 * rnd()) * s).addScaledVector(f.T, (rnd() - 0.4) * 40 * s).addScaledVector(f.U, (-0.15 - 0.55 * rnd()) * 40 * s);
+            this.chips.push({
+              line: L.k, ts: ts + rnd() * 0.03, life: life! * (dust ? 1.2 : 0.7 + 0.5 * rnd()), p0: f.C.clone().addScaledVector(f.N, 0.3), v0,
+              size: dust ? 0.05 + 0.06 * rnd() : (w.hero ? 0.22 : 0.15) + (w.hero ? 0.45 : 0.2) * rnd() ** 2, kind: dust ? 1 : 0,
+              flesh: rnd() < 0.45, ax: rv(), n0: rv(), spin: 8 + 22 * rnd(), seed: rnd(),
+            });
+          }
+        });
+      }
+    }
+
     this.march = new FSPass(MARCH_FRAG, {
       ssTap: SS_TAP,
       camPos: { value: V(0, 0, 0) }, camR: { value: V(0, 0, 0) }, camU: { value: V(0, 0, 0) }, camF: { value: V(0, 0, 0) },
@@ -399,6 +506,238 @@ export default class ScalePlate extends Scene {
     let L = this.lines[0]!;
     for (const x of this.lines) if (x.t0 <= t + 1e-6) L = x;
     return L;
+  }
+
+  /** The camera at t on line Ln: a hero macro while one is open, else the line's one move. */
+  private cam(Ln: Line, t: number): Cam {
+    for (let mi = 0; mi < this.macros.length; mi++) {
+      const M = this.macros[mi]!;
+      if (M.line !== Ln.k || t < M.t0 - 1e-6) continue;
+      if (t < M.t1 - 1e-6) return this.macroCam(mi, t);
+      // the eased exit: the macro (held at its last frame) pulls back into the line's own move, continuously
+      if (M.ease && t < M.te - 1e-6) return this.blendCam(this.macroCam(mi, t), this.lineCam(Ln, t), ease.inOutCubic(clamp((t - M.t1) / (M.te - M.t1))));
+    }
+    return this.lineCam(Ln, t);
+  }
+
+  /** Two cameras blended in the apple's rest frame (target, direction, log distance and lens, roll, the apple's turn). */
+  private blendCam(a: Cam, b: Cam, w: number): Cam {
+    const psi = a.psi + w * Math.atan2(Math.sin(b.psi - a.psi), Math.cos(b.psi - a.psi));
+    const atA = turn(a.at, -a.psi), atB = turn(b.at, -b.psi);
+    const dA = turn(a.pos, -a.psi).sub(atA), dB = turn(b.pos, -b.psi).sub(atB);
+    const lg = (x: number, y: number) => Math.exp(lerp(Math.log(x), Math.log(y), w));
+    const dist = lg(dA.length(), dB.length()), dir = dA.normalize().lerp(dB.normalize(), w).normalize();
+    const atR = atA.lerp(atB, w), roll = lerp(a.roll, b.roll, w);
+    const pos = turn(atR.clone().addScaledVector(dir, dist), psi), at = turn(atR, psi);
+    const { fw, rt, up } = basis(pos, at, roll);
+    const onBand = turn(turn(a.onBand, -a.psi).lerp(turn(b.onBand, -b.psi), w), psi);
+    return { pos, at, fw, rt, up, roll, tanH: lg(a.tanH, b.tanH), psi, D: lg(a.D, b.D), wide: lerp(a.wide, b.wide, w), onBand, macro: -1 };
+  }
+
+  /** A hero macro at t: the solved framing, pushed in over the hero word (MACRO_PUSH, eased) and drifting slowly round
+   *  the hero (MACRO_DRIFT), the apple held at its turn from the macro's onset. */
+  private macroCam(mi: number, t: number): Cam {
+    const M = this.macros[mi]!;
+    // the room path: from the opening (A) through a framing per word bitten in the macro, each reached just before its
+    // word lands (a monotone spline eased into the beats, kinetic.ts LyricPath), so the newest word always has room
+    let T = M.A.T, dir = M.A.dir.clone(), dist = M.A.dist;
+    if (M.path) {
+      const v = M.path.at(t);
+      T = V(v[0]!, v[1]!, v[2]!); dir = V(v[3]!, v[4]!, v[5]!).normalize(); dist = Math.exp(v[6]!);
+    } else dist *= lerp(MACRO_PUSH, 1, ease.inOutQuad(clamp((t - M.t0) / M.pushDur))); // the push into the hero (R80), where the macro does not make room
+    const dr = MACRO_DRIFT * (mi % 2 ? 1 : -1) * (ease.inOutQuad(clamp((t - M.t0) / Math.max(0.2, M.t1 - M.t0))) - 0.5);
+    const P = T.clone().addScaledVector(dir.applyAxisAngle(UP, dr), dist);
+    const pos = turn(P, M.psi), at = turn(T, M.psi);
+    const { fw, rt, up } = basis(pos, at, M.roll);
+    const tanF = Math.tan((FOV * Math.PI) / 360);
+    return { pos, at, fw, rt, up, roll: M.roll, tanH: M.tanH, psi: M.psi, D: (dist * M.tanH) / tanF, wide: 0, onBand: turn(M.Ph, M.psi), macro: mi };
+  }
+
+  /** ROUND 5: solve a hero macro (MACROS). A, its opening: searched over the camera's direction round the hero (rest
+   *  frame) and three lenses, the framing that brings the hero closest to MACRO_K x its size in the line framing while
+   *  every word of the line so far stays whole inside the frame (inside title-safe, with room for stamps), each at a
+   *  readable size (>= 6.4% cap) and no part of it turned more than ~65 deg from the lens (the hero ~57). Among framings
+   *  that reach the target it prefers the hero seen 14-32 deg off square (the bitten walls show). B, if words are bitten
+   *  before the macro leaves: the same lens, a direction near A's, with room for them; the camera eases from A to B as
+   *  they arrive (riding along, one way). */
+  private solveMacro(L: Line, hi: number, xi: number, idx: number, easeOut: boolean): Macro {
+    const hero = L.words[hi]!;
+    const t0 = hero.start;
+    // an eased exit starts before its exit word and runs MACRO_EASE (or to the line's cut); the room framing then holds
+    // every word bitten before the pull-back ends
+    const t1 = xi < 0 ? L.t1 : easeOut ? L.words[xi]!.start - MACRO_EASE_LEAD : L.words[xi]!.start;
+    const te = easeOut ? Math.min(t1 + MACRO_EASE, L.t1) : t1;
+    const last = xi < 0 ? L.words.length - 1 : easeOut ? L.words.filter((w) => w.start < te).length - 1 : xi - 1;
+    const at = (s: number, h: number) => flank(L.az0 + s / RB, HB + h);
+    const roll = L.plan.roll[0] * 0.5 + (idx % 2 ? 0.05 : -0.05);
+    const asp = 16 / 9, BX = 0.8, BY = 0.74;
+    type Pt = { p: THREE.Vector3; N: THREE.Vector3; hero: boolean };
+    type CapS = { c: THREE.Vector3; a: THREE.Vector3; b: THREE.Vector3; N: THREE.Vector3; hero: boolean; row: number; mm: number };
+    const geom = (ws: LWord[]) => {
+      const pts: Pt[] = [], caps: CapS[] = [];
+      for (const w of ws) {
+        const top = w.hc + (w.wax ? 0.75 : 0.55) * w.cap, bot = w.hc - (w.wax ? 0.3 : 0.55) * w.cap;
+        const x1 = w.rep ? Math.max(w.lim1, w.x1 + 0.35 * (w.x1 - w.x0)) : w.lim1;
+        for (const s of [w.lim0, (w.lim0 + x1) / 2, x1]) for (const h of [top, bot]) { const f = at(s, h); pts.push({ p: f.C, N: skinN(f.C), hero: w === hero }); }
+        const f = at(w.cx, w.hc);
+        caps.push({ c: f.C, a: at(w.cx, w.hc - w.cap / 2).C, b: at(w.cx, w.hc + w.cap / 2).C, N: skinN(f.C), hero: w === hero, row: w.row, mm: w.cap });
+      }
+      return { pts, caps, cen: pts.reduce((a, q) => a.add(q.p), V(0, 0, 0)).multiplyScalar(1 / pts.length) };
+    };
+    const Ph = at(hero.cx, hero.hc).C;
+    const proj = (pos: THREE.Vector3, B: ReturnType<typeof basis>, tanH: number, p: THREE.Vector3) => {
+      const q = p.clone().sub(pos), z = q.dot(B.fw);
+      return [q.dot(B.rt) / (z * tanH * asp), q.dot(B.up) / (z * tanH), z] as const;
+    };
+    const capOf = (pos: THREE.Vector3, B: ReturnType<typeof basis>, tanH: number, c: CapS) => {
+      const a = proj(pos, B, tanH, c.a), b = proj(pos, B, tanH, c.b);
+      return Math.hypot((a[0] - b[0]) * asp, a[1] - b[1]) / 2;
+    };
+    // the line framing's hero size at the onset (the reference for MACRO_K)
+    const lc = this.lineCam(L, t0), g0 = geom(L.words.slice(0, hi + 1)), wHero = g0.caps.find((c) => c.hero)!;
+    const lineCap = capOf(lc.pos, { fw: lc.fw, rt: lc.rt, up: lc.up }, lc.tanH, { ...wHero, a: turn(wHero.a, lc.psi), b: turn(wHero.b, lc.psi) });
+    type Sol = { T: THREE.Vector3; dir: THREE.Vector3; dist: number; tanH: number; cap: number; sup: number; off: number; score: number };
+    let rej: number[] = [];
+    // (round 5: in a room framing the newest row is never the smallest on screen)
+    const newRow = L.words[last]!.row;
+    const search = (g: ReturnType<typeof geom>, fovs: number[], dirs: THREE.Vector3[], target: number, rowRule = false): Sol | null => {
+      const fit = (dir: THREE.Vector3, tanH: number) => {
+        let T = Ph.clone().lerp(g.cen, 0.5), D = 0;
+        for (let pass = 0; pass < 3; pass++) {
+          const B = basis(T.clone().addScaledVector(dir, 100), T, roll);
+          const ok = (d: number) => {
+            const pos = T.clone().addScaledVector(dir, d);
+            for (const q of g.pts) { const [x, y, z] = proj(pos, B, tanH, q.p); if (z < 3 || Math.abs(x) > BX || Math.abs(y) > BY) return false; }
+            return true;
+          };
+          let lo = 4, hi2 = 700;
+          if (!ok(hi2)) return null;
+          for (let it = 0; it < 22; it++) { const m = (lo + hi2) / 2; if (ok(m)) hi2 = m; else lo = m; }
+          D = hi2;
+          if (pass === 2) break;
+          const pos = T.clone().addScaledVector(dir, D);
+          let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+          for (const q of g.pts) { const [x, y] = proj(pos, B, tanH, q.p); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+          T = T.addScaledVector(B.rt, ((x0 + x1) / 2) * D * tanH * asp).addScaledVector(B.up, ((y0 + y1) / 2) * D * tanH);
+        }
+        return { T, D };
+      };
+      let best: Sol | null = null;
+      rej = [0, 0, 0, 0, 0, 0];
+      for (const fov of fovs) {
+        const tanH = Math.tan((fov * Math.PI) / 360);
+        for (const dir of dirs) {
+          const f = fit(dir, tanH);
+          if (!f) { rej[0]++; continue; }
+          // every part of every word faces the lens well enough to read: stand further back until it does (a nearer
+          // lens sees the line's ends more obliquely)
+          const faces = (p: THREE.Vector3) => !g.pts.some((q) => q.N.dot(p.clone().sub(q.p).normalize()) < (q.hero ? 0.5 : 0.3));
+          let pos = f.T.clone().addScaledVector(dir, f.D);
+          for (const k of [1.25, 1.6, 2.1, 2.8]) { if (faces(pos)) break; f.D = f.D * (k / (k === 1.25 ? 1 : 1)); pos = f.T.clone().addScaledVector(dir, f.D); }
+          if (pos.y < 14 || pos.distanceTo(AC) < LAY.AR + 8) { rej[1]++; continue; }
+          if (!faces(pos)) { rej[2]++; continue; }
+          const B = basis(pos, f.T, roll);
+          let sup = 1, cap = 0, bad = false, off = 0, kNew = 1, kOld = 1;
+          for (const c of g.caps) {
+            const face = c.N.dot(pos.clone().sub(c.c).normalize());
+            if (face < (c.hero ? 0.7 : 0.5)) { bad = true; break; }
+            const k = capOf(pos, B, tanH, c);
+            if (c.hero) { cap = k; off = Math.acos(face); } else sup = Math.min(sup, k);
+            if (c.row === newRow) kNew = Math.min(kNew, k / c.mm); else kOld = Math.min(kOld, k / c.mm);
+          }
+          if (bad || (rowRule && kNew < 0.97 * kOld)) { rej[3]++; continue; }
+          const eff = Math.min(cap, target), supEff = sup * (eff / cap);
+          if (supEff < 0.064) { rej[4]++; continue; }
+          const score = eff / target + (off > 0.24 && off < 0.56 ? 0.06 : 0) + 0.4 * Math.min(supEff, 0.11);
+          if (!best || score > best.score) best = { T: f.T, dir, dist: f.D, tanH, cap, sup, off, score };
+        }
+      }
+      if (best && best.cap > target) {
+        // back off to the target size where the framing could go tighter
+        const B = basis(best.T.clone().addScaledVector(best.dir, 100), best.T, roll);
+        let lo = best.dist, hi2 = best.dist * 4;
+        for (let it = 0; it < 22; it++) {
+          const m = (lo + hi2) / 2;
+          if (capOf(best.T.clone().addScaledVector(best.dir, m), B, best.tanH, g.caps.find((c) => c.hero)!) > target) lo = m; else hi2 = m;
+        }
+        best.cap = target; best.dist = hi2;
+      }
+      return best;
+    };
+    const An = L.az0 + hero.cx / RB, dirs: THREE.Vector3[] = [];
+    for (let ia = -5; ia <= 5; ia++) for (let ie = -6; ie <= 8; ie++) dirs.push(dirAz(An + ia * 0.15, ie * 0.1));
+    const A = search(g0, [18, 24, 32, 42, 54], dirs, MACRO_K * lineCap);
+    if (!A) throw new Error(`scale: no macro framing for ${hero.text} (rejected: fit, place, face, centre, size: ${rej.join()})`);
+    // the room path: a framing per word bitten in the macro (and in its eased exit), on A's lens, near the framing
+    // before it; held on A a moment, then each reached just before its word lands
+    let Bs: Sol | null = null, path: LyricPath | null = null;
+    if (last > hi) {
+      const fA = [(Math.atan(A.tanH) * 360) / Math.PI], vec = (x: Sol) => [x.T.x, x.T.y, x.T.z, x.dir.x, x.dir.y, x.dir.z, Math.log(x.dist)];
+      const keys = [{ t: t0, v: vec(A) }, { t: t0 + Math.min(0.2, 0.4 * (L.words[hi + 1]!.start - t0)), v: vec(A) }];
+      let prev = A;
+      for (let j = hi + 1; j <= last; j++) {
+        const near: THREE.Vector3[] = [];
+        for (let ia = -3; ia <= 3; ia++) for (let ie = -3; ie <= 3; ie++) near.push(prev.dir.clone().applyAxisAngle(UP, ia * 0.1).add(V(0, ie * 0.08, 0)).normalize());
+        const gB = geom(L.words.slice(0, j + 1));
+        const F = search(gB, fA, near, prev.cap, true) ?? search(gB, fA, dirs, prev.cap, true) ?? search(gB, fA, near, prev.cap) ?? search(gB, fA, dirs, prev.cap);
+        if (!F) throw new Error(`scale: no room framing for ${L.words[j]!.text} in the macro on ${hero.text} (rejected: ${rej.join()})`);
+        keys.push({ t: Math.max(keys[keys.length - 1]!.t + 0.12, L.words[j]!.start - 0.08), v: vec(F) });
+        prev = Bs = F;
+      }
+      path = new LyricPath(keys, { clk: this.clk, settle: 0.2, down: 0.1 });
+    }
+    return {
+      line: L.k, hero: hero.text, t0, t1, ease: easeOut, te, A, path, tanH: A.tanH, Ph, psi: lc.psi,
+      roll, pushDur: Math.max(0.4, hero.end - hero.start), ratio: A.cap / lineCap, ratioB: Bs ? Bs.cap / lineCap : A.cap / lineCap,
+      off: (A.off * 180) / Math.PI, fov: (Math.atan(A.tanH) * 360) / Math.PI,
+    };
+  }
+
+  /** The line's own camera at t: the line's one move (LyricPath), the apple turned under it (psi). D: the distance the
+   *  framing would have at the plate's lens (FOV), which sizes the light's pool and the depth of field. */
+  private lineCam(Ln: Line, t: number): Cam {
+    const [sf, hf, D, az, el0, roll, daz, wide, hn] = Ln.path.at(t) as [number, number, number, number, number, number, number, number, number];
+    const psi = az - daz - (Ln.az0 + sf / RB);
+    const onBand = turn(flank(Ln.az0 + sf / RB, HB + hf).C, psi);
+    const at = onBand.clone().lerp(EXHIBIT, 0.7 * wide);
+    // the camera's elevation follows the rows down the apple's curve (square to the line it frames)
+    // (never below the cloth: at least 10 mm over the table)
+    const el = Math.max(el0 + (1 - wide) * 0.75 * Math.atan2(HB + lerp(hf, hn, 0.6), LAY.AR), Math.asin(clamp((10 - at.y) / D, -1, 1)));
+    const pos = at.clone().addScaledVector(dirAz(az, el), D);
+    const qc = qv('cam');
+    if (qc) { pos.set(qc[0]!, qc[1]!, qc[2]!); at.set(qc[3]!, qc[4]!, qc[5]!); }
+    const { fw, rt, up } = basis(pos, at, roll);
+    return { pos, at, fw, rt, up, roll, tanH: Math.tan((FOV * Math.PI) / 360), psi, D, wide, onBand, macro: -1 };
+  }
+
+  /** sc_log=1: the camera's travel per line (console warnings, printed by render.ts): its orbit round the apple in the
+   *  apple's own frame (degrees, summed along the move) and in the room, and the apple centre's travel on screen (px at
+   *  1080p, summed), measured on the continuous moves only (a reframe's jump is not travel). */
+  private logged = false;
+  private logTravel() {
+    const H2 = 540, W2 = 960, deg = (r: number) => ((r * 180) / Math.PI).toFixed(0);
+    // one pass over a line: "seen" is the camera as cut (line move and macros; a reframe's jump is not travel), "path"
+    // the line's own move alone, as if no macro interrupted it (round 4 had only this)
+    const pass = (L: Line, t1: number, f: (t: number) => Cam) => {
+      type Smp = { dR: THREE.Vector3; sx: number; sy: number; mac: number };
+      let orb = 0, scr = 0, jumps = 0, prev = null as Smp | null, Dmin = 1e9, Dmax = 0;
+      for (let t = L.t0; t < t1 - 1e-6; t += 1 / 30) {
+        const c = f(t);
+        const dR = c.pos.clone().sub(AC).normalize().applyAxisAngle(UP, -c.psi);
+        const q = AC.clone().sub(c.pos), z = q.dot(c.fw);
+        const cur: Smp = { dR, sx: W2 + (q.dot(c.rt) / (z * c.tanH * (16 / 9))) * W2, sy: H2 - (q.dot(c.up) / (z * c.tanH)) * H2, mac: c.macro };
+        const ds = prev ? Math.hypot(cur.sx - prev.sx, cur.sy - prev.sy) : 0;
+        if (prev && (prev.mac === cur.mac || ds < 40)) { orb += prev.dR.angleTo(dR); scr += ds; } else if (prev) jumps++;
+        if (c.macro < 0) { Dmin = Math.min(Dmin, c.D); Dmax = Math.max(Dmax, c.D); }
+        prev = cur;
+      }
+      return `orbit ${deg(orb)} deg, apple centre ${scr.toFixed(0)} px, framing ${(Dmax / Dmin).toFixed(2)}x${jumps ? `, reframes ${jumps}` : ""}`;
+    };
+    for (const L of this.lines) {
+      const t1 = Math.min(L.t1, ...this.slams.map((x) => (x.t0 >= L.t0 ? x.t0 : Infinity)));
+      for (const M of this.macros.filter((x) => x.line === L.k)) console.warn(`SCLOG   macro ${M.hero} ${M.t0.toFixed(2)}-${M.t1.toFixed(2)}: ${M.ratio.toFixed(2)}x the line's hero (${M.ratioB.toFixed(2)}x with room), ${M.off.toFixed(0)} deg off square, fov ${M.fov.toFixed(0)}`);
+      console.warn(`SCLOG line ${L.k + 1} ${L.t0.toFixed(2)}-${t1.toFixed(2)}: path: ${pass(L, t1, (t) => this.lineCam(L, t))}; seen: ${pass(L, t1, (t) => this.cam(L, t))}`);
+    }
   }
 
   /** A word's moves (kinetic.ts), chorus energy. Every word: its letters spring up into the skin one by one (~20 ms
@@ -492,29 +831,17 @@ export default class ScalePlate extends Scene {
     (m.lineRect!.value as THREE.Vector4).set(...Ln.band.rect);
     (m.band!.value as THREE.Vector4).set(Ln.az0, HB, RB, hmax + 1.5);
 
-    // ---- the camera: one move along the line (kinetic.ts LyricPath), the apple turning under it
-    const [sf, hf, D, az, el0, roll, daz, wide, hn] = Ln.path.at(t) as [number, number, number, number, number, number, number, number, number];
-    const psi = az - daz - (Ln.az0 + sf / RB);
+    // ---- the camera: one move along the line (kinetic.ts LyricPath), the apple turning under it, or a hero macro
+    if (QP?.get('sc_log') && !this.logged) { this.logged = true; this.logTravel(); }
+    const cm = this.cam(Ln, t);
+    const { pos, at, fw, rt, up, psi, D, wide, onBand } = cm;
     (m.aYaw!.value as THREE.Vector2).set(Math.cos(psi), Math.sin(psi));
-    const onBand = turn(flank(Ln.az0 + sf / RB, HB + hf).C, psi);
-    const at = onBand.clone().lerp(EXHIBIT, 0.7 * wide);
-    // the camera's elevation follows the rows down the apple's curve (square to the line it frames)
-    // (never below the cloth: at least 10 mm over the table)
-    const el = Math.max(el0 + (1 - wide) * 0.75 * Math.atan2(HB + lerp(hf, hn, 0.6), LAY.AR), Math.asin(clamp((10 - at.y) / D, -1, 1)));
-    const pos = at.clone().addScaledVector(dirAz(az, el), D);
-    const fov = FOV;
-    const qc = qv('cam');
-    if (qc) { pos.set(qc[0]!, qc[1]!, qc[2]!); at.set(qc[3]!, qc[4]!, qc[5]!); }
-    const fw = at.clone().sub(pos).normalize();
-    let rt = new THREE.Vector3().crossVectors(fw, UP).normalize();
-    let up = new THREE.Vector3().crossVectors(rt, fw);
-    if (roll) { rt = rt.applyAxisAngle(fw, roll); up = up.applyAxisAngle(fw, roll); }
     (m.camPos!.value as THREE.Vector3).copy(pos);
     (m.camF!.value as THREE.Vector3).copy(fw);
     (m.camR!.value as THREE.Vector3).copy(rt);
     (m.camU!.value as THREE.Vector3).copy(up);
-    m.tanH!.value = Math.tan((fov * Math.PI) / 360);
-    if (kinProbeOn()) this.kinProbe(Ln, t, pos, fw, rt, up, psi); // type probe (lint only)
+    m.tanH!.value = cm.tanH;
+    if (kinProbeOn()) this.kinProbe(Ln, t, pos, fw, rt, up, psi, cm.tanH); // type probe (lint only)
 
     // ---- ROUND 3 LIGHT: one hard key, a strobe head on a stand off to the left, raking LOW across the apple's face
     // (KEY: degrees off the lens axis, degrees of that swung up from the left), so every bitten letter has black
@@ -565,7 +892,7 @@ export default class ScalePlate extends Scene {
     m.cutK!.value = lerp(qv('cut')?.[0] ?? CUT, 0.5, wide);
     // (the strip: STRIP = its half length (mm), its tilt from the frame's vertical toward the right (degrees))
     const stq = qv('strip') ?? STRIP, sa = (stq[1]! * Math.PI) / 180;
-    (m.keyStrip!.value as THREE.Vector3).copy(up).multiplyScalar(Math.cos(sa)).addScaledVector(rt, Math.sin(sa)).multiplyScalar(stq[0]! * (1 - wide));
+    (m.keyStrip!.value as THREE.Vector3).copy(up).multiplyScalar(Math.cos(sa)).addScaledVector(rt, Math.sin(sa)).multiplyScalar(stq[0]! * (STRIP_K[Ln.k] ?? 1) * (1 - wide));
     // (the strip hangs above and beside the key's point: STRIP_C (mm up, right of the frame), so the streak's hot core
     // lands above and beside a line's opening word, never behind it; the diffuse key and its shadows are unchanged)
     const scq = qv('stripc' + Ln.k) ?? STRIP_C[Ln.k] ?? [0, 0];
@@ -578,8 +905,10 @@ export default class ScalePlate extends Scene {
     const d = this.dof.u;
     d.src!.value = this.rt.texture;
     d.focusD!.value = onBand.clone().sub(pos).dot(fw);
-    d.aper!.value = qv('aper')?.[0] ?? lerp(9 * Math.min(1, 70 / Dn), 2.5, wide);
+    // (round 5: a macro stops down, so the line so far behind the hero stays sharp enough to read)
+    d.aper!.value = (qv('aper')?.[0] ?? lerp(9 * Math.min(1, 70 / Dn), 2.5, wide)) * (cm.macro >= 0 ? 0.5 : 1);
     this.dof.render(renderer, out);
+    this.drawDebris(Ln, t, cm, key, m.keyDir!.value as THREE.Vector3, m.keyOut!.value as number, lamp + FG * fl, out);
     // GRADED IMPACTS (R37, R79): tier 1 (a flash) a shake of up to 12 px and a small punch of zoom; tier 2 (other
     // downbeats) a nudge of up to 4 px; tier 3 (the other beats) up to 1.5 px. The words' stretch on the kicks and
     // condense on the snares (kinetic moves) carry the beat between.
@@ -588,6 +917,72 @@ export default class ScalePlate extends Scene {
     const down = this.clk.inBar(Math.round(this.clk.beat(beat))) === 0;
     shake = Math.max(shake, 12 * fp, (down ? 4 : 1.5) * pulse(t, beat, 0.04));
     return { exposure: 1, halation: 0.04, shake: kinShake(t, Math.min(12, shake)), zoom: 1 + 0.012 * fp };
+  }
+
+  /** CARVING DEBRIS (round 5): the live chips and dust of this line, flown (rest frame, turned with the apple), projected
+   *  by the frame's camera and drawn over the frame, lit by the same key: a chip's lit face catches the key (and its
+   *  streak as it tumbles), its far side falls to film; dust is a faint cream mote. Palette only: stone, a cream tint of
+   *  stone toward lightbox, film. */
+  private drawDebris(Ln: Line, t: number, cm: Cam, key: THREE.Vector3, keyDir: THREE.Vector3, keyOut: number, level: number, out: THREE.WebGLRenderTarget) {
+    const live = this.chips.filter((c) => c.line === Ln.k && t >= c.ts && t < c.ts + c.life);
+    if (!live.length) return;
+    const c2 = this.L.ctx, H2 = FH / 2, W2 = FW / 2, asp = FW / FH;
+    this.L.clear();
+    const lin = (h: string) => [1, 3, 5].map((i) => Math.pow(parseInt(h.slice(i, i + 2), 16) / 255, 2.2));
+    const STONE = lin('#E8C35A'), LBOX = lin('#F1F3EE'), FILM = lin('#070A10');
+    const CREAM = STONE.map((v, i) => lerp(v, LBOX[i]!, 0.62));
+    const srgb = (v: number) => Math.round(255 * Math.pow(clamp(v), 1 / 2.2));
+    let drawn = 0;
+    for (const c of live) {
+      const tau = t - c.ts;
+      const p = c.p0.clone();
+      if (c.kind === 1) {
+        const k = (1 - Math.exp(-DEB_DRAG * tau)) / DEB_DRAG;
+        p.addScaledVector(c.v0, k).y -= 0.5 * DEB_G[1]! * tau * tau;
+      } else p.addScaledVector(c.v0, tau).y -= 0.5 * DEB_G[0]! * tau * tau;
+      // inside the apple (fallen back against the skin): gone
+      if (p.distanceTo(AC) < LAY.AR - 1) continue;
+      const P = turn(p, cm.psi), q = P.clone().sub(cm.pos), z = q.dot(cm.fw);
+      if (z < 6) continue;
+      const sx = W2 + (q.dot(cm.rt) / (z * cm.tanH * asp)) * W2, sy = H2 - (q.dot(cm.up) / (z * cm.tanH)) * H2;
+      if (sx < -40 || sx > FW + 40 || sy < -40 || sy > FH + 40) continue;
+      const u = tau / c.life;
+      let r = Math.min(16, (c.size / (z * cm.tanH)) * H2);
+      if (c.kind === 0) r *= 1 - ease.inQuad(clamp((u - 0.75) / 0.25));
+      if (r < 0.35) continue;
+      const toKey = key.clone().sub(P).normalize(), toCam = cm.pos.clone().sub(P).normalize();
+      // the key's pool (its cone), so a chip flying out of the light falls dark
+      const pool = Math.pow(clamp((P.clone().sub(key).normalize().dot(keyDir) - keyOut) / Math.max(1e-3, 1 - keyOut)), 0.6);
+      if (c.kind === 1) {
+        const a = 0.5 * (1 - u) ** 2 * (0.25 + pool);
+        const col = CREAM.map((v) => srgb(v * (0.25 + 0.9 * pool * level)));
+        c2.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${Math.min(0.8, a).toFixed(3)})`;
+        c2.beginPath(); c2.arc(sx, sy, Math.max(0.7, r), 0, Math.PI * 2); c2.fill();
+      } else {
+        // tumbling: the chip's skin side faces n
+        const n = c.n0.clone().applyAxisAngle(c.ax, c.spin * tau), wP = n.clone().applyAxisAngle(UP, cm.psi);
+        const skin = wP.dot(toCam) >= 0 !== c.flesh;
+        const nn = wP.dot(toCam) >= 0 ? wP : wP.negate();
+        const dif = Math.max(0, nn.dot(toKey)), hv = toKey.clone().add(toCam).normalize();
+        const spec = Math.pow(Math.max(0, nn.dot(hv)), 36) * 2.2 * pool * level;
+        const base = skin ? STONE : CREAM;
+        const col = base.map((v, i) => srgb(lerp(FILM[i]!, v, clamp(0.05 + dif * pool * level * 1.1)) + spec * LBOX[i]!));
+        c2.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`;
+        // an irregular flake, turning in the frame as it tumbles
+        const rot = c.seed * 6.28 + c.spin * 0.4 * tau, nv = 3 + Math.floor(c.seed * 2.99);
+        c2.beginPath();
+        for (let k = 0; k < nv; k++) {
+          const a = rot + (k / nv) * Math.PI * 2 + Math.sin(c.seed * 40 + k * 2.3) * 0.5;
+          const rr = r * (0.6 + 0.4 * Math.abs(Math.sin(c.seed * 17 + k * 1.7))) * (k % 2 ? 1 : 0.55 + 0.45 * Math.abs(nn.dot(toCam)));
+          if (k === 0) c2.moveTo(sx + rr * Math.cos(a), sy + rr * Math.sin(a)); else c2.lineTo(sx + rr * Math.cos(a), sy + rr * Math.sin(a));
+        }
+        c2.closePath(); c2.fill();
+      }
+      drawn++;
+    }
+    if (!drawn) return;
+    this.L.upload();
+    this.ctx.comp.draw(this.ctx.renderer, this.L.texture, out, { mode: 'normal' });
   }
 
   /** The light at t: fl, the strobe's burst (its strength times a few frames' decay); lamp, the modelling lamp's
@@ -663,8 +1058,8 @@ export default class ScalePlate extends Scene {
   /** The type probe (kinetic.ts THE TYPE PROBE; lint only, never in a normal render): where every word of the line is on
    *  screen. A word's (s, h) on the band -> its point on the apple's skin and normal, turned with the apple (psi, as the
    *  camera target in render() is) -> projected by the frame's camera. */
-  private kinProbe(Ln: Line, t: number, pos: THREE.Vector3, fw: THREE.Vector3, rt: THREE.Vector3, up: THREE.Vector3, psi: number) {
-    const cam = kinCam(pos, fw, rt, up, Math.tan((FOV * Math.PI) / 360));
+  private kinProbe(Ln: Line, t: number, pos: THREE.Vector3, fw: THREE.Vector3, rt: THREE.Vector3, up: THREE.Vector3, psi: number, tanH: number) {
+    const cam = kinCam(pos, fw, rt, up, tanH);
     const surf = (s: number, h: number) => {
       const f = flank(Ln.az0 + s / RB, HB + h), C = turn(f.C, psi), N = f.N.clone().applyAxisAngle(UP, psi);
       return [C.x, C.y, C.z, N.x, N.y, N.z];
