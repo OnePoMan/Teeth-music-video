@@ -80,3 +80,11 @@ all to `out/gate3/kinetic/uv-r1/`.
 **Files:** `uv*.ts`, plus additions only in `kinetic.ts`. Don't commit.
 
 **Report** in ≤150 words, plus a code map of the deltas and the files changed (R91).
+
+**The lead's decisions (2026-11-22, after the builder's first read):**
+- **Line 4's cut lands at 72.90 on NEVER** (R39: the downbeat nearest the first stressed word). AND (72.68) is a pickup: it appears in line 3's shot as the head of line 4, as `scale` does it. The NEVER macro opens on the cut. The line 4 tier-1 opener hit moves to 72.90.
+- **The second TEETH slam goes on the 8th note at 68.80.** Move the checkpoint still from 68.93 to 68.85.
+- **The swab lifts a word's glow back down to the readable floor, never below it.** Raise the residual floor (today 0.015, `uv.ts:207`) and measure it against the 40-luma target. The swab lift in `uv-glsl.ts` (`amt *= 1 - 0.97*lift`) stops at the floor.
+- **One swab stroke per word:** put, your, hands, on, me. HANDS's stroke is the heaviest.
+- **The second row is indented to the right**, so each line's camera move only ever goes right and down (R35: no reversal).
+- **The occlusion scan uses JS stand-in shapes** (capsules or boxes) for the lamp housing, the gloves and the swab, traced against each sung word's projected box.
