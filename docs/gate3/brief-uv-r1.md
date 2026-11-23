@@ -1,0 +1,82 @@
+# `uv` round 1: the lyric-led pass (builder brief, Opus 5.5 high)
+
+`uv` (62.54-76.35, chorus 1 second half) has approved scene and light: the pillowcase, the beam pool, the swab, and GO's decay (`af3d2d7`). Its camera and type predate the lyric-led rules. Today it uses five setups cut on downbeats, traces that sink to black after the beam passes, and no reports to the type probe. This round rebuilds the camera and type to the `uv` type card in `docs/teeth2/PLATES.md`, filled 2026-11-22. `scale` r5 (`8fd2354`) is the reference: read its `PLANS`, `MACROS`, `solveMacro`, `limb` and `kinProbe` before you start.
+
+**Rules:** R13, R21-R23, R28-R31, R34-R41, R57, R79-R82, R71, R72. Read the `uv` card (story beats, exhibit and type card) and TYPE.md §7 and §8 item 2.
+
+**Do:**
+1. **The layout (`uv-type.ts`).** Each line is a two-row block, one half-line per row, each row ending on its hero. Size every block so the whole line fits in title-safe at that line's framing.
+   - Hero: cap ≥20% of frame height on its onset (R21).
+   - Supporting words: cap ≥5% (R22), and the line's first word ≥8% on its first frame.
+   - Place the four blocks on different parts of the case (the hem, the open end, the side seam, the middle), so the hem or open end is readable in at least two lines.
+2. **The readable floor (R23).** Every sung word of the current line stays readable outside the beam, as a dried stain at least 40 luma steps off the cloth around it. The beam lifts it to full glow, and the glow sinks back to the floor, never to black.
+   - Measure the floor at 3 frames with no beam on the word, and report the values.
+   - The only exception is GO's decay.
+   - Keep the uv token under 30% of any frame (R57).
+3. **The camera (R34-R36, R39-R40, R80-R81).**
+   - One continuous move per line, riding the beam along the rows so the newest word sits in the sweet spot.
+   - Cut only between lines, on the downbeat nearest each line's first stressed word.
+   - Give each line its own framing family. For example:
+     - line 1: a table-height raking track with the beam toward the lens;
+     - line 2: a three-quarter crane down, with the lamp and glove in frame;
+     - line 3: a slow orbit around the swab;
+     - line 4: a low profile across the cloth for the three sweeps, then GO.
+   - Never use a top-down view (elevation under about 55°).
+   - Add one type-led macro per half-line onto its hero, as `scale` r5 does: DIRTY, SWEET, PRETTY, DEVIL, HANDS, NEVER and GO (TEETH is the slam). Each macro opens on the hero's onset, already readable, with the line so far in frame.
+   - Pushes are ≤20% of framing scale over ≥0.4 s.
+   - Report each line's travel: the orbit degrees and the screen travel of the block's centre.
+4. **Impacts and the lamp (R37, R38, R79).**
+   - The tiers are on the type card. Pick the downbeats from `audio.json`.
+   - The hit pattern must differ from `scale`'s on the same lines: `scale` hits hardest on the heroes, `uv` on the openers and the sweeps.
+   - Hits build over line 2 into TEETH.
+   - Each hit reveals the words; none washes the frame violet.
+5. **The TEETH hook (TYPE §8 item 2; R24, R82).**
+   - On TEETH's onset (68.47), a full-frame slam: fluor-white Archivo 900 on film-black.
+   - On the next beat, a condensed copy stamped over the first.
+   - The beam's sweep crosses the frame as the break line, a straight wipe edge.
+   - Hold until 69.44 with no orphan frame, then cut back onto LATE, already readable.
+   - No halation on the slam.
+6. **The probe and crops.**
+   - Record every word with `kinRecord3D` on the cloth plane, using the camera actually used, macros included, and tags `hero` or `sup`.
+   - Lint must show 0 errors and 100% presence.
+   - Add an occlusion scan (`--query uv_occ=1`) that reports any frame where the lamp, a glove or the swab covers a sung word for more than 2 frames. It must report 0 hits.
+7. **Keep:** the beam pool and its colour, the swab action (one stroke per word on "put your hands on me", one soft band per stroke), the three sweeps that speed up, GO's decay to about 25% at 76.35, the tag, every shot reaching film-black and the glow peak (R13), and speed ≤200 ms per frame.
+
+**Code map** (`app/src/teeth2/scenes/`):
+- `uv.ts:40-51`: `SET`, the camera and lamp setups.
+- `uv.ts:54-64`: `track`.
+- `uv.ts:90-157`: the beam path, shots and swab timing in the constructor.
+- `uv.ts:176-210`: `aim`, `setup`, and the per-word level, threshold, gain and residual.
+- `uv.ts:238`: the excitation memory `M`.
+- `uv.ts:278-285`: the swab.
+- `uv-type.ts:33-60`: `ROW_CAP`, `HERO_CAP`, `BLOCKS`, the layout.
+- `uv-glsl.ts:41-50`: the uniforms.
+- `uv-glsl.ts:500-545`: the cloth and trace shading.
+- The kit is in `app/src/teeth2/kinetic.ts`. Additions only (R72).
+
+**Key-frame checkpoint first (R91).**
+- Stills:
+  - 62.70: FIGHT, lone first word;
+  - each hero onset +0.05: DIRTY 63.40, SWEET 65.02, PRETTY 66.85, DEVIL 70.31, HANDS 71.17, the first NEVER 72.90, GO 75.92;
+  - 66.20: TALK, lone;
+  - 68.50 and 68.93: the two slams;
+  - 69.50: LATE after the cut;
+  - 76.30: GO's decay at the cut.
+- A **540p30 clip of the whole window, 62.54-76.35, with audio**.
+- An 8 fps strip of 65.9-70.4 (`--n 36 --cols 9`).
+- Lint over the window.
+- Write everything to `out/gate3/kinetic/uv-r1/checkpoint/`, then **stop and report** in ≤120 words: the travel per line, the floor measurements, lint and occlusion, the ms per frame, and the paths.
+
+**Full pass, after the lead's go:**
+- clips 62.54-69.5 and 69.0-76.35 at 1080p30 with audio, plus `-share.mp4` copies (crf 24);
+- the 8 fps strip 66.0-70.0 (`--n 32 --cols 8`), which is the blind-review strip;
+- the dense sheet 62.6-76.3 (`--n 30 --cols 6`);
+- lint 62.54-76.35 to `out/lint/uv-r1/`;
+
+all to `out/gate3/kinetic/uv-r1/`.
+
+**Setup:** `source out/env.sh`, then render from `app/` (R72) with `--only uv`. You work in the main checkout on `teeth-v2`. Run `git log -1` first; it should be the commit of this brief or later. You are the only builder.
+
+**Files:** `uv*.ts`, plus additions only in `kinetic.ts`. Don't commit.
+
+**Report** in ≤150 words, plus a code map of the deltas and the files changed (R91).

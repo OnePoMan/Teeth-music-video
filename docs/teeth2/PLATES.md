@@ -135,15 +135,25 @@ Cells: **approved** (a review or the client shipped it), **rework**, **unknown**
 - **Known carried:** gloves a little cartoonish; the swab sleeve mass at 71.00 - 71.45; lone supporting words at at least 5% cap height with the lamp in frame (62.70, 64.60, 66.20, 67.60, 68.10, 69.80); the beam over the hem in two more setups.
 - **Status:** scene approved / camera rework / type rework / light approved.
 
-#### Type card (TODO)
-- Surface: TODO
-- Line path: TODO
-- Wrap/shed policy: TODO
-- Hero position: TODO
-- Kit moves: TODO
-- Impact tiers: TODO
-- Slams: TODO
-- Hook state: TODO
+#### Type card (filled by the lead 2026-11-22, after `scale` r5; brief `docs/gate3/brief-uv-r1.md`)
+- **Surface:** the pillowcase. Words are dried saliva traces in the weave, baked in cloth space (`uv-type.ts`: coverage and id textures). Every sung word of the current line sits on a **readable floor** (R23): a dried stain at least 40 luma steps off the cloth around it, even outside the beam. The beam lifts it to fluor-white glow, and the glow sinks back to the floor, never to black, about 0.5 s after the beam leaves. Supporting words are Archivo wide, heroes Archivo condensed black, and *sweet* is fluor-white Cormorant italic. The words report to the type probe through `kinRecord3D` on the cloth plane. Label: EXHIBIT 5 on the tag (whole, never cropped).
+- **Line path:** each line is a compact block of two rows, one half-line per row, each row ending on its hero: "Fight so DIRTY / but your love's so SWEET". The whole line fits in title-safe at the line's framing (R81), so no first words are shed. Each line sits on its own part of the case (the hem, the open end, the side seam, the middle), so the cuts between lines also move across the exhibit. The beam walks the block word by word, landing on each onset. The camera rides the beam along the row (R34), one continuous move per line (R35).
+- **Wrap/shed policy:** none needed, because the block is sized so the line so far stays in title-safe at the line's framing. A line's first word is at least 8% cap height on its first frame, and lone supporting words keep at least 5% with the lamp in frame (BACKLOG 62.70, 64.60, 66.20, 67.60, 68.10, 69.80). The lamp, the glove and the swab never cover a sung word for more than 2 frames (R29).
+- **Hero position:** the end of each row, at hero scale (R21) on its onset. One type-led macro per half-line onto its hero (R36), as in `scale` r5: DIRTY | SWEET, PRETTY | (TEETH slams), DEVIL | HANDS, NEVER | GO. The macro opens on the hero's onset, already readable, with the line so far still in frame.
+- **Kit moves:** a hero arrives thin and snaps heavy on its onset (the trace's erosion threshold is its weight and stamp), with a stretch on the kick. NEVER condenses on each "never" as the sweeps speed up. DEVIL leans. GO lands biggest, then decays.
+- **Impact tiers:** the instrument hit is the lamp (R38).
+  - **Tier 1** (hero onsets and the line openers 62.54, 65.99, 69.44, 72.68): the lamp drops closer, the pool tightens and the glow peaks at the uv token, with up to 12 px of shake.
+  - **Tier 2** (the other downbeats): the beam lands with an exposure kick and up to 5 px.
+  - **Tier 3** (backbeats): a nudge of up to 2 px.
+  - The hits build over line 2 into TEETH.
+  - The pattern must differ from `scale`'s flashes on the same lines (R38). `scale` builds its flash on the heroes; `uv` lands its hardest hits on the sweeps and the openers.
+- **Slams:** two, both on TEETH (R82, the whole budget). Slams take grain and motion blur, no halation (R24).
+- **Hook state:** hook 2 of 7 (TYPE §8 item 2).
+  - On TEETH's onset (68.47), a full-frame slam: fluor-white Archivo 900 letters on film-black.
+  - On the next beat (≈68.90), a condensed copy stamped over the first (pressure x2).
+  - The beam's sweep crosses the frame as the break line, a straight wipe edge.
+  - The slam holds until LATE (69.44) with no orphan frame, then cuts back to the cloth straight onto LATE, already readable.
+  - GO (75.92) is the one word that fades: the beam holds still on it and the glow decays to about 25% at the 76.35 cut (R57).
 
 ## 7 `chart`: 76.35 - 90.16, verse 2
 
