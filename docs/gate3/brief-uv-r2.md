@@ -84,3 +84,19 @@ all to `out/gate3/kinetic/uv-r2/`.
 **Files:** `uv*.ts`, plus additions only in `kinetic.ts`. Don't commit. If the 5-hour window passes ~70%, stop and report.
 
 **Report** in ≤150 words, plus a code map of the deltas and the files changed (R91).
+
+**Checkpoint review (lead, then client, 2026-11-23; checkpoint `acb8b18`, `out/gate3/kinetic/uv-r2/checkpoint/`).** The client approved the full pass with these fixes folded in. Keep the beam pumps and sweeps, the in-world slam with no ghost, the "but your heart got" lift, and every check that passes.
+1. **Gloves.** They are better but still read as a lumpy rubber hand.
+   - Flatten the knuckle bulges to the slight ridges of a taut nitrile glove over real joints.
+   - Replace the ribbed, bellows-like cuff with one smooth rolled bead at the wrist, the sleeve fabric beyond it.
+   - Check the close still at 75.97 and the swab hand at 71.22.
+2. **TALK (66.3-66.8).** "Talk so" sits small in a dim frame until PRETTY. Give the stretch a beam pass over "Talk so" on its downbeat, and frame it at least at its line size, with the move carrying on into PRETTY's macro. No near-hold.
+3. **The checklist (R95), measured on the full pass:**
+   - the luma p1, p50 and p99 per key still;
+   - the floor at ≥40 luma steps (re-measured);
+   - the exhibit and lamp visible, as % of frames per line;
+   - per-line camera travel and the macro ratios;
+   - the smallest supporting cap per line;
+   - lint, presence, `uv_occ`, the hits by tier, and ms per frame.
+
+Then run the full pass as listed above, into `out/gate3/kinetic/uv-r2/`.
