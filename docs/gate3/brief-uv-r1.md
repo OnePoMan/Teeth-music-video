@@ -88,3 +88,22 @@ all to `out/gate3/kinetic/uv-r1/`.
 - **One swab stroke per word:** put, your, hands, on, me. HANDS's stroke is the heaviest.
 - **The second row is indented to the right**, so each line's camera move only ever goes right and down (R35: no reversal).
 - **The occlusion scan uses JS stand-in shapes** (capsules or boxes) for the lamp housing, the gloves and the swab, traced against each sung word's projected box.
+
+**Checkpoint review (lead, 2026-11-23; checkpoint `b310cfb`, `out/gate3/kinetic/uv-r1/checkpoint/`).** These pass: lint (0 errors, 100% presence), the occlusion scan (0 hits), the floor (50-97 luma steps), the speed (~60 ms), the slams, and GO's decay. Keep them all. The client said "fix, then full pass". Fix these four, then run the full pass:
+1. **The exhibit reads as a pillowcase in every line.** Today most frames are words on a dark void with one stitch line.
+   - Put a hem, the open end or the side seam in frame in every line, and both the hem and the open end in at least two lines.
+   - Give the cloth a dim film2 ambient, so its folds and weave read outside the beam. Black still reaches p1, and the floor contrast stays at least 40 luma steps.
+   - The EXHIBIT 5 tag is whole and readable in at least one line. Line 1 or line 3 suits it.
+2. **The lamp reads as a lamp in a gloved hand.**
+   - Today it is a violet bar clipped at the top edge. In at least half of each line's frames, show the housing, the tube's end and the glove's wrist.
+   - Keep it off the words; the occlusion scan stays at 0.
+   - It may enter from the frame's side or top, but never as a bare sliver.
+3. **Supporting words hold their size.**
+   - The line's earlier words never shrink when the hero's macro opens. "Talk so" at 66.67-66.80 drops to tiny; hold it at least as big as its line framing.
+   - "but your heart got" and line 4's two middle NEVERs (15 mm today) need at least 7% cap on their onsets. Give the middle NEVERs a bigger cap, or a three-row block if they won't fit.
+   - Report the smallest supporting cap per line again.
+4. **The macros push.**
+   - Aim for at least 1.15x the line framing on DIRTY, PRETTY, DEVIL and NEVER, within R80.
+   - Shift the frame so the line so far sits at the frame edge or behind the hero, rather than shrinking it. Where the curve or the frame can't allow it, report the ratio, as before.
+
+Re-render the key stills to `checkpoint2/` and check them yourself. Then run the full pass as listed above. If the 5-hour window passes ~70% while you work, stop, leave the working tree as it is, and report.
