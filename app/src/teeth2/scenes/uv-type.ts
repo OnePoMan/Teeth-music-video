@@ -10,10 +10,13 @@
 //      Fight so DIRTY                       Talk so PRETTY
 //         but your love's so sweet             but your heart got          (TEETH slams full-frame)
 //      Late night DEVIL,                     And NEVER,
-//         put your HANDS                        never, never ever let GO
-//                 on me And                  (line 3 carries AND, the pickup, as the head of line 4: R39)
-// Each block sits on its own part of the case: line 1 over the open end and its hem (far right), line 2 in the middle,
-// line 3 along the side seam by the closed end (near left), line 4 over the hem by the side seam (near right). Supporting
+//         put your HANDS                        NEVER NEVER
+//                 on me And [EXHIBIT 5]            ever let GO
+// (line 3 carries AND, the pickup, as the head of line 4: R39; the tag lies at the end of its third row.)
+// Each block sits on its own part of the case, every one by an edge (checkpoint review 2026-11-23): line 1 by the far
+// fold, over the hem to the open end (far right); line 2 by the far fold at the closed end's seam (far left); line 3
+// along the closed end's seam (near left); line 4 over the hem to the open end (near right). Rows may set their own
+// supporting cap (RowSpec.cap) so each holds >= 5% (7% for "but your heart got" and the middle NEVERs) at its framing. Supporting
 // words are Archivo wide-ish (100/500, mixed case as sung), heroes Archivo condensed black, *sweet* Cormorant italic
 // (the tender register, fluor-white under the lamp: R15), the second and third "never" condensed black at a middle size.
 import * as THREE from 'three';
@@ -27,7 +30,7 @@ export const TW = (CLOTH.x1 - CLOTH.x0) * TPPM;
 export const TH = (CLOTH.y1 - CLOTH.y0) * TPPM;
 /** The evidence tag (EXHIBIT 5, the plate's one label): lying by the closed end, far side (clear of the four blocks);
  *  centre, half size (mm), rotation (rad). */
-export const TAG = { x: -262, y: 196, hx: 30, hy: 13, rot: 0.1 };
+export const TAG = { x: -28, y: -176, hx: 29, hy: 12.5, rot: -0.04 };
 
 export type St = 'sup' | 'hero' | 'serif' | 'mid' | 'go';
 export interface TWord {
@@ -47,7 +50,7 @@ export interface TBlock { disp: number; words: TWord[] }
  *  and third "never", GO (lands biggest). Heroes 3x the supporting words: a whole line fits title-safe at its framing
  *  with every supporting word >= 5% of the frame (R22) and every hero spanning >= 30% of the width or, in its macro,
  *  a cap of >= 20% (R21). */
-export const CAP = { sup: 13, hero: 42, serif: 36, mid: 15, go: 52 };
+export const CAP = { sup: 13, hero: 42, serif: 36, mid: 15, go: 56 };
 /** Line 3's heroes a little smaller (its tail row makes it the widest block). */
 const HERO3 = 40;
 const ROW_GAP = 10;
@@ -56,14 +59,14 @@ const FAM: Record<St, () => string> = {
 };
 
 interface Item { l: number; k: number; st: St }
-interface RowSpec { items: Item[]; dx: number; /** start under this item's centre (by lyric k) in the row above */ under?: number }
+interface RowSpec { items: Item[]; dx: number; /** start under this item's centre (by lyric k) in the row above */ under?: number; /** this row's supporting / middle cap (mm), when not CAP.sup / CAP.mid */ cap?: number }
 interface BlockSpec { disp: number; x0: number; base: number; rows: RowSpec[] }
 const I = (l: number, ks: number[], st: St = 'sup'): Item[] => ks.map((k) => ({ l, k, st }));
 const BLOCKS: BlockSpec[] = [
-  { disp: 0, x0: 36, base: 196, rows: [{ items: [...I(0, [0, 1]), ...I(0, [2], 'hero')], dx: 0 }, { items: [...I(0, [3, 4, 5, 6]), ...I(0, [7], 'serif')], dx: 15 }] },
-  { disp: 1, x0: -170, base: 72, rows: [{ items: [...I(1, [0, 1]), ...I(1, [2], 'hero')], dx: 0 }, { items: I(1, [3, 4, 5, 6]), dx: 15 }] },
-  { disp: 2, x0: -366, base: -108, rows: [{ items: [...I(2, [0, 1]), ...I(2, [2], 'hero')], dx: 0 }, { items: [...I(2, [3, 4]), ...I(2, [5], 'hero')], dx: 15 }, { items: [...I(2, [6, 7]), ...I(3, [0])], dx: 0, under: 5 }] },
-  { disp: 3, x0: 24, base: -78, rows: [{ items: [...I(3, [0]), ...I(3, [1], 'hero')], dx: 0 }, { items: [...I(3, [2, 3], 'mid'), ...I(3, [4, 5]), ...I(3, [6], 'go')], dx: 15 }] },
+  { disp: 0, x0: 72, base: 196, rows: [{ items: [...I(0, [0, 1]), ...I(0, [2], 'hero')], dx: 0, cap: 14 }, { items: [...I(0, [3, 4, 5, 6]), ...I(0, [7], 'serif')], dx: 15, cap: 14 }] },
+  { disp: 1, x0: -360, base: 196, rows: [{ items: [...I(1, [0, 1]), ...I(1, [2], 'hero')], dx: 0, cap: 15 }, { items: I(1, [3, 4, 5, 6]), dx: 15, cap: 18 }] },
+  { disp: 2, x0: -366, base: -108, rows: [{ items: [...I(2, [0, 1]), ...I(2, [2], 'hero')], dx: 0, cap: 17 }, { items: [...I(2, [3, 4]), ...I(2, [5], 'hero')], dx: 15, cap: 17 }, { items: [...I(2, [6, 7]), ...I(3, [0])], dx: 0, under: 5, cap: 16 }] },
+  { disp: 3, x0: 150, base: -60, rows: [{ items: [...I(3, [0]), ...I(3, [1], 'hero')], dx: 0, cap: 19 }, { items: I(3, [2, 3], 'mid'), dx: 15, cap: 22 }, { items: [...I(3, [4, 5]), ...I(3, [6], 'go')], dx: 30, cap: 20 }] },
 ];
 
 const clean = (s: string) => s.replace(/'/g, '’').replace(/[^A-Za-z’]/g, '');
@@ -74,7 +77,7 @@ export function bakeTag(): THREE.CanvasTexture {
   const c = cv.getContext('2d')!;
   c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
   c.fillStyle = '#000'; c.textBaseline = 'middle'; c.textAlign = 'center';
-  c.font = font(F.mono(500), 62);
+  c.font = font(F.mono(500), 74);   // (round 1 review: a size up, to read whole at the line's framing)
   c.fillText('EXHIBIT 5', cv.width / 2 + 34, cv.height / 2 - 6);
   c.fillRect(150, 162, 300, 4);
   const t = new THREE.CanvasTexture(cv);
@@ -102,7 +105,7 @@ export function bakeTraces(lines: Line[]): Baked {
     const bw: TWord[] = [];
     let base = b.base;
     b.rows.forEach((r, ri) => {
-      const capOf = (st: St) => (st === 'serif' ? CAP.serif : st === 'hero' ? (b.disp === 2 ? HERO3 : CAP.hero) : st === 'mid' ? CAP.mid : st === 'go' ? CAP.go : CAP.sup);
+      const capOf = (st: St) => (st === 'serif' ? CAP.serif : st === 'hero' ? (b.disp === 2 ? HERO3 : CAP.hero) : st === 'mid' ? (r.cap ?? CAP.mid) : st === 'go' ? CAP.go : (r.cap ?? CAP.sup));
       // (a row of supporting words alone sits a little further down: clear of the descenders above)
       if (ri > 0) { const m = Math.max(...r.items.map((it) => capOf(it.st))); base -= (m <= CAP.sup ? ROW_GAP + 5 : ROW_GAP) + m; }
       let x = b.x0 + r.dx;
@@ -130,7 +133,7 @@ export function bakeTraces(lines: Line[]): Baked {
         };
         words.push(tw); bw.push(tw);
         // the gap to the next word: the supporting face's space, at least a fifth of this word's cap
-        x += w + Math.max(meas(FAM.sup(), CAP.sup / capRatio(FAM.sup()), ' ') * 1.1, 0.2 * cap);
+        x += w + Math.max(meas(FAM.sup(), (r.cap ?? CAP.sup) / capRatio(FAM.sup()), ' ') * 1.1, 0.2 * cap);
       }
     });
     blocks.push({ disp: b.disp, words: bw });

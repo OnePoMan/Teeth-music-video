@@ -8,11 +8,16 @@
 //  * each line is a two-row block on its own part of the case (uv-type.ts), every sung word of the current line on
 //    a readable floor, lifted to full glow by the beam as it lands on the word's onset;
 //  * ONE continuous camera move per line (kinetic.ts LyricPath, one key per word: the line so far framed whole in
-//    title-safe, leaning toward the newest word, riding right and down only), each line its own framing family
+//    title-safe below the lamp's room, leaning toward the newest word, riding right only, widening no faster than
+//    PULL), each line its own framing family
 //    (PLANS); cuts only between lines, on the downbeat nearest each line's first stressed word (R39, R77);
 //  * one type-led macro per half-line onto its hero (MACROS, as scale r5): it opens on the hero's onset, already
-//    readable, with the line so far in frame, pushes in <= 8% over >= 0.4 s, and leaves by an eased pull-back into the
-//    line's move or by the line's cut;
+//    readable, with the line so far in frame and never smaller than in the line's framing, the hero >= 1.15x its line
+//    size where the frame allows; it pushes in <= 10% over >= 0.4 s to title-safe's edge, and leaves by an eased
+//    pull-back into the line's move (widening in time for the words sung in it) or by the line's cut;
+//  * CHECKPOINT REVIEW (2026-11-23): the case reads in every line (a dim film2 ambient on the cloth, uv-glsl.ts; a hem,
+//    the open end or a seam in each line's frame; the EXHIBIT 5 tag framed whole at the end of line 3); the lamp in
+//    its gloved hand holds the top of the frame, housing, tube end and wrist in view (rig, LS, the plans' la);
 //  * graded impacts (HITS): tier 1 the lamp (it drops closer, the pool tightens, the glow peaks) on the openers and
 //    the three sweeps hardest, the heroes lighter, building over line 2 into TEETH; tier 2 the other downbeats; tier 3
 //    the backbeats;
@@ -24,7 +29,8 @@
 //    glow decays (~25% at the 76.35 cut, R57: the one word that fades);
 //  * every word reports to the type probe (kinRecord3D on the cloth plane, the camera as cut, macros included).
 // Look-dev logs (render.ts prints console warnings): ?uv_log=1 (travel per line, macros, sizes), ?uv_occ=1 (the
-// occlusion scan: lamp, gloves and swab against every sung word, JS stand-in capsules), ?uv_box=1 (word boxes).
+// occlusion scan: lamp, gloves and swab against every sung word, JS stand-in capsules; the lamp and the tag in view),
+// ?uv_box=1 (word boxes), ?uv_trace=<word> (that word's cap per frame).
 //
 // Files: uv-type.ts (the lyric's layout on the cloth, the trace textures, the tag), uv-glsl.ts (the frame).
 import * as THREE from 'three';
@@ -33,7 +39,7 @@ import { FSPass, Layer2D, SS_TAP, W as FW, H as FH } from '../../engine/gl';
 import { clamp, ease, lerp, noise1, pulse, smootherstep, springStep } from '../../engine/util';
 import { T_LIN, trgba } from '../palette';
 import { KinClock, KinWord, LyricPath, drawKin, halfPlane, kinCam, kinProbeOn, kinRecord3D, kinShake, type KinPose } from '../kinetic';
-import { bakeTag, bakeTraces, type TWord } from './uv-type';
+import { TAG, bakeTag, bakeTraces, type TWord } from './uv-type';
 import { UV_FRAG, NW, NM } from './uv-glsl';
 
 const DEG = Math.PI / 180;
@@ -52,35 +58,49 @@ const QP = typeof location !== 'undefined' ? new URLSearchParams(location.search
  * the pool's radius (frame widths). open: the first framing's distance over the whole line's (the line opens close on
  * its first word: >= 8% cap).
  */
-interface Plan { az: V2; el: V2; roll: V2; fov: number; ls: number; lb: number; lu: number; hand: number; pr: number; open: number; lm?: number }
+interface Plan { az: V2; el: V2; roll: V2; fov: number; bx: [number, number, number]; la: V2; fl: number; lh: number; yaw: number; dep: number; hand: number; pr: number; open: number }
+// (checkpoint review 2026-11-23: bx, the words' box (NDC x0, x1, top: below it the words, above it the lamp in its
+// gloved hand); la, the lamp head's place on screen (NDC; x follows the beam by fl); lh its height over the cloth (mm:
+// held low, so it hangs beyond the words); yaw, the handle's direction on screen (deg up from the hand's side); dep,
+// its tilt into the frame)
 const PLANS: Plan[] = [
   // line 1: a raking track at the lowest height the line's size allows, the beam toward the lens (the lamp beyond the
   // words), tracking right with the words
-  { az: [-16, -4], el: [50, 54], roll: [-1.5, -0.5], fov: 30, ls: 0.1, lb: 0.1, lu: 0.15, hand: 1, pr: 0.2, open: 0.58 },
+  { az: [-16, -4], el: [50, 54], roll: [-1.5, -0.5], fov: 30, bx: [-0.86, 0.86, 0.05], la: [-0.3, 0.36], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: 1, pr: 0.2, open: 0.58 },
   // line 2: a three-quarter crane down from the right, the lamp and its glove in frame
-  { az: [28, 18], el: [54, 47], roll: [2, 1], fov: 30, ls: 0.16, lb: 0.0, lu: 0.07, hand: -1, pr: 0.2, open: 0.58, lm: 14 },
+  { az: [22, 12], el: [54, 47], roll: [2, 1], fov: 30, bx: [-0.86, 0.86, 0.0], la: [0.3, 0.34], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: -1, pr: 0.2, open: 0.58 },
   // line 3: a slow orbit round the swab, left to right
-  { az: [-26, 10], el: [52, 49], roll: [-1.5, 1.5], fov: 30, ls: -0.1, lb: 0.1, lu: 0.15, hand: -1, pr: 0.2, open: 0.58 },
+  { az: [-26, 2], el: [52, 49], roll: [-1.5, 1.5], fov: 30, bx: [-0.86, 0.86, 0.15], la: [0.3, 0.42], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: -1, pr: 0.2, open: 0.58 },
   // line 4: a lower profile across the cloth for the three sweeps, then GO
-  { az: [-36, -24], el: [48, 50], roll: [-2, -1], fov: 32, ls: 0.1, lb: 0.1, lu: 0.2, hand: 1, pr: 0.19, open: 0.58, lm: 40 },
+  { az: [-36, -24], el: [48, 50], roll: [-2, -1], fov: 32, bx: [-0.86, 0.86, 0.15], la: [-0.3, 0.48], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: 1, pr: 0.19, open: 0.58 },
 ];
 /** How far the framing leans from the line so far's centre toward the newest word (R81: the sweet spot). */
 const RIDE = 0.35;
-/** Title-safe in NDC is 0.9 x 0.822; the line's framing keeps this margin inside (stamps, shake), a macro a little less. */
-const BOX = { x: 0.86, y: 0.76 }, BOX_M = { x: 0.88, y: 0.79 };
+/** The fastest the line's framing widens (ln of its distance per second): about 20% in 0.4 s (R80's pace, backward). */
+const PULL = 0.5;
+/** The framing boxes (NDC). Title-safe is 0.9 x 0.822; the line's framing keeps a margin inside it (stamps, shake), its
+ *  top at the plan's (the lamp's room). A macro opens inside EDGE less the push it reaches, so the push ends with the
+ *  line so far at title-safe's edge (checkpoint review item 4). */
+interface Box { x0: number; x1: number; y0: number; y1: number }
+const boxOf = (P: Plan): Box => ({ x0: P.bx[0], x1: P.bx[1], y0: -0.76, y1: P.bx[2] });
+const EDGE = 0.895, EDGE_Y = 0.815;
 /** HERO MACROS (R36, as scale r5): [line, hero word index in the line's words (lyric k), exit word k (-1: the line's
  *  cut), eased exit]. One per half-line: DIRTY | SWEET, PRETTY | (TEETH slams), DEVIL | HANDS, NEVER | GO. DIRTY,
  *  PRETTY, DEVIL and NEVER leave by an eased pull-back starting before the next half-line's first word (a cut there
- *  would be a second reframe in that half-line); SWEET, HANDS and GO hold to the cut. */
-const MACROS: [number, number, number, boolean][] = [[0, 2, 3, true], [0, 7, -1, false], [1, 2, 3, true], [2, 2, 3, true], [2, 5, -1, false], [3, 1, 2, true], [3, 6, -1, false]];
-const MACRO_PUSH = 1.08, MACRO_EASE = 0.6, MACRO_LEAD = 0.3;
-/** The size a macro aims its hero at (cap, fraction of the frame height), and the floor every supporting word keeps. */
-const MACRO_CAP = 0.25, SUP_MIN = 0.053;
+ *  would be a second reframe in that half-line); HANDS eases out before "on" (round 1 review: the tag joins the line's
+ *  framing with the third row); SWEET and GO hold to the cut. */
+//  The fifth: how far above the line's box its words may reach (NDC; the lamp's room: NEVER's steep angle brings the glove down).
+const MACROS: [number, number, number, boolean, number][] = [[0, 2, 3, true, 0.1], [0, 7, -1, false, 0.1], [1, 2, 3, true, 0.1], [2, 2, 3, true, 0.1], [2, 5, 6, true, 0.1], [3, 1, 2, true, 0], [3, 6, -1, false, 0.1]];
+const MACRO_PUSH = 1.1, MACRO_EASE = 0.75, MACRO_LEAD = 0.35;
+/** The largest a macro takes its hero (cap, fraction of the frame height). */
+const MACRO_CAP = 0.3;
 /** The readable floor (R23): the dried stain's level outside the beam (a fraction of the glow's), measured >= 40 luma
  *  steps over the cloth round it. Look-dev override: uv_floor=r. */
 const FLOOR = 0.05;
-/** How far beyond the block's far edge the lamp's ground point stays at least (mm). */
-const LAMP_MARGIN = 32;
+/** The room's dim film2 ambient on the cloth (x film2; checkpoint review item 1). Look-dev override: uv_amb=k. */
+const AMB = 1.6;
+/** The lamp rig's scale (its SDFs in uv-glsl.ts and the occlusion stand-ins): a smaller torch and hand, whole in frame. */
+const LS = 0.62;
 
 interface Cam { tx: number; ty: number; D: number; az: number; el: number; roll: number; fov: number; mac: number }
 interface Basis { pos: V3; tgt: V3; fw: V3; rt: V3; up: V3; tanH: number }
@@ -112,7 +132,7 @@ const blendCam = (a: Cam, b: Cam, w: number): Cam => ({
 });
 
 interface Line { k: number; t0: number; t1: number; words: TWord[]; plan: Plan; path: LyricPath; box: [number, number, number, number] }
-interface Macro { line: number; hero: TWord; t0: number; t1: number; te: number; ease: boolean; cam: Cam; push: number; cap: number; span: number; sup: number; ratio: number }
+interface Macro { line: number; hero: TWord; t0: number; t1: number; te: number; ease: boolean; cam: Cam; push: number; cap: number; span: number; sup: number; ratio: number; hold: number; peak: number }
 interface Hit { t: number; k: number; tier: 1 | 2 }
 interface Key { t: number; d: number; v: number[] }
 /** Piecewise moves: from each key's value to the next, eased (smootherstep), arriving at the key's time. */
@@ -132,6 +152,15 @@ const corners = (ws: TWord[]) => ws.flatMap((w) => {
   const g = w.hero || w.st === 'mid' ? 0.08 * w.w : 0;
   return [V(x0, y0, ZC), V(x1 + g, y0, ZC), V(x1 + g, y1, ZC), V(x0, y1, ZC)];
 });
+
+/** What a framing holds: the words, and in TAG_LINE, once its third row is down, the EXHIBIT 5 tag lying at the end of
+ *  third row (checkpoint review item 1: the tag whole and readable in one line). */
+const TAG_LINE = 2;
+const framePts = (k: number, ws: TWord[]) => {
+  const p = corners(ws);
+  if (k === TAG_LINE && ws.some((w) => w.row >= 2)) for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) p.push(V(TAG.x + a! * 0.5 * TAG.hx, TAG.y + b! * (TAG.hy + 2), ZC));   // (its far end may run into the title-safe margin: a prop, not a sung word)
+  return p;
+};
 
 /** Stand-in shapes for the occlusion scan: capsules [a, b, radius] in the lamp's frame (x along the tube toward the
  *  handle, y across, z out of the window) and the swab's (x up the shaft from the tip): uv-glsl.ts's SDFs, rounded up. */
@@ -191,7 +220,7 @@ export default class UvPlate extends Scene {
       this.lines.push({ k, t0: cuts[k]!, t1, words: ws, plan: PLANS[k]!, path: null as unknown as LyricPath, box: [x0, y0, x1, y1] });
     }
     for (const L of this.lines) this.buildPath(L);
-    this.macros = MACROS.map(([k, hi, xi, ez]) => this.solveMacro(this.lines[k]!, hi, xi, ez)).filter((m): m is Macro => !!m);
+    this.macros = MACROS.map(([k, hi, xi, ez, top]) => this.solveMacro(this.lines[k]!, hi, xi, ez, top)).filter((m): m is Macro => !!m);
 
     // the probe's words (cells in cloth mm)
     for (const w of this.words) this.kws.set(w, KinWord.fromCells(w.text, w.size, w.cells, { family: w.serif ? 'serif' : 'archivo', width: w.st === 'sup' ? 100 : 62 }));
@@ -242,7 +271,7 @@ export default class UvPlate extends Scene {
     // HANDS the heaviest (a wider band, a longer stroke)
     const sw = this.lines[2]!.words.filter((w) => w.line === 2 && w.k >= 3).sort((a, b) => a.start - b.start);
     this.swab.s = sw.map((w) => w.start + 0.04);
-    this.swab.sd = sw.map((w) => (w === hands ? 0.3 : 0.18));
+    this.swab.sd = sw.map((w) => (w === hands ? 0.3 : 0.12));
     this.swab.wt = sw.map((w) => (w === hands ? 2 : 1));
     this.swab.A = sw.map((w) => [w.x - 0.04 * w.w + 0.16 * w.h, w.y + 0.62 * w.h + 3] as V2);
     this.swab.B = sw.map((w) => [w.x - 0.04 * w.w, w.y - 0.62 * w.h - 3] as V2);
@@ -266,7 +295,7 @@ export default class UvPlate extends Scene {
       M: { value: Array.from({ length: NM }, () => new THREE.Vector4()) },
       sP: { value: V(0, 0, 0) }, sX: { value: V(0, 0, 0) }, sY: { value: V(0, 0, 0) }, sZ: { value: V(0, 0, 0) }, swabOn: { value: 0 }, swabGlow: { value: 0 },
       strokes: { value: Array.from({ length: 5 }, () => new THREE.Vector4()) }, strokeK: { value: [0, 0, 0, 0, 0] }, strokeW: { value: sw.map((w) => (w === hands ? 12 : 7.5)) },
-      pxAng: { value: 0 }, wordBounce: { value: V(0, 0, 0) }, gSide: { value: 1 }, ssTap: SS_TAP,
+      pxAng: { value: 0 }, lS: { value: LS }, ambK: { value: QP?.get('uv_amb') ? +QP.get('uv_amb')! : AMB }, wordBounce: { value: V(0, 0, 0) }, gSide: { value: 1 }, ssTap: SS_TAP,
     });
     const st = this.pass.u.strokes!.value as THREE.Vector4[];
     for (let k = 0; k < 5; k++) st[k]!.set(this.swab.A[k]![0], this.swab.A[k]![1], this.swab.B[k]![0], this.swab.B[k]![1]);
@@ -275,39 +304,46 @@ export default class UvPlate extends Scene {
   // ================================================================================================ the camera
   /** The framing that holds `pts` whole inside the box at (az, el, roll, fov), leaning toward `lean` by `ride`: the
    *  target on the cloth and the distance. */
-  private fit(pts: V3[], lean: V3, az: number, el: number, roll: number, fov: number, ride: number, box = BOX): Cam {
+  private fit(pts: V3[], lean: V3, az: number, el: number, roll: number, fov: number, ride: number, box: Box): Cam {
     const c: Cam = { tx: 0, ty: 0, D: 500, az, el, roll, fov, mac: -1 };
     for (const p of pts) { c.tx += p.x / pts.length; c.ty += p.y / pts.length; }
     const ok = (D: number) => {
       const B = basis({ ...c, D });
-      for (const p of pts) { const [x, y, z] = proj(B, p); if (z < 20 || Math.abs(x) > box.x || Math.abs(y) > box.y) return false; }
+      for (const p of pts) { const [x, y, z] = proj(B, p); if (z < 20 || x < box.x0 || x > box.x1 || y < box.y0 || y > box.y1) return false; }
       return true;
     };
-    for (let pass = 0; pass < 4; pass++) {
+    // (round 1 review: four centring passes before the lean, so a box off the frame's centre is reached under
+    // perspective; then the lean, into 80% of the slack left)
+    for (let pass = 0; pass < 7; pass++) {
       let lo = 30, hi = 8000;
       for (let it = 0; it < 26; it++) { const m = Math.sqrt(lo * hi); if (ok(m)) hi = m; else lo = m; }
       c.D = hi;
-      if (pass === 3) break;
+      if (pass === 6) break;
       const B = basis(c);
       let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
       for (const p of pts) { const [x, y] = proj(B, p); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
       // centre the line so far; on the last pass lean toward the newest word, but only into the slack the box leaves
       // (the lean never makes the framing wider)
       const [nx, ny] = proj(B, lean);
-      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, kx = Math.max(0, box.x - (x1 - x0) / 2), ky = Math.max(0, box.y - (y1 - y0) / 2);
-      const ox = pass === 2 ? cx + clamp(ride * (nx - cx), -kx, kx) : cx, oy = pass === 2 ? cy + clamp(ride * (ny - cy), -ky, ky) : cy;
-      const a = az * DEG, wx = ox * c.D * B.tanH * ASP, wy = (oy * c.D * B.tanH) / Math.max(0.3, Math.sin(el * DEG));
+      // (centred in the box, which may sit off the frame's centre: the lamp's room)
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, kx = Math.max(0, (box.x1 - box.x0) / 2 - (x1 - x0) / 2), ky = Math.max(0, (box.y1 - box.y0) / 2 - (y1 - y0) / 2);
+      const bx = (box.x0 + box.x1) / 2, by = (box.y0 + box.y1) / 2;
+      const ln = pass === 5;
+      const ox = cx - bx + (ln ? clamp(ride * (nx - cx), -0.8 * kx, 0.8 * kx) : 0), oy = cy - by + (ln ? clamp(0.5 * ride * (ny - cy), -0.8 * ky, 0.8 * ky) : 0);
+      // (the screen offset unrolled into the camera's level frame, then onto the cloth)
+      const a = az * DEG, r = roll * DEG, X = ox * c.D * B.tanH * ASP, Y = oy * c.D * B.tanH;
+      const wx = X * Math.cos(r) + Y * Math.sin(r), wy = (Y * Math.cos(r) - X * Math.sin(r)) / Math.max(0.3, Math.sin(el * DEG));
       c.tx += wx * Math.cos(a) - wy * Math.sin(a);
       c.ty += wx * Math.sin(a) + wy * Math.cos(a);
     }
     return c;
   }
   /** The smallest distance at which pts fit at this target and angle. */
-  private needD(c: Cam, pts: V3[], box = BOX) {
+  private needD(c: Cam, pts: V3[], box: Box) {
     let lo = 30, hi = 8000;
     for (let it = 0; it < 26; it++) {
       const m = Math.sqrt(lo * hi), B = basis({ ...c, D: m });
-      if (pts.every((p) => { const [x, y, z] = proj(B, p); return z > 20 && Math.abs(x) <= box.x && Math.abs(y) <= box.y; })) hi = m; else lo = m;
+      if (pts.every((p) => { const [x, y, z] = proj(B, p); return z > 20 && x >= box.x0 && x <= box.x1 && y >= box.y0 && y <= box.y1; })) hi = m; else lo = m;
     }
     return hi;
   }
@@ -321,10 +357,10 @@ export default class UvPlate extends Scene {
 
   /** ONE MOVE PER LINE (R34, R35, R81): a key per word on its onset (less a lead): the line so far framed whole in the
    *  box, leaning toward the newest word, at the plan's angles for that moment; the distance only grows (it opens
-   *  close on the first word and eases back as the line fills), the target only moves right and toward the camera
-   *  (down the rows), and the hold eases a little further back until the cut. */
+   *  close on the first word and eases back as the line fills, no faster than PULL), the target only moves right
+   *  (never past where the line ends), and the hold eases a hair further back until the cut. */
   private buildPath(L: Line) {
-    const P = L.plan, n = L.words.length, lead = 0.06;
+    const P = L.plan, n = L.words.length, lead = 0.06, bx = boxOf(P);
     const prog = (t: number) => clamp((t - L.t0) / Math.max(1e-3, L.t1 - L.t0));
     const ang = (t: number) => { const u = prog(t); return [lerp(P.az[0], P.az[1], u), lerp(P.el[0], P.el[1], u), lerp(P.roll[0], P.roll[1], u)] as const; };
     const i0 = Math.max(0, L.words.filter((w) => w.start < L.t0 + 0.1).length - 1);
@@ -333,20 +369,30 @@ export default class UvPlate extends Scene {
       const w = L.words[i]!;
       const t = i === i0 ? L.t0 : Math.max(L.t0 + 0.02, w.start - lead);
       const [az, el, roll] = ang(t);
-      keys.push({ t, c: this.fit(corners(L.words.slice(0, i + 1)), V(w.x, w.y, ZC), az, el, roll + levelRoll(az, el), P.fov, RIDE) });
+      keys.push({ t, c: this.fit(framePts(L.k, L.words.slice(0, i + 1)), V(w.x, w.y, ZC), az, el, roll + levelRoll(az, el), P.fov, RIDE, bx) });
     }
     const Dend = Math.max(...keys.map((k) => k.c.D));
     keys[0]!.c.D = Math.max(keys[0]!.c.D, Dend * P.open);
+    // (never past where the line ends: a lean toward a row's end that the next row would have to take back only
+    // widens the framing; checkpoint review item 3)
+    const [azE, elE, rollE] = ang(L.t1), wl = L.words[n - 1]!;
+    const endC = this.fit(framePts(L.k, L.words), V(wl.x, wl.y, ZC), azE, elE, rollE + levelRoll(azE, elE), P.fov, RIDE, bx);
+    for (const k of keys) k.c.tx = Math.min(k.c.tx, endC.tx);
     // one way only: the target right and down the rows, the distance back
     for (let i = 1; i < keys.length; i++) {
       const a = keys[i - 1]!.c, b = keys[i]!.c, ws = L.words.slice(0, i0 + i + 1);
-      b.tx = Math.max(b.tx, a.tx); b.ty = Math.min(b.ty, a.ty);
-      b.D = Math.max(b.D, a.D, this.needD(b, corners(ws)));
+      // (across only: the box sits low in the frame (the lamp's room), so as the framing widens its target moves away
+      // up the cloth while the words hold their place low on screen)
+      b.tx = Math.max(b.tx, a.tx);
+      b.D = Math.max(b.D, a.D, this.needD(b, framePts(L.k, ws), bx));
     }
     const last = keys[keys.length - 1]!;
     const [az1, el1, roll1] = ang(L.t1);
     const r1 = roll1 + levelRoll(az1, el1);
-    keys.push({ t: L.t1, c: { ...last.c, az: az1, el: el1, roll: r1, D: Math.max(last.c.D * 1.03, this.needD({ ...last.c, az: az1, el: el1, roll: r1 }, corners(L.words))) } });
+    keys.push({ t: L.t1, c: { ...last.c, az: az1, el: el1, roll: r1, D: Math.max(last.c.D * 1.01, this.needD({ ...last.c, az: az1, el: el1, roll: r1 }, framePts(L.k, L.words), bx)) } });
+    // (the pull-back paced: the framing never has to widen faster than PULL per second, so the words already sung ease
+    // down in size from the first word on instead of dropping just before the hero; checkpoint review item 3)
+    for (let i = keys.length - 2; i >= 0; i--) keys[i]!.c.D = Math.max(keys[i]!.c.D, keys[i + 1]!.c.D * Math.exp(-PULL * (keys[i + 1]!.t - keys[i]!.t)));
     L.path = new LyricPath(keys.map((k) => ({ t: k.t, v: [k.c.tx, k.c.ty, Math.log(k.c.D), k.c.az, k.c.el, k.c.roll] })), { clk: this.clk, settle: 0.3, down: 0.2 });
   }
   private lineCam(L: Line, t: number): Cam {
@@ -354,45 +400,58 @@ export default class UvPlate extends Scene {
     return { tx: v[0]!, ty: v[1]!, D: Math.exp(v[2]!), az: v[3]!, el: v[4]!, roll: v[5]!, fov: L.plan.fov, mac: -1 };
   }
 
-  /** A HERO MACRO (R36): searched round the line's own framing at the hero's onset (azimuth +-20, elevation, three
-   *  lenses), the framing that holds every word bitten... lit before it leaves whole in the box, every supporting word
-   *  >= SUP_MIN, and brings the hero nearest MACRO_CAP (R21: 20% cap; else its span), preferring a visibly different
-   *  angle (a reframe, not a nudge). It opens MACRO_PUSH wider and pushes in over the hero word (R80). */
-  private solveMacro(L: Line, hk: number, xk: number, easeOut: boolean): Macro | null {
+  /** A HERO MACRO (R36): searched round the line's own framing at the hero's onset (azimuth +-16, elevation, two
+   *  lenses), the framing that holds every word lit before it leaves whole inside the frame's edge less the push,
+   *  never shows a word of the line smaller than the line's own framing does (checkpoint review item 3), and brings
+   *  the hero the most over its size in the line's framing (item 4: >= 1.15x), preferring a visibly different angle (a
+   *  reframe, not a nudge). It opens on the hero's onset and pushes in MACRO_PUSH over the word (R80), so the line so
+   *  far ends at the frame's edge. */
+  private solveMacro(L: Line, hk: number, xk: number, easeOut: boolean, top: number): Macro | null {
     const hero = L.words.find((w) => w.line === L.k && w.k === hk);
     if (!hero) return null;
     const exitW = xk >= 0 ? L.words.find((w) => w.line === L.k && w.k === xk) : undefined;
     const t0 = Math.max(hero.start, L.t0);
     const t1 = !exitW ? L.t1 : easeOut ? exitW.start - MACRO_LEAD : exitW.start - 0.07;
     const te = easeOut ? Math.min(t1 + MACRO_EASE, L.t1) : t1;
-    const ws = L.words.filter((w) => w.start < te - 0.02 || w === hero);
-    const pts = corners(ws);
+    // (the words lit before it starts to leave; those sung in its eased exit land as it eases back into the line's framing)
+    const ws = L.words.filter((w) => w.start < t1 - 0.02 || w === hero);
+    const pts = framePts(L.k, ws);
     const lc = this.lineCam(L, t0);
-    let best: { c: Cam; cap: number; span: number; sup: number; score: number } | null = null;
-    for (let da = -20; da <= 20; da += 4) for (let de = -8; de <= 8; de += 2) for (const fov of [26, 34, 42]) {
+    const [lcap] = this.size(lc, hero);
+    // each other word's size in the line's own framing (at the hero's onset, or at its own when it comes later)
+    const ref = new Map<TWord, number>();
+    for (const w of ws) if (w !== hero) ref.set(w, this.size(this.lineCam(L, Math.max(t0, w.start + 0.05)), w)[0]);
+    // (the push this macro reaches before it leaves: an eased exit cuts it short)
+    const push = Math.max(0.4, hero.end - hero.start);
+    const lb = boxOf(L.plan), P = easeOut ? 1 + (MACRO_PUSH - 1) * ease.inOutQuad(clamp((t1 - t0) / push)) : MACRO_PUSH;
+    // (to the frame's edge, except on the lamp's side)
+    const ob: Box = { x0: (lb.x0 > -0.86 ? lb.x0 : -EDGE) / P, x1: (lb.x1 < 0.86 ? lb.x1 : EDGE) / P, y0: -EDGE_Y / P, y1: (lb.y1 < 0.76 ? lb.y1 + top : EDGE_Y) / P };
+    let best: { c: Cam; cap: number; span: number; sup: number; hold: number; score: number } | null = null;
+    for (let da = -16; da <= 16; da += 4) for (let de = -6; de <= 4; de += 2) for (const fov of [lc.fov, 24]) {
       const el = lc.el + de;
-      if (el > 54 || el < 30) continue;
+      if (el > 54 || el < 32) continue;
       const roll = (lc.roll - levelRoll(lc.az, lc.el)) * 0.5 + levelRoll(lc.az + da, el);
-      const f = this.fit(pts, V(hero.x, hero.y, ZC), lc.az + da, el, roll, fov, 0.3, BOX_M);
-      f.D *= MACRO_PUSH;
+      const f = this.fit(pts, V(hero.x, hero.y, ZC), lc.az + da, el, roll, fov, 0.3, ob);
       const B = basis(f);
-      const [cap, span] = this.size(B, hero);
-      let sup = 1;
-      for (const w of ws) if (!w.hero) sup = Math.min(sup, this.size(B, w)[0]);
-      const diff = Math.abs(da) + Math.abs(de) + Math.abs(fov - lc.fov) / 2 >= 8 ? 0.05 : 0;
-      const score = (sup >= SUP_MIN ? 10 : sup * 100) + (cap >= 0.205 || span >= 0.31 ? 1 : 0) + Math.min(cap, MACRO_CAP) / MACRO_CAP + 0.3 * Math.min(span, 0.45) + diff - 0.004 * Math.abs(de);
-      if (!best || score > best.score) best = { c: f, cap, span, sup, score };
+      let [cap, span] = this.size(B, hero);
+      // (back off to the target size where the framing could go tighter)
+      if (cap > MACRO_CAP) { f.D *= cap / MACRO_CAP; [cap, span] = this.size(f, hero); }
+      const Bf = basis(f);
+      let sup = 1, hold = 9;
+      for (const w of ws) if (w !== hero) { const k = this.size(Bf, w)[0]; if (!w.hero) sup = Math.min(sup, k); hold = Math.min(hold, k / ref.get(w)!); }
+      const diff = Math.abs(da) + Math.abs(de) + Math.abs(fov - lc.fov) / 2 >= 8 ? 0.03 : 0;
+      const score = (hold >= 0.995 ? 2 : hold) + Math.min(cap / lcap, 1.35) + diff - 0.002 * Math.abs(de);
+      if (!best || score > best.score) best = { c: f, cap, span, sup, hold, score };
     }
     if (!best) { console.warn(`UVMACRO no framing for ${hero.text}`); return null; }
-    // back off to the target size where the framing could go tighter
-    if (best.cap > MACRO_CAP) { best.c.D *= best.cap / MACRO_CAP; const s = this.size(best.c, hero); best.cap = s[0]; best.span = s[1]; }
-    const [lcap] = this.size(lc, hero);
-    return { line: L.k, hero, t0, t1, te, ease: easeOut, cam: { ...best.c, mac: this.macros.length }, push: Math.max(0.4, hero.end - hero.start), cap: best.cap, span: best.span, sup: best.sup, ratio: best.cap / Math.max(1e-3, lcap) };
+    return { line: L.k, hero, t0, t1, te, ease: easeOut, cam: { ...best.c, mac: this.macros.length }, push, cap: best.cap, span: best.span, sup: best.sup, ratio: best.cap / Math.max(1e-3, lcap), hold: best.hold, peak: P };
   }
-  private macroCam(M: Macro, mi: number, t: number): Cam {
-    const u = ease.inOutQuad(clamp((t - M.t0) / M.push));
-    const dr = (mi % 2 ? 1 : -1) * 1.5 * (ease.inOutQuad(clamp((t - M.t0) / Math.max(0.3, M.t1 - M.t0))) - 0.5);
-    return { ...M.cam, D: M.cam.D / lerp(1, MACRO_PUSH, u), az: M.cam.az + dr, mac: mi };
+  /** The macro's camera at t; nopush: its opening framing (the lamp's anchor: the lamp stays put as the camera pushes). */
+  private macroCam(M: Macro, mi: number, t: number, nopush = false): Cam {
+    // (an eased exit holds the push it has reached: the pull-back never pushes on)
+    const u = ease.inOutQuad(clamp((Math.min(t, M.ease ? M.t1 : Infinity) - M.t0) / M.push));
+    const dr = (mi % 2 ? 1 : -1) * 1.0 * (ease.inOutQuad(clamp((t - M.t0) / Math.max(0.3, M.t1 - M.t0))) - 0.5);
+    return { ...M.cam, D: nopush ? M.cam.D : M.cam.D / lerp(1, MACRO_PUSH, u), az: M.cam.az + dr, mac: mi };
   }
   private lineAt(t: number): Line {
     let L = this.lines[0]!;
@@ -400,12 +459,25 @@ export default class UvPlate extends Scene {
     return L;
   }
   /** The camera at t: a hero macro while one is open (and its eased pull-back), else the line's one move. */
-  private camAt(t: number, L = this.lineAt(t)): Cam {
+  private camAt(t: number, L = this.lineAt(t), nopush = false): Cam {
     for (let mi = 0; mi < this.macros.length; mi++) {
       const M = this.macros[mi]!;
       if (M.line !== L.k || t < M.t0 - 1e-6) continue;
-      if (t < M.t1 - 1e-6) return this.macroCam(M, mi, t);
-      if (M.ease && t < M.te - 1e-6) return blendCam(this.macroCam(M, mi, t), this.lineCam(L, t), ease.inOutCubic(clamp((t - M.t1) / (M.te - M.t1))));
+      if (t < M.t1 - 1e-6) return this.macroCam(M, mi, t, nopush);
+      if (M.ease && t < M.te - 1e-6) {
+        const c = blendCam(this.macroCam(M, mi, t, nopush), this.lineCam(L, t), ease.inOutCubic(clamp((t - M.t1) / (M.te - M.t1))));
+        // (the words sung in the eased exit: the framing widens to hold them by their onsets, so none lands outside it)
+        const late = L.words.filter((w) => w.start >= M.t1 - 0.02 && w.start < M.te + 0.05);
+        if (late.length) {
+          const k = smootherstep(M.t1, Math.max(M.t1 + 0.05, late[0]!.start - 0.06), t);
+          if (k > 0) {
+            const lb = boxOf(L.plan);
+            const need = this.needD(c, corners(L.words.filter((w) => w.start < M.te + 0.05)), { x0: -EDGE, x1: EDGE, y0: -EDGE_Y, y1: lb.y1 + 0.1 });
+            if (need > c.D) c.D = Math.exp(lerp(Math.log(c.D), Math.log(need), k));
+          }
+        }
+        return c;
+      }
     }
     return this.lineCam(L, t);
   }
@@ -471,17 +543,28 @@ export default class UvPlate extends Scene {
     const h1 = this.hit1(t);
     const Q = this.aim(t), Qa = this.aim(t - 0.03), Qb = this.aim(t + 0.03);
     const vx = (Qb[0] - Qa[0]) / 0.06, vy = (Qb[1] - Qa[1]) / 0.06;
-    // (tier 1: the examiner brings the lamp down closer, so the pool tightens and brightens)
-    // (round 1: it hovers beyond the line's far edge, whatever row the beam is on, so it never hangs over a sung row;
-    // it shines back toward the lens onto the word)
-    const g = V(Q[0], Q[1], ZC).addScaledVector(right, P.ls * w).addScaledVector(away, P.lb * w);
-    g.y = Math.max(g.y, L.box[3] + (P.lm ?? LAMP_MARGIN));
-    const lC = g.add(V(-vx * 0.012, -vy * 0.008, P.lu * w * (1 - 0.3 * clamp(h1))));
-    const lZ = V(Q[0], Q[1], ZC).sub(lC).normalize();
-    const yaw = clamp(vx * 0.0003, -0.16, 0.16) * Math.sign(P.hand);
-    const ax0 = right.clone().multiplyScalar(Math.sign(P.hand) || 1).applyAxisAngle(V(0, 0, 1), yaw);
-    const lX = ax0.addScaledVector(lZ, -ax0.dot(lZ)).normalize();
+    // (checkpoint review item 2: the lamp in its gloved hand holds the top of the frame, above the words' box (the
+    // plan's y1), housing, the tube's end and the glove's wrist in view: its head at the plan's place on screen,
+    // following the beam across a little, beyond the words and over the cloth; it shines back toward the lens onto
+    // the word. Anchored to the framing without a macro's push, so the push carries past it. Tier 1: the examiner
+    // brings it down closer, so the pool tightens and brightens)
+    const A = basis(this.camAt(t, L, true));
+    const Qw = V(Q[0], Q[1], ZC);
+    const [qx] = proj(A, Qw);
+    const sx = clamp(P.la[0] + P.fl * (qx - P.la[0]), P.la[0] - 0.2, P.la[0] + 0.2), sy = P.la[1];
+    const ray = A.fw.clone().addScaledVector(A.rt, sx * A.tanH * ASP).addScaledVector(A.up, sy * A.tanH);
+    const kr = ray.z < -0.05 ? (ZC + P.lh - A.pos.z) / ray.z : A.pos.distanceTo(A.tgt);
+    const lC = A.pos.clone().addScaledVector(ray, kr).add(V(-vx * 0.012, -vy * 0.008, 0));
+    lC.lerp(Qw, 0.12 * clamp(h1));
+    // the handle: toward the hand's side of the frame, up it by yaw and into it by dep, turning a little with the
+    // sweep; the window turned toward the beam's aim as far as the tube allows (it shines across its axis)
+    const yw = (P.yaw * DEG) + clamp(vx * 0.0003, -0.16, 0.16);
+    const lX = A.rt.clone().multiplyScalar((Math.sign(P.hand) || 1) * Math.cos(yw)).addScaledVector(A.up, Math.sin(yw)).addScaledVector(A.fw, P.dep).normalize();
+    const lZ0 = Qw.clone().sub(lC).normalize();
+    const lZ = lZ0.addScaledVector(lX, -lZ0.dot(lX)).normalize();
     const lY = new THREE.Vector3().crossVectors(lZ, lX);
+    // (the back of the glove toward the camera)
+    const gSide = lY.dot(A.pos.clone().sub(lC)) >= 0 ? 1 : -1;
     const pr = P.pr * w * (1 - 0.16 * clamp(h1));
     // the swab: in from the near right, down onto each stroke's start, drawn through it, lifted between strokes, away
     // after "me"
@@ -519,7 +602,7 @@ export default class UvPlate extends Scene {
       sY = new THREE.Vector3().crossVectors(sZ, sX);
       sP = V(x, y, z);
     }
-    return { Q, lC, lX, lY, lZ, pr, w, gSide: P.hand < 0 ? -1 : 1, swOn, sP, sX, sY, sZ };
+    return { Q, lC, lX, lY, lZ, pr, w, gSide, swOn, sP, sX, sY, sZ };
   }
 
   render(f: Frame, out: THREE.WebGLRenderTarget): PostOverrides {
@@ -661,6 +744,8 @@ export default class UvPlate extends Scene {
    *  span), and each macro. */
   private logTravel() {
     const deg = (r: number) => ((r * 180) / Math.PI).toFixed(0);
+    const tw = QP?.get('uv_trace');
+    if (tw) for (const L of this.lines) for (const w of L.words) if (w.text === tw) { const r: string[] = []; for (let t = Math.max(L.t0, w.start); t < L.t1; t += 1 / 30) r.push(`${t.toFixed(2)}:${(this.size(this.camAt(t, L), w)[0] * 100).toFixed(1)}`); console.warn(`UVTRACE ${tw} ` + r.join(' ')); }
     for (const L of this.lines) console.warn(`UVLAY ${L.k + 1}: ` + L.words.map((w) => `${w.text}[r${w.row} x${w.x0.toFixed(0)}+${w.w.toFixed(0)} b${w.base.toFixed(0)} c${w.cap}]`).join(' '));
     for (const L of this.lines) {
       let orb = 0, scr = 0, jumps = 0, prev: { d: V3; sx: number; sy: number; mac: number } | null = null, Dmin = 1e9, Dmax = 0, supMin = 1, supAt = 0;
@@ -685,9 +770,11 @@ export default class UvPlate extends Scene {
         }
       }
       const w0 = L.words.find((w) => w.start >= L.t0 - 0.05) ?? L.words[0]!;
+      { const B = basis(this.lineCam(L, L.t1 - 0.1)); const ps = corners(L.words).map((p) => proj(B, p)); console.warn(`UVLOG line ${L.k + 1} end framing: words x ${Math.min(...ps.map((q) => q[0])).toFixed(2)}..${Math.max(...ps.map((q) => q[0])).toFixed(2)} y ${Math.min(...ps.map((q) => q[1])).toFixed(2)}..${Math.max(...ps.map((q) => q[1])).toFixed(2)}`); }
       const c0 = this.camAt(L.t0 + 0.034, L), [cap0] = this.size(c0, w0);
       console.warn(`UVLOG line ${L.k + 1} ${L.t0.toFixed(2)}-${t1.toFixed(2)}: orbit ${deg(orb)} deg, block centre ${scr.toFixed(0)} px, framing ${(Dmax / Dmin).toFixed(2)}x${jumps ? `, reframes ${jumps}` : ''}; first word ${w0.text} cap ${(cap0 * 100).toFixed(1)}%; smallest supporting cap ${(supMin * 100).toFixed(1)}% at ${supAt.toFixed(2)}; heroes ${[...heroPk].map(([k, v]) => `${k} peak cap ${(v[0] * 100).toFixed(1)}% span ${(v[1] * 100).toFixed(1)}% onset cap ${(v[2] * 100).toFixed(1)}%`).join(', ')}`);
-      for (const M of this.macros.filter((m) => m.line === L.k)) console.warn(`UVLOG   macro ${M.hero.text} ${M.t0.toFixed(2)}-${M.t1.toFixed(2)}${M.ease ? ` (eased to ${M.te.toFixed(2)})` : ''}: az ${M.cam.az.toFixed(0)} el ${M.cam.el.toFixed(0)} fov ${M.cam.fov}, hero cap ${(M.cap * 100).toFixed(1)}% span ${(M.span * 100).toFixed(1)}% (${M.ratio.toFixed(2)}x the line's), smallest supporting ${(M.sup * 100).toFixed(1)}%`);
+      for (const M of this.macros.filter((m) => m.line === L.k)) console.warn(`UVLOG   macro ${M.hero.text} ${M.t0.toFixed(2)}-${M.t1.toFixed(2)}${M.ease ? ` (eased to ${M.te.toFixed(2)})` : ''}: az ${M.cam.az.toFixed(0)} el ${M.cam.el.toFixed(0)} fov ${M.cam.fov}, hero cap ${(M.cap * 100).toFixed(1)}% span ${(M.span * 100).toFixed(1)}% (${M.ratio.toFixed(2)}x the line's on the onset, ${(M.ratio * M.peak).toFixed(2)}x at the push's peak), smallest supporting ${(M.sup * 100).toFixed(1)}%, the other words held at ${M.hold.toFixed(2)}x their line size or more`);
+      console.warn(`UVLOG   onset caps: ` + L.words.filter((w) => w.start >= L.t0 - 0.05).map((w) => `${w.text} ${(this.size(this.camAt(w.start + 0.05, L), w)[0] * 100).toFixed(1)}%`).join(', '));
     }
   }
 
@@ -700,6 +787,7 @@ export default class UvPlate extends Scene {
   private occScan() {
     const runs = new Map<TWord, number>(), hits: string[] = [];
     let frames = 0, worst = 0;
+    const seen = this.lines.map(() => [0, 0]), tagSeen = this.lines.map(() => 0);
     for (let t = this.ctx.start; t < this.ctx.end - 1e-6; t += 1 / 30) {
       if (this.slamAt(t)) continue;
       frames++;
@@ -713,8 +801,14 @@ export default class UvPlate extends Scene {
           discs.push([(x * 0.5 + 0.5) * FW, (0.5 - y * 0.5) * FH, (r / (z * B.tanH)) * (FH / 2), z, id]);
         }
       };
-      const fromL = (v: number[]) => R.lC.clone().addScaledVector(R.lX, v[0]!).addScaledVector(R.lY, v[1]! * R.gSide).addScaledVector(R.lZ, v[2]!);
-      LAMP_CAPS.forEach(([a, b, r], i) => add(fromL(a), fromL(b), r, ['lamp head', 'lamp handle', 'lamp glove', 'lamp wrist', 'lamp sleeve'][i]!));
+      const fromL = (v: number[]) => R.lC.clone().addScaledVector(R.lX, v[0]! * LS).addScaledVector(R.lY, v[1]! * R.gSide * LS).addScaledVector(R.lZ, v[2]! * LS);
+      // (the lamp in view: the housing's four corners (the tube's end), the knuckles and the glove's wrist at its cuff, all in frame)
+      const inF = (v: number[]) => { const [x, y, z] = proj(B, fromL(v)); return z > 5 && Math.abs(x) < 1 && Math.abs(y) < 1; };
+      seen[L.k]![1]++;
+      // (the EXHIBIT 5 tag whole in frame: its four corners)
+      if ([[-1, -1], [1, -1], [1, 1], [-1, 1]].every(([a, b]) => { const [x, y, z] = proj(B, V(TAG.x + a! * TAG.hx, TAG.y + b! * TAG.hy, ZC)); return z > 5 && Math.abs(x) < 0.97 && Math.abs(y) < 0.97; })) tagSeen[L.k]!++;
+      if ([[-62, -24, -15], [-62, 24, -15], [62, -24, -15], [62, 24, -15], [122, 25, -16], [205, 45, -60]].every(inF)) seen[L.k]![0]++;
+      LAMP_CAPS.forEach(([a, b, r], i) => add(fromL(a), fromL(b), r * LS, ['lamp head', 'lamp handle', 'lamp glove', 'lamp wrist', 'lamp sleeve'][i]!));
       if (R.swOn && R.sP) {
         const fromS = (v: number[]) => R.sP!.clone().addScaledVector(R.sX, v[0]!).addScaledVector(R.sY, v[1]!).addScaledVector(R.sZ, v[2]!);
         SWAB_CAPS.forEach(([a, b, r], i) => add(fromS(a), fromS(b), r, ['swab tip', 'swab shaft', 'swab fingers', 'swab glove', 'swab sleeve'][i]!));
@@ -742,6 +836,7 @@ export default class UvPlate extends Scene {
       }
     }
     for (const h of hits) console.warn(`UVOCC hit: ${h}`);
+    console.warn(`UVOCC lamp in view (housing, tube end, glove to the wrist): ` + seen.map((v, k) => `line ${k + 1} ${((100 * v[0]!) / Math.max(1, v[1]!)).toFixed(0)}%`).join(', ') + `; the tag whole in frame: ` + tagSeen.map((v, k) => `line ${k + 1} ${((100 * v) / Math.max(1, seen[k]![1]!)).toFixed(0)}%`).join(', '));
     console.warn(`UVOCC total: ${hits.length} hit(s) over ${frames} frames (a word > 15% covered by the lamp, a glove or the swab for more than 2 frames); worst single-frame cover ${(worst * 100).toFixed(0)}%`);
   }
 }

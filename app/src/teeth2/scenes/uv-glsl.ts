@@ -43,6 +43,7 @@ uniform vec4 W2[${NW}];         // per word id: the trace's pose on the cloth: a
 uniform float WL[${NW}];        // per word id: its lean (a shear, DEVIL)
 uniform vec3 lC, lX, lY, lZ;    // the lamp: window centre, tube axis (toward the handle), across, window normal
 uniform float lampK;
+uniform float lS;               // the lamp rig's scale (round 1 review: a smaller torch and hand, whole in frame)
 uniform vec2 Q, pAx; uniform float pR;   // the pool now: centre, tube axis on the cloth, radius across (mm)
 uniform vec4 M[${NM}];          // the pool's recent positions: centre, radius, weight (fading with age)
 uniform vec3 sP, sX, sY, sZ; uniform float swabOn, swabGlow;
@@ -55,6 +56,10 @@ const vec2 CH = vec2(${f((CLOTH.x1 - CLOTH.x0) / 2)}, ${f((CLOTH.y1 - CLOTH.y0) 
 // the cloth in the pool: dark, low-saturation violet (cotton under a Wood's lamp), and what it bounces
 const vec3 POOLC = T_UV * 0.032 + T_HALIDE * 0.04;
 const float HEM0 = 286.0;
+// the room's dim film2 ambient (checkpoint review item 1): the case's folds, weave, seams and hem read outside the
+// beam; a soft light from the far side and above, so the folds' far faces fall back to film-black
+uniform float ambK;
+const vec3 AMBD = vec3(-0.25, 0.62, 0.74);
 
 // ------------------------------------------------------------------ the beam
 float poolN = 0.0;   // the pool edge's wobble at this point (the reflector's unevenness), set per pixel
@@ -64,7 +69,7 @@ float poolF(vec2 p, vec2 q, float R) {
   return (1.0 - smoothstep(0.42, 1.08, r)) + 0.035 * exp(-r * r * 0.7);
 }
 vec3 toLamp(vec3 p) {
-  float s = clamp(dot(p - lC, lX), -48.0, 48.0);
+  float s = clamp(dot(p - lC, lX), -48.0 * lS, 48.0 * lS);
   return normalize(lC + lX * s - p);
 }
 // irradiance at P (normal N): the pool, shaded by the facing toward the tube (1 on flat cloth)
@@ -232,7 +237,8 @@ float tagString(vec2 p) {
   vec2 b = a;
   for (int i = 1; i <= 6; i++) {
     float s = float(i) / 6.0;
-    vec2 c = a + vec2(-70.0 * s, 26.0 * s * s - 10.0 * s) + vec2(0.0, 6.0 * sin(s * 5.0));
+    // (round 1: it falls away toward the near edge, clear of the row the tag ends)
+    vec2 c = a + vec2(-24.0 * s, -58.0 * s + 14.0 * s * s) + vec2(5.0 * sin(s * 5.0), 0.0);
     d = min(d, sdSegment(p, b, c));
     b = c;
   }
@@ -360,7 +366,7 @@ float sdWand(vec3 q, out int m) {
   return d;
 }
 float sdWandD(vec3 q) { int m; return sdWand(q, m); }
-vec3 toL(vec3 p) { vec3 d = p - lC; return vec3(dot(d, lX), dot(d, lY), dot(d, lZ)); }
+vec3 toL(vec3 p) { vec3 d = p - lC; return vec3(dot(d, lX), dot(d, lY), dot(d, lZ)) / lS; }
 vec3 dirL(vec3 v) { return vec3(dot(v, lX), dot(v, lY), dot(v, lZ)); }
 vec3 fromL(vec3 v) { return lX * v.x + lY * v.y + lZ * v.z; }
 const vec3 WLO = vec3(-72.0, -105.0, -180.0), WHI = vec3(410.0, 105.0, 36.0);
@@ -386,7 +392,7 @@ const vec3 SLO = vec3(-10.0, -68.0, -38.0), SHI = vec3(440.0, 38.0, 46.0);
 
 float marchW(vec3 ro, vec3 rd, out int m) {
   m = -1;
-  vec3 o = toL(ro), d = dirL(rd);
+  vec3 o = toL(ro), d = dirL(rd) / lS;
   vec2 bh = boxHit(o, d, WLO, WHI);
   if (bh.x > bh.y || bh.y < 0.0) return 1e9;
   float t = max(bh.x, 0.0);
@@ -394,7 +400,7 @@ float marchW(vec3 ro, vec3 rd, out int m) {
     if (t > bh.y) break;
     int mm; float h = sdWand(o + d * t, mm);
     if (h < 0.03) { m = mm; return t; }
-    t += h * 0.85;
+    t += h * 0.85 * lS;
   }
   return 1e9;
 }
@@ -471,7 +477,7 @@ vec3 shadeWand(vec3 P, vec3 rd, int m) {
     float sheen = ggx(nl, normalize(dirL(V) + Ll), 0.35) * 0.05 * rimL;
     // the handle's ribs
     float rib = q.x > 70.0 ? 0.8 + 0.2 * smoothstep(-0.3, 0.3, sin(q.x * 1.3)) : 1.0;
-    return (T_FILM2 * 0.5 + bounceC * sat(-N.z * 0.8 + 0.2) * 0.4) * rib + T_UV * lip * 1.1 * lampK + mix(T_UV, T_HALIDE, 0.4) * sheen;
+    return (T_FILM2 * (0.5 + 0.45 * ambK * sat(dot(N, normalize(AMBD)))) + bounceC * sat(-N.z * 0.8 + 0.2) * 0.4) * rib + T_UV * lip * 1.1 * lampK + mix(T_UV, T_HALIDE, 0.4) * sheen;
   }
   vec3 Lr = fromL(Ll);
   if (m == 3) {
@@ -532,7 +538,9 @@ vec3 shade(vec2 px) {
   float alb = (0.94 + 0.06 * snoise(p * 0.21)) * mix(1.0, weave(p), weaveK * 0.5) * (1.0 - 0.18 * lift);
   float te = topEdge(p.y);
   alb *= 1.0 - 0.75 * exp(-pow((p.x - te - 1.2) / 1.8, 2.0));
-  vec3 cloth = POOLC * alb * E + T_FILM * 0.2;
+  float amb = sat(0.1 + 0.9 * dot(N, normalize(AMBD)));
+  amb = amb * amb * amb * mix(1.0, weave(p), weaveK * 0.8);
+  vec3 cloth = POOLC * alb * E + T_FILM * 0.2 + T_FILM2 * ambK * alb * amb;
   // the stitching: the side seam, the closed end, the hem
   float ns = p.y + CH.y, ce = p.x + CH.x;
   float st = stitchLine(ns - 7.0, p.x) * (1.0 - smoothstep(HEM0 - 4.0, HEM0, p.x)) + stitchLine(ce - 7.0, p.y)
@@ -545,7 +553,7 @@ vec3 shade(vec2 px) {
     vec2 tuv; float tm = tagMask(p, tuv);
     if (tm > 0.0) {
       float ink = textureLod(tagTex, tuv, max(gLod - 1.0, 0.0)).r;
-      vec3 card = (T_FLUOR * 0.3 * X + POOLC * 1.4 * E) * (0.92 + 0.08 * snoise(p * 0.3));
+      vec3 card = (T_FLUOR * 0.3 * X + POOLC * 1.4 * E + T_FILM2 * ambK * 3.2) * (0.92 + 0.08 * snoise(p * 0.3));
       col = mix(col, card * mix(0.12, 1.0, ink) + T_FILM * 0.15, tm);
     }
     float sg = tagString(p);
