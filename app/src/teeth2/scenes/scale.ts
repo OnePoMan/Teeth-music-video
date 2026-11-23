@@ -44,7 +44,7 @@ const HB = -2, RB = 39;
 /** Cap heights (mm): supporting words, heroes, SWEET (Cormorant lowercase), GO, TEETH, and line 1's opening row
  *  (read from the exhibit's distance). Round 2b: supporting words bigger and heroes smaller than round 2, so a whole
  *  line sets as a short page on the apple's front. */
-const CAP = { sup: 4.4, hero: 8.0, serif: 11, go: 10.5, teeth: 8.5, open: 8.5, sup1: 5.6, hero1: 8.8 };
+const CAP = { sup: 4.4, hero: 8.0, serif: 10, go: 10.5, teeth: 8.5, open: 7.6, sup1: 4.6, sup1b: 5.2, hero1: 7.6 };
 /** Bite depth (mm): supporting words shallow, heroes deep. */
 const DEPTH = { sup: 1.3, hero: 2.3, go: 2.8 };
 
@@ -60,7 +60,7 @@ const HEROES: number[][] = [[2, 7], [2, 7], [2, 5], [1, 2, 3, 6]];
 const ROWS: number[][] = [[0, 1, 3, 6], [0, 2, 4, 7], [0, 2, 4, 6], [0, 2, 4]];
 /** The first row's cap top over the band's middle, and the gap between rows (mm). (round 5: line 3 raised, so its
  *  last row is not on the apple's underside) */
-const ROW_TOP = [27, 17, 21, 22], ROW_GAP = 2.6;
+const ROW_TOP = [21, 17, 21, 25], ROW_GAP = [2.0, 2.6, 2.6, 2.6];
 
 /** Round 2b: a longer lens (18 deg vertical, was 27) from further back, so the close apple's curve does not crowd the
  *  ends of a row against its silhouette; LENS: how much further back the camera stands for the same framing. */
@@ -85,10 +85,10 @@ interface Plan { a: [number, number]; el: [number, number]; roll: [number, numbe
 //   line 3: a high angle, craning down over the rows as they fill;
 //   line 4: an orbit across the face, from the rows' left round to their right.
 const PLANS: Plan[] = [
-  { a: [-0.3, 0.6], el: [0.5, -0.4], roll: [0, -0.07], daz: [0.5, -0.6], psi0: 0, wide: true, dEx: 190 * LENS },
-  { a: [-0.7, 0.15], el: [-0.14, 0.1], roll: [0.1, -0.02], daz: [-0.3, 0.2], psi0: 2.4 },
+  { a: [-0.3, 0.6], el: [0.5, -0.4], roll: [0, -0.07], daz: [0.42, -0.6], psi0: 0, wide: true, dEx: 190 * LENS },
+  { a: [-0.7, 0.15], el: [-0.14, 0.1], roll: [0.1, -0.02], daz: [-0.3, -0.02], psi0: 2.4 },
   { a: [-1.9, -0.8], el: [0.5, -0.12], roll: [0.1, -0.05], daz: [-0.1, 0.55], psi0: 1.0 },
-  { a: [-1.3, 0.1], el: [0.3, -0.1], roll: [-0.09, 0.07], daz: [-0.7, 0.6], psi0: 2.0 },
+  { a: [-1.3, 0.1], el: [0.3, -0.1], roll: [-0.09, 0.07], daz: [-0.4, 0.08], psi0: 2.0 },
 ];
 /** ROUND 5: how far the line's framing leans from the line so far's centre toward its newest word (R81: the newest
  *  word in the sweet spot, the camera riding along the words as they are bitten). Look-dev override: sc_ride=k. */
@@ -105,6 +105,9 @@ const RIDE = 0.32;
  *    DEVIL -> HANDS (its own macro, 57.36, a downbeat) | HANDS -> the cut (ON ME AND bitten in it)
  *    NEVER (the cut, 59.08) -> the second NEVER (59.73) | GO -> the plate's end */
 const MACROS: [number, number, number, number][] = [[0, 2, 6, 1], [0, 7, -1, 0], [1, 2, 5, 0], [2, 2, 5, 0], [2, 5, -1, 0], [3, 1, 2, 0], [3, 6, -1, 0]];
+/** ROUND 5 LIMB CHECK (R29, R31; lead 2026-11-22): no glyph of a word on screen may sit where the skin turns more than
+ *  ~60 deg from the lens (n.v below this), nor behind the apple's silhouette. The solvers keep a margin over it. */
+const LIMB_NV = 0.5, LIMB_NV_SOLVE = 0.51;
 /** The eased exit: it starts this long before the exit word and lasts MACRO_EASE (>= 0.5 s). */
 const MACRO_EASE = 0.6, MACRO_EASE_LEAD = 0.3;
 /** The macro's hero scale over the line framing's (the brief: about 2x), the push inside it (the framing at its onset
@@ -153,6 +156,9 @@ const STRIP = [110, 30];
 const STRIP_C: number[][] = [[0, 0], [200, -100], [80, -40], [0, 0]];
 /** ROUND 5: the strip's length per line (x STRIP), so line 2's lower, more raking opener keeps r4's tight hot core. */
 const STRIP_K = [1, 0.45, 0.8, 1];
+/** ROUND 5 LIGHT FOLLOWS THE LINE: every word must face the key at least this much (n.l), and the pool reaches past the
+ *  farthest word by this margin (frame widths). Look-dev overrides: sc_litnl, sc_litm. */
+const LIT_NL = 0.3, LIT_MARGIN = 0.2;
 /** ROUND 4 (fix): the coat's soft shoulder lobe (roughness, gain) under the tight core (COAT). Override: sc_coatb=r,g. */
 const COAT_B = [0.5, 0.08];
 /** TIER 1 FLASHES (R38): strength by hero (and the opening exhibit photograph); every other beat gets no flash.
@@ -174,7 +180,7 @@ interface LWord {
   /** when its moves start: its onset, or earlier for a word already standing at its line's cut (it is read at once) */
   m0: number;
 }
-interface Line { k: number; t0: number; t1: number; words: LWord[]; band: BandLine; az0: number; path: LyricPath; plan: Plan }
+interface Line { k: number; t0: number; t1: number; words: LWord[]; band: BandLine; az0: number; path: LyricPath; plan: Plan; lp?: { p: THREE.Vector3; n: THREE.Vector3 }[] }
 /** A full-frame slam (kinetic.ts): the hero breaks out of the photograph as flat type, from t0 to the next line. */
 interface Slam { t0: number; t1: number; land: number; kw: KinWord; teeth: boolean }
 /** A hero macro (MACROS), solved in the apple's rest frame: it looks at T from T + dir * dist (pushed in over pushDur),
@@ -343,9 +349,9 @@ export default class ScalePlate extends Scene {
         text: w.text, serif: w.wax, chip: w.hero && !w.wax, row: w.row,
         // (round 3: line 1 is first seen from the exhibit's distance, so its supporting words and DIRTY are set larger:
         // R22's 5% floor while the camera is still pushing in, and DIRTY's R21 hero scale)
-        cap: w.wax ? CAP.serif : w.go ? CAP.go : w.key === 'teeth' ? CAP.teeth : w.hero ? (k === 0 ? CAP.hero1 : CAP.hero) : k === 0 && w.row === 0 ? CAP.open : k === 0 ? CAP.sup1 : CAP.sup,
+        cap: w.wax ? CAP.serif : w.go ? CAP.go : w.key === 'teeth' ? CAP.teeth : w.hero ? (k === 0 ? CAP.hero1 : CAP.hero) : k === 0 && w.row === 0 ? CAP.open : k === 0 ? (w.row === 1 ? CAP.sup1b : CAP.sup1) : CAP.sup,
         condense: w.rep > 1 ? [1, 1, 0.8, 0.64][w.rep] : 1,
-      })), { top: ROW_TOP[k] ?? 19, gap: ROW_GAP });
+      })), { top: ROW_TOP[k] ?? 19, gap: ROW_GAP[k] ?? 2.6 });
       const words: LWord[] = ws.map((w, i) => {
         const b = band.words[i]!;
         return {
@@ -451,9 +457,17 @@ export default class ScalePlate extends Scene {
     }
 
     if (QP?.get("sc_rows")) for (const L of this.lines) console.warn("SCROWS " + L.k + " " + L.words.map((w) => `${w.text}[r${w.row} ${w.x0.toFixed(0)}..${w.x1.toFixed(0)} h${w.hc.toFixed(0)} c${w.cap}]`).join(" "));
+    // ROUND 5 LIGHT FOLLOWS THE LINE: the corners of every word of each line (rest frame) with the skin's normal there
+    for (const L of this.lines) {
+      L.lp = [];
+      for (const w of L.words) for (const sx of [w.lim0, (w.lim0 + w.lim1) / 2, w.lim1]) for (const h of [w.hc - 0.5 * w.cap, w.hc + 0.5 * w.cap]) {
+        const C = flank(L.az0 + sx / RB, HB + h).C;
+        L.lp.push({ p: C, n: skinN(C) });
+      }
+    }
     // ROUND 5 HERO MACROS: solved once (each against the line framing alone, so a macro chained onto another is sized
     // against the line), then opened
-    const solved = QP?.get("sc_rows") ? [] : MACROS.filter(([k]) => this.lines[k]).map(([k, hi, xi, ez], idx) => this.solveMacro(this.lines[k]!, hi, xi, idx, !!ez));
+    const solved = (QP?.get("sc_rows") ? [] : MACROS.filter(([k]) => this.lines[k]).map(([k, hi, xi, ez], idx) => this.solveMacro(this.lines[k]!, hi, xi, idx, !!ez))).filter((x): x is Macro => !!x);
     this.macros = solved;
 
     // ROUND 5 CARVING DEBRIS: as each letter is bitten (its spring's onset), chips of skin (stone yellow on one side,
@@ -540,17 +554,17 @@ export default class ScalePlate extends Scene {
     const M = this.macros[mi]!;
     // the room path: from the opening (A) through a framing per word bitten in the macro, each reached just before its
     // word lands (a monotone spline eased into the beats, kinetic.ts LyricPath), so the newest word always has room
-    let T = M.A.T, dir = M.A.dir.clone(), dist = M.A.dist;
+    let T = M.A.T, dir = M.A.dir.clone(), dist = M.A.dist, tanH = M.tanH;
     if (M.path) {
       const v = M.path.at(t);
-      T = V(v[0]!, v[1]!, v[2]!); dir = V(v[3]!, v[4]!, v[5]!).normalize(); dist = Math.exp(v[6]!);
+      T = V(v[0]!, v[1]!, v[2]!); dir = V(v[3]!, v[4]!, v[5]!).normalize(); dist = Math.exp(v[6]!); tanH = Math.exp(v[7]!);
     } else dist *= lerp(MACRO_PUSH, 1, ease.inOutQuad(clamp((t - M.t0) / M.pushDur))); // the push into the hero (R80), where the macro does not make room
     const dr = MACRO_DRIFT * (mi % 2 ? 1 : -1) * (ease.inOutQuad(clamp((t - M.t0) / Math.max(0.2, M.t1 - M.t0))) - 0.5);
     const P = T.clone().addScaledVector(dir.applyAxisAngle(UP, dr), dist);
     const pos = turn(P, M.psi), at = turn(T, M.psi);
     const { fw, rt, up } = basis(pos, at, M.roll);
     const tanF = Math.tan((FOV * Math.PI) / 360);
-    return { pos, at, fw, rt, up, roll: M.roll, tanH: M.tanH, psi: M.psi, D: (dist * M.tanH) / tanF, wide: 0, onBand: turn(M.Ph, M.psi), macro: mi };
+    return { pos, at, fw, rt, up, roll: M.roll, tanH, psi: M.psi, D: (dist * tanH) / tanF, wide: 0, onBand: turn(M.Ph, M.psi), macro: mi };
   }
 
   /** ROUND 5: solve a hero macro (MACROS). A, its opening: searched over the camera's direction round the hero (rest
@@ -560,12 +574,15 @@ export default class ScalePlate extends Scene {
    *  that reach the target it prefers the hero seen 14-32 deg off square (the bitten walls show). B, if words are bitten
    *  before the macro leaves: the same lens, a direction near A's, with room for them; the camera eases from A to B as
    *  they arrive (riding along, one way). */
-  private solveMacro(L: Line, hi: number, xi: number, idx: number, easeOut: boolean): Macro {
+  private solveMacro(L: Line, hi: number, xi: number, idx: number, easeOut: boolean): Macro | null {
     const hero = L.words[hi]!;
     const t0 = hero.start;
     // an eased exit starts before its exit word and runs MACRO_EASE (or to the line's cut); the room framing then holds
     // every word bitten before the pull-back ends
-    const t1 = xi < 0 ? L.t1 : easeOut ? L.words[xi]!.start - MACRO_EASE_LEAD : L.words[xi]!.start;
+    // (a cut exit lands two frames before its word, so the word springs in the line's framing; onto another macro's
+    // hero it lands on the onset, so the two macros meet with no frame between)
+    const chained = xi >= 0 && MACROS.some(([k, h]) => k === L.k && h === xi);
+    const t1 = xi < 0 ? L.t1 : easeOut ? L.words[xi]!.start - MACRO_EASE_LEAD : L.words[xi]!.start - (chained ? 0 : 0.07);
     const te = easeOut ? Math.min(t1 + MACRO_EASE, L.t1) : t1;
     const last = xi < 0 ? L.words.length - 1 : easeOut ? L.words.filter((w) => w.start < te).length - 1 : xi - 1;
     const at = (s: number, h: number) => flank(L.az0 + s / RB, HB + h);
@@ -631,10 +648,10 @@ export default class ScalePlate extends Scene {
           if (!f) { rej[0]++; continue; }
           // every part of every word faces the lens well enough to read: stand further back until it does (a nearer
           // lens sees the line's ends more obliquely)
-          const faces = (p: THREE.Vector3) => !g.pts.some((q) => q.N.dot(p.clone().sub(q.p).normalize()) < (q.hero ? 0.5 : 0.3));
+          const faces = (p: THREE.Vector3) => !g.pts.some((q) => q.N.dot(p.clone().sub(q.p).normalize()) < (q.hero ? LIMB_NV_SOLVE + 0.05 : LIMB_NV_SOLVE));
           let pos = f.T.clone().addScaledVector(dir, f.D);
-          for (const k of [1.25, 1.6, 2.1, 2.8]) { if (faces(pos)) break; f.D = f.D * (k / (k === 1.25 ? 1 : 1)); pos = f.T.clone().addScaledVector(dir, f.D); }
-          if (pos.y < 14 || pos.distanceTo(AC) < LAY.AR + 8) { rej[1]++; continue; }
+          for (const k of [1.25, 1.6, 2.1, 2.8, 2, 2]) { if (faces(pos)) break; f.D = f.D * (k / (k === 1.25 ? 1 : 1)); pos = f.T.clone().addScaledVector(dir, f.D); }
+          if (pos.y < 6 || pos.distanceTo(AC) < LAY.AR + 8) { rej[1]++; continue; }
           if (!faces(pos)) { rej[2]++; continue; }
           const B = basis(pos, f.T, roll);
           let sup = 1, cap = 0, bad = false, off = 0, kNew = 1, kOld = 1;
@@ -647,7 +664,7 @@ export default class ScalePlate extends Scene {
           }
           if (bad || (rowRule && kNew < 0.97 * kOld)) { rej[3]++; continue; }
           const eff = Math.min(cap, target), supEff = sup * (eff / cap);
-          if (supEff < 0.064) { rej[4]++; continue; }
+          if (supEff < 0.058) { rej[4]++; continue; }
           const score = eff / target + (off > 0.24 && off < 0.56 ? 0.06 : 0) + 0.4 * Math.min(supEff, 0.11);
           if (!best || score > best.score) best = { T: f.T, dir, dist: f.D, tanH, cap, sup, off, score };
         }
@@ -665,22 +682,35 @@ export default class ScalePlate extends Scene {
       return best;
     };
     const An = L.az0 + hero.cx / RB, dirs: THREE.Vector3[] = [];
-    for (let ia = -5; ia <= 5; ia++) for (let ie = -6; ie <= 8; ie++) dirs.push(dirAz(An + ia * 0.15, ie * 0.1));
-    const A = search(g0, [18, 24, 32, 42, 54], dirs, MACRO_K * lineCap);
-    if (!A) throw new Error(`scale: no macro framing for ${hero.text} (rejected: fit, place, face, centre, size: ${rej.join()})`);
+    for (let ia = -8; ia <= 8; ia++) for (let ie = -6; ie <= 8; ie++) dirs.push(dirAz(An + ia * 0.15, ie * 0.1));
+    const A = search(g0, [10, 13, 18, 24, 32, 42], dirs, MACRO_K * lineCap);
+    if (!A) {
+      let best = -1, bd = "", worstP = -1;
+      for (let az = -3.14; az < 3.14; az += 0.02) for (let el = -0.6; el < 1.3; el += 0.02) {
+        const d = dirAz(az, el); let mn = 1, wi = -1;
+        g0.pts.forEach((q, i) => { const v = q.N.dot(d); if (v < mn) { mn = v; wi = i; } });
+        if (mn > best) { best = mn; bd = az.toFixed(2) + "," + el.toFixed(2); worstP = wi; }
+      }
+      const W = g0.pts[worstP]!;
+      console.warn(`SCDBG ${hero.text}: best orthographic min n.d ${best.toFixed(2)} at az,el ${bd}; worst point ${worstP} p ${W.p.toArray().map((x) => x.toFixed(0))} n ${W.N.toArray().map((x) => x.toFixed(2))}`);
+    }
+    if (!A) { console.warn(`SCLIMB solve: no macro framing for ${hero.text} (rejected: fit, place, face, centre, size: ${rej.join()})`); return null; }
     // the room path: a framing per word bitten in the macro (and in its eased exit), on A's lens, near the framing
     // before it; held on A a moment, then each reached just before its word lands
     let Bs: Sol | null = null, path: LyricPath | null = null;
     if (last > hi) {
-      const fA = [(Math.atan(A.tanH) * 360) / Math.PI], vec = (x: Sol) => [x.T.x, x.T.y, x.T.z, x.dir.x, x.dir.y, x.dir.z, Math.log(x.dist)];
+      const fA = [(Math.atan(A.tanH) * 360) / Math.PI], vec = (x: Sol) => [x.T.x, x.T.y, x.T.z, x.dir.x, x.dir.y, x.dir.z, Math.log(x.dist), Math.log(x.tanH)];
       const keys = [{ t: t0, v: vec(A) }, { t: t0 + Math.min(0.2, 0.4 * (L.words[hi + 1]!.start - t0)), v: vec(A) }];
       let prev = A;
       for (let j = hi + 1; j <= last; j++) {
         const near: THREE.Vector3[] = [];
         for (let ia = -3; ia <= 3; ia++) for (let ie = -3; ie <= 3; ie++) near.push(prev.dir.clone().applyAxisAngle(UP, ia * 0.1).add(V(0, ie * 0.08, 0)).normalize());
         const gB = geom(L.words.slice(0, j + 1));
-        const F = search(gB, fA, near, prev.cap, true) ?? search(gB, fA, dirs, prev.cap, true) ?? search(gB, fA, near, prev.cap) ?? search(gB, fA, dirs, prev.cap);
-        if (!F) throw new Error(`scale: no room framing for ${L.words[j]!.text} in the macro on ${hero.text} (rejected: ${rej.join()})`);
+        const fAll = [10, 13, 18, 24, 32];
+        // (the best of: A's lens near the framing before, A's lens anywhere, any lens anywhere; the newest-row rule unless none passes)
+        const cands = [search(gB, fA, near, prev.cap, true), search(gB, fA, dirs, prev.cap, true), search(gB, fAll, dirs, prev.cap, true)].filter((x): x is Sol => !!x);
+        const F = cands.length ? cands.reduce((a, b) => (b.cap > a.cap * 1.04 ? b : a)) : search(gB, fAll, dirs, prev.cap);
+        if (!F) { console.warn(`SCLIMB solve: no room framing for ${L.words[j]!.text} in the macro on ${hero.text} (rejected: ${rej.join()})`); continue; }
         keys.push({ t: Math.max(keys[keys.length - 1]!.t + 0.12, L.words[j]!.start - 0.08), v: vec(F) });
         prev = Bs = F;
       }
@@ -710,10 +740,62 @@ export default class ScalePlate extends Scene {
     return { pos, at, fw, rt, up, roll, tanH: Math.tan((FOV * Math.PI) / 360), psi, D, wide, onBand, macro: -1 };
   }
 
+  /** ROUND 5 LIMB CHECK: every glyph of every word drawn at t (its four corners and centre, posed by the kit, on the
+   *  skin) against the frame's camera: the skin's true normal must face the lens (n.v >= LIMB_NV) and nothing of the
+   *  apple may stand between (a march from the glyph toward the lens through the body). Returns the worst n.v and
+   *  the glyphs that fail. */
+  private limb(Ln: Line, t: number, cm: Cam) {
+    const hits: { word: string; nv: number; occ: boolean }[] = [];
+    let worst = 1;
+    const camR = turn(cm.pos, -cm.psi);
+    for (const w of Ln.words) {
+      if (t < w.m0 - 0.4) continue;
+      const P = this.wordPose(w, t);
+      let bad: { nv: number; occ: boolean } | null = null;
+      P.glyphs.forEach((p, i) => {
+        const g = w.kw.glyphs[i]!;
+        if (p.on <= 0.02 || !g.ch.trim()) return;
+        const cy = w.hc - p.y, hx = (g.adv * p.sx) / 2, hy = (w.cap * p.sy) / 2, cs = Math.cos(-p.rot), sn = Math.sin(-p.rot);
+        for (const [lx, ly] of [[-hx, hy], [hx, hy], [hx, -hy], [-hx, -hy], [0, 0]] as const) {
+          const C = flank(Ln.az0 + (p.cx + lx * cs - ly * sn) / RB, HB + cy + lx * sn + ly * cs).C;
+          const v = camR.clone().sub(C), dist = v.length();
+          v.divideScalar(dist);
+          const nv = skinN(C).dot(v);
+          worst = Math.min(worst, nv);
+          let occ = false;
+          if (nv >= LIMB_NV) for (let k = 1; k <= 24 && !occ; k++) occ = appleBody(C.clone().addScaledVector(v, 1.5 + Math.min(dist, 160) * (k / 24) ** 2)) < -0.3;
+          if (nv < LIMB_NV || occ) { if (!bad || nv < bad.nv) bad = { nv, occ }; }
+        }
+      });
+      if (bad) hits.push({ word: w.text, ...(bad as { nv: number; occ: boolean }) });
+    }
+    return { worst, hits };
+  }
+
+  /** sc_limb=1: the limb check over the whole window, every frame (console warnings, printed by render.ts): each word
+   *  that fails, the span it fails over and its worst n.v; then the total. */
+  private logLimb() {
+    const fails = new Map<string, { t0: number; t1: number; nv: number; occ: boolean; n: number }>();
+    let frames = 0, hitFrames = 0, worst = 1;
+    for (let t = this.ctx.start; t < this.ctx.end - 1e-6; t += 1 / 30) {
+      if (this.slams.some((x) => t >= x.t0 - 1e-6 && t < x.t1)) continue;
+      const Ln = this.lineAt(t), r = this.limb(Ln, t, this.cam(Ln, t));
+      frames++; worst = Math.min(worst, r.worst);
+      if (r.hits.length) hitFrames++;
+      for (const h of r.hits) {
+        const k = `L${Ln.k + 1} ${h.word}`, e = fails.get(k);
+        if (e) { e.t1 = t; e.nv = Math.min(e.nv, h.nv); e.occ ||= h.occ; e.n++; } else fails.set(k, { t0: t, t1: t, nv: h.nv, occ: h.occ, n: 1 });
+      }
+    }
+    for (const [k, e] of fails) console.warn(`SCLIMB ${k} ${e.t0.toFixed(2)}-${e.t1.toFixed(2)} (${e.n} frames): worst n.v ${e.nv.toFixed(2)}${e.occ ? ', occluded' : ''}`);
+    console.warn(`SCLIMB total: ${hitFrames} of ${frames} frames with a glyph past the limb (n.v < ${LIMB_NV} or occluded); worst n.v over all glyphs ${worst.toFixed(2)}`);
+  }
+
   /** sc_log=1: the camera's travel per line (console warnings, printed by render.ts): its orbit round the apple in the
    *  apple's own frame (degrees, summed along the move) and in the room, and the apple centre's travel on screen (px at
    *  1080p, summed), measured on the continuous moves only (a reframe's jump is not travel). */
   private logged = false;
+  private limbLogged = false;
   private logTravel() {
     const H2 = 540, W2 = 960, deg = (r: number) => ((r * 180) / Math.PI).toFixed(0);
     // one pass over a line: "seen" is the camera as cut (line move and macros; a reframe's jump is not travel), "path"
@@ -833,6 +915,7 @@ export default class ScalePlate extends Scene {
 
     // ---- the camera: one move along the line (kinetic.ts LyricPath), the apple turning under it, or a hero macro
     if (QP?.get('sc_log') && !this.logged) { this.logged = true; this.logTravel(); }
+    if (QP?.get('sc_limb') && !this.limbLogged) { this.limbLogged = true; this.logLimb(); }
     const cm = this.cam(Ln, t);
     const { pos, at, fw, rt, up, psi, D, wide, onBand } = cm;
     (m.aYaw!.value as THREE.Vector2).set(Math.cos(psi), Math.sin(psi));
@@ -859,7 +942,9 @@ export default class ScalePlate extends Scene {
     const wf = (FG * fl) / (lamp + FG * fl);
     // (on the exhibit framing, the approved first flash, the light is the photograph's: near the lens, upper left, so
     // the bite's flesh, the white scale and its label read; it swings round to the rake as the camera pushes in)
-    const ka = (lerp(lerp(kq[0]!, sq[0]!, wf), EXHIBIT_KEY[0], wide) * Math.PI) / 180;
+    // (round 5: the pool and the rake follow the whole line, so no word falls past the light into black)
+    const LL = this.lineLight(Ln, cm, kq[0]!, kq[1]!), dka = LL.dka * (1 - wide);
+    const ka = (lerp(lerp(kq[0]! - dka, sq[0]! - dka, wf), EXHIBIT_KEY[0], wide) * Math.PI) / 180;
     const kb = (lerp(lerp(kq[1]!, sq[1]!, wf), EXHIBIT_KEY[1], wide) * Math.PI) / 180;
     const kDir = fw.clone().multiplyScalar(-Math.cos(ka)).addScaledVector(rt, -Math.sin(ka) * Math.cos(kb)).addScaledVector(up, Math.sin(ka) * Math.sin(kb)).normalize();
     const key = at.clone().addScaledVector(kDir, kq[2]! + 0.6 * D);
@@ -871,14 +956,14 @@ export default class ScalePlate extends Scene {
     // (aimed toward the key's side of the line's centre (AIM, in frame widths): the key side of the face is the
     // brightest and the apple's own curve carries the light down toward shadow on the far side, a gradient across
     // the face rather than an even disc; the pool's top and bottom edges fall to film-black)
-    const am = qv('aim') ?? AIM;
+    const am = qv('aim') ?? LL.aim;
     const aim = at.clone().addScaledVector(rt, am[0]! * FW_D * D * (1 - wide)).addScaledVector(up, am[1]! * FW_D * D * (1 - wide));
     (m.keyDir!.value as THREE.Vector3).copy(aim.sub(key).normalize());
     // the pool: a snooted strobe aimed at the line so far, full over the line's middle and falling toward film-black
     // at the frame's edges (the close openers are never a flat field of yellow); the exhibit's flash is broad
     const kd = key.distanceTo(at), fwm = FW_D * D, pq = qv('pool') ?? POOL;
     m.keyCone!.value = lerp(Math.cos(Math.atan((pq[0]! * fwm) / kd)), 0.82, wide);
-    m.keyOut!.value = lerp(Math.cos(Math.atan((pq[1]! * fwm) / kd)), 0.74, wide);
+    m.keyOut!.value = lerp(Math.cos(Math.atan((Math.max(pq[1]!, LL.out) * fwm) / kd)), 0.74, wide);
     m.keyFloor!.value = lerp(pq[2]!, 0.3, wide);
     m.keyShape!.value = 1 - wide;
     m.keyGam!.value = qv('gam')?.[0] ?? POOL_GAM;
@@ -983,6 +1068,35 @@ export default class ScalePlate extends Scene {
     if (!drawn) return;
     this.L.upload();
     this.ctx.comp.draw(this.ctx.renderer, this.L.texture, out, { mode: 'normal' });
+  }
+
+  /** ROUND 5 LIGHT FOLLOWS THE LINE (lead 2026-11-22: no word may fall past the light into black, which reads as cut
+   *  by the limb): for the frame's camera, the whole line's words (where they are or will be bitten) on screen. The
+   *  pool is aimed at their extent (still leaning toward the key side by AIM) and opened to reach the farthest with a
+   *  margin; the key swings toward the lens (dka, degrees, never below 18 off it) until every word faces it
+   *  (n.l >= LIT_NL). Frames whose words already sit inside r4's pool and rake are unchanged. */
+  private lineLight(Ln: Line, cm: Cam, ka0: number, kb: number) {
+    const asp = FW / FH, pts: { x: number; y: number; n: THREE.Vector3 }[] = [];
+    for (const q of Ln.lp ?? []) {
+      const P = turn(q.p, cm.psi), d = P.clone().sub(cm.pos), z = d.dot(cm.fw);
+      if (z < 1) continue;
+      const x = (d.dot(cm.rt) / (z * cm.tanH * asp)) / 2, y = ((d.dot(cm.up) / (z * cm.tanH)) / 2) * (FH / FW);
+      if (Math.abs(x) > 0.55 || Math.abs(y) > 0.32) continue;
+      pts.push({ x, y, n: q.n.clone().applyAxisAngle(UP, cm.psi) });
+    }
+    if (!pts.length) return { dka: 0, aim: AIM, out: POOL[1]! };
+    const x0 = Math.min(...pts.map((p) => p.x)), x1 = Math.max(...pts.map((p) => p.x));
+    const y0 = Math.min(...pts.map((p) => p.y)), y1 = Math.max(...pts.map((p) => p.y));
+    const aim = [(x0 + x1) / 2 + 0.5 * AIM[0]!, (y0 + y1) / 2 + 0.5 * AIM[1]!];
+    const out = Math.max(POOL[1]!, ...pts.map((p) => Math.hypot(p.x - aim[0]!, p.y - aim[1]!) + LIT_MARGIN));
+    let dka = 0;
+    for (let k = ka0; k >= 18; k -= 2) {
+      const a = (k * Math.PI) / 180, b = (kb * Math.PI) / 180;
+      const kd = cm.fw.clone().multiplyScalar(-Math.cos(a)).addScaledVector(cm.rt, -Math.sin(a) * Math.cos(b)).addScaledVector(cm.up, Math.sin(a) * Math.sin(b)).normalize();
+      dka = ka0 - k;
+      if (pts.every((p) => p.n.dot(kd) >= LIT_NL)) break;
+    }
+    return { dka, aim, out };
   }
 
   /** The light at t: fl, the strobe's burst (its strength times a few frames' decay); lamp, the modelling lamp's
