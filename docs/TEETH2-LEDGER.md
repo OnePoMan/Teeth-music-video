@@ -191,3 +191,6 @@ The type probe (`de41447`, Sonnet high) makes the Teeth lint see kit words (pres
 - **Lessons:**
   - Reveal-by-light plates need an ambient on the exhibit as well as a floor on the words, or the exhibit vanishes.
   - A builder's first read of a large plate costs about 10% of the window. Brief a known code map up front.
+- **`uv` round 2 and the process change (2026-11-23):**
+  - The client asked for more on `uv`: the gloves look cartoonish, and its energy is below P(doom). The client's calls: beam action on the beat, and an in-world TEETH (brief `docs/gate3/brief-uv-r2.md`).
+  - The client then asked how to cut the back-and-forth. Section I of RULES (R92-R98) turns the calls from `scale` and `uv` into a taste baseline for every plate, and moves the full-pass go to the client at the 540p checkpoint. It also adds a measured checklist, a shared plate starter (`docs/gate3/brief-plate-starter.md`) and measured energy against P(doom), and sets the target at one checkpoint plus one full pass per plate.

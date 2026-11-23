@@ -12,10 +12,13 @@ The 14 plates x {scene, camera, type, light} matrix is in `PLATES.md` ("Status o
 
 ## Next actions
 
-1. **The client reviews `uv` r1** (`out/gate3/kinetic/uv-r1/*-share.mp4`). `scale` r5 is held as the reference (client, 2026-11-22).
-2. **The lyric-led prototype on `chart` (a light plate)**, with a key-frame checkpoint (set, light, materials, type card at 4-6 key frames) reviewed before each full-window build (R73). Fill their type cards first.
-3. Write the transitions table and the energy map (R87) before fan-out.
-4. Then fan out to the other plates on briefs that cite rule IDs; gate 4 items are in `BACKLOG.md`.
+Section I of RULES (R92-R98, client-approved 2026-11-23) applies from here on: the taste baseline from round 1, taste questions up front, the client approves the 540p checkpoint before any full pass, a measured checklist, the plate starter, measured energy, and one checkpoint plus one full pass per plate.
+
+1. **`uv` round 2** (client 2026-11-23: realistic nitrile gloves, the beam hitting on the beat, an in-world TEETH; brief `docs/gate3/brief-uv-r2.md`). The checkpoint builder is running into `out/gate3/kinetic/uv-r2/checkpoint/`. The lead reviews it, then the client approves the checkpoint (R94) before the full pass.
+2. **The plate starter and the energy checks** (`docs/gate3/brief-plate-starter.md`, Sonnet high, after `uv` is done). A Sonnet medium brief check runs first (R91).
+3. **Taste questions for `chart`** and the next three plates in one batch (R93). Then fill their type cards, and run `chart` on the starter.
+4. Write the transitions table and the energy map (R87) before fan-out.
+5. Then fan out to the other plates; gate 4 items are in `BACKLOG.md`.
 
 ## Open client questions
 
