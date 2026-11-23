@@ -180,3 +180,50 @@ export function bakeTraces(lines: Line[]): Baked {
   };
   return { words, blocks, cov: tex(cv, true), id: tex(iv, false) };
 }
+
+// ================================================================================================ the TEETH slam
+/** ROUND 2, THE IN-WORLD TEETH (brief-uv-r2 item 3; TYPE section 8 item 2, amended): TEETH is a dried trace on the
+ *  cloth itself, in its own patch (cloth mm, clear of the four blocks; the slam's macro frames only it). Two traces in
+ *  one texture: R the first copy (Archivo wide 900), G the condensed copy (Archivo 62/900, drawn tall: x SLAM_TALL),
+ *  laid over it, centred. Baked at SLAM_TPM texels per mm with a light blur: the letter edges stay crisp at the macro. */
+export const SLAM = { x: 40, y: 30, hx: 125, hy: 84 };
+export const SLAM_TPM = 9;
+const SLAM_TALL = 2.1;
+export interface SlamCopy { size: number; cap: number; x0: number; base: number; w: number; sy: number; width: number; cells: { cx: number; adv: number }[] }
+export function bakeSlam(): { tex: THREE.CanvasTexture; A: SlamCopy; B: SlamCopy } {
+  const W = Math.round(2 * SLAM.hx * SLAM_TPM), H = Math.round(2 * SLAM.hy * SLAM_TPM);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d')!;
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  const X = (x: number) => (x - (SLAM.x - SLAM.hx)) * SLAM_TPM, Y = (y: number) => (SLAM.y + SLAM.hy - y) * SLAM_TPM;
+  const mk = (fam: string, width: number, wmm: number, sy: number): SlamCopy => {
+    c.font = font(fam, 100 * SLAM_TPM);
+    const m = c.measureText('TEETH');
+    const size = (100 * wmm) / (m.width / SLAM_TPM);
+    c.font = font(fam, size * SLAM_TPM);
+    const capR = c.measureText('H').actualBoundingBoxAscent / SLAM_TPM;
+    const x0 = SLAM.x - wmm / 2, base = SLAM.y - (capR * sy) / 2;
+    const meas = (s: string) => c.measureText(s).width / SLAM_TPM;
+    const cells = Array.from('TEETH').map((_, i) => { const a = meas('TEETH'.slice(0, i)), z = meas('TEETH'.slice(0, i + 1)); return { cx: x0 + (a + z) / 2, adv: z - a }; });
+    return { size, cap: capR, x0, base, w: wmm, sy, width, cells };
+  };
+  const A = mk(F.archivo(125, 900), 125, 186, 1);
+  const B = mk(F.archivo(62, 900), 62, 186 * 0.66, SLAM_TALL);
+  const img = c.createImageData(W, H);
+  const draw = (cp: SlamCopy, fam: string) => {
+    const o = document.createElement('canvas'); o.width = W; o.height = H;
+    const oc = o.getContext('2d')!;
+    oc.fillStyle = '#000'; oc.fillRect(0, 0, W, H);
+    oc.filter = 'blur(5px)';
+    oc.fillStyle = '#fff'; oc.textBaseline = 'alphabetic';
+    oc.font = font(fam, cp.size * SLAM_TPM);
+    oc.save(); oc.translate(X(cp.x0), Y(cp.base)); oc.scale(1, cp.sy); oc.fillText('TEETH', 0, 0); oc.restore();
+    return oc.getImageData(0, 0, W, H).data;
+  };
+  const a = draw(A, F.archivo(125, 900)), b = draw(B, F.archivo(62, 900));
+  for (let i = 0; i < W * H; i++) { img.data[i * 4] = a[i * 4]!; img.data[i * 4 + 1] = b[i * 4]!; img.data[i * 4 + 2] = 0; img.data[i * 4 + 3] = 255; }
+  c.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.anisotropy = 8; t.needsUpdate = true;
+  return { tex: t, A, B };
+}

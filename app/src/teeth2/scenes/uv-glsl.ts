@@ -9,25 +9,31 @@
 // their own frames. Units: mm, world z up, the bench at z = 0.
 import { GLSL_TEETH_PALETTE } from '../palette';
 import { SS_TAP_GLSL } from '../../engine/gl';
-import { CLOTH, TAG, TW, TH, TPPM } from './uv-type';
+import { CLOTH, TAG, TW, TH, TPPM, SLAM, SLAM_TPM } from './uv-type';
 
 const f = (x: number) => x.toFixed(3);
 
 // The lamp glove's fingers, in the lamp frame round the handle's axis (y = 0, z = -15): per finger, tip -> knuckle,
 // [x, angle (deg; 0 = the camera's side, -90 = the top, +90 = under, toward the cloth), distance from the axis, radius].
 // A flashlight grip: the back of the hand on the camera's side, the knuckle row along its lower edge, the fingers
-// curled under the handle and up its far side; the thumb along the top toward the head.
+// curled under the handle and up its far side. ROUND 2 (brief-uv-r2 item 1: real black nitrile, not mittens): real
+// proportions, the phalanges straight between bent joints (the curl reads as three segments, not one arc), slim and
+// tapering, of unequal lengths (the middle longest, the little finger short and thin), set apart so the gaps read;
+// the thumb from the thenar over the top of the handle and down its far side, wrapping it, opposing the fingertips.
 const FINGERS: [number, number, number, number][][] = [
-  [[97, 222, 19.5, 5.7], [97.5, 180, 22, 6.4], [97, 122, 23.5, 7.1], [96, 52, 24.5, 8.1]],
-  [[114, 228, 20, 5.8], [114.5, 186, 22.5, 6.5], [114, 126, 24, 7.2], [113, 55, 25.5, 8.4]],
-  [[130.5, 226, 19.5, 5.6], [131, 184, 22, 6.3], [130.5, 125, 23.5, 7.0], [130, 58, 25, 8.1]],
-  [[146.5, 220, 18.5, 5.2], [147, 180, 20.5, 5.8], [146.5, 124, 22, 6.4], [146, 62, 23.5, 7.3]],
+  [[97, 186, 22, 4.5], [97.5, 160, 25.5, 5.2], [97, 112, 27.5, 6.0], [96, 36, 27, 7.0]],
+  [[114, 196, 22, 4.6], [114.5, 166, 25.5, 5.4], [114, 114, 28, 6.3], [113, 34, 27.5, 7.3]],
+  [[131, 190, 22, 4.4], [131, 162, 25.5, 5.1], [130.5, 114, 27.5, 5.9], [130, 36, 27, 6.9]],
+  [[147, 178, 21.5, 4.0], [147.5, 154, 24, 4.6], [147, 112, 25.5, 5.2], [146, 42, 25.5, 6.0]],
 ];
 const v3 = ([x, a, R]: number[]) => `vec3(${f(x!)}, ${f(R! * Math.cos((a! * Math.PI) / 180))}, ${f(-15 + R! * Math.sin((a! * Math.PI) / 180))})`;
-const THUMB = [[70, -98, 21], [82, -92, 22.5], [96, -82, 24], [112, -60, 26]];
-const LAMP_GLOVE = `const vec3 LT0 = ${v3(THUMB[0]!)}, LT1 = ${v3(THUMB[1]!)}, LT2 = ${v3(THUMB[2]!)}, LT3 = ${v3(THUMB[3]!)}, THEN = ${v3([104, -45, 20])};
+// (tip -> IP -> MCP -> its base in the thenar)
+const THUMB = [[79, -124, 21.5], [84, -104, 24], [93, -66, 26], [106, -28, 25]];
+const LAMP_GLOVE = `const vec3 LT0 = ${v3(THUMB[0]!)}, LT1 = ${v3(THUMB[1]!)}, LT2 = ${v3(THUMB[2]!)}, LT3 = ${v3(THUMB[3]!)}, THEN = ${v3([110, -20, 21])};
 const vec3 LF[16] = vec3[16](${FINGERS.flat().map(v3).join(', ')});
 const vec4 LR[4] = vec4[4](${FINGERS.map((g) => `vec4(${g.map((j) => f(j[3]!)).join(', ')})`).join(', ')});
+// the knuckles (the MCP heads) standing on the back of the hand, a little back from each finger's base
+const vec3 LK[4] = vec3[4](${FINGERS.map((g) => v3([g[3]![0], g[3]![1] - 12, g[3]![2] + 5.5])).join(', ')});
 const vec3 LW0 = vec3(158.0, 30.0, -22.0), LW1 = vec3(262.0, 52.0, -86.0);`;
 
 export const NW = 48;
@@ -221,6 +227,41 @@ float traceGlow(vec2 p, float X, float lift) {
   return amt * w.x * (X * w.z * (1.0 - 0.97 * lift) + w.w);
 }
 
+
+// ------------------------------------------------------------------ the TEETH slam (round 2, in-world)
+// TEETH as two dried traces in their own patch of the cloth (slamTex: R the first copy, G the condensed one), seen in a
+// macro of the weave. slamU: on, the first copy's level, the condensed copy's level, the wipe's edge (mm along slamD
+// from the patch centre); slamT: the two copies' erosion thresholds (the stamp: thin -> heavy), the hit's flare.
+// Behind the edge (already swept) the condensed copy is lit and the first falls to its dried floor; at the edge, a
+// straight line of the beam's light. The glow takes the weave (fibre texture) and the folds' facing (fold shading).
+uniform vec4 slamU, slamT; uniform vec2 slamD; uniform sampler2D slamTex;
+const vec4 SLAMP = vec4(${f(SLAM.x)}, ${f(SLAM.y)}, ${f(SLAM.hx)}, ${f(SLAM.hy)});
+float slamCopy(float cov, float thr, vec2 p) {
+  float n = 0.05 * fbm(p * 0.07, 3) + 0.03 * snoise(p * 0.7) + 0.02 * snoise(p * 2.1);
+  float body = smoothstep(thr - 0.07, thr + 0.05, cov + n);
+  float thin = smoothstep(-0.8, -0.1, fbm(p * 0.03 + 11.0, 2));
+  float mott = 0.68 + 0.32 * smoothstep(-0.55, 0.55, fbm(p * 0.028 + 4.0, 3));
+  return body * mix(0.6, 1.0, thin) * mott;
+}
+vec3 slamGlow(vec2 p, vec3 N, vec3 V, out float band) {
+  vec2 uv = (p - SLAMP.xy) / (2.0 * SLAMP.zw) + 0.5;
+  float s = dot(p - SLAMP.xy, slamD);
+  band = exp(-pow((s - slamU.w) / 4.0, 2.0)) + 0.3 * exp(-max(slamU.w - s, 0.0) / 26.0) * step(s, slamU.w);
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec3(0.0);
+  float lod = gLod + log2(${f(SLAM_TPM)} / ${f(TPPM)});
+  vec2 cv = textureLod(slamTex, uv, max(lod, 0.0)).rg;
+  float swept = smoothstep(slamU.w + 2.0, slamU.w - 2.0, s);
+  float a = slamCopy(cv.r, slamT.x, p) * slamU.y * (1.0 - swept);   // (swept away behind the edge: no ghost under the second copy)
+  // (the re-excitation: the condensed copy flares just behind the edge, then holds)
+  float b = slamCopy(cv.g, slamT.y, p + 17.0) * slamU.z * swept * (1.0 + 0.9 * exp(-max(slamU.w - s, 0.0) / 24.0));
+  float g = max(a, b) * (1.0 + slamT.z);
+  // fibre texture (the weave at the macro) and the fold shading (the trace's facing toward the lens)
+  float fib = mix(0.92 + 0.08 * snoise(p * 3.0), weave(p) * 1.22, weaveK);
+  float fold = clamp(dot(N, V) / max(V.z, 0.25), 0.45, 1.3);
+  // (the edge itself: the traces it is crossing flash white under it)
+  return T_FLUOR * (g * fib * fold + 0.5 * exp(-pow((s - slamU.w) / 4.0, 2.0)) * max(cv.r, cv.g) * slamU.z);
+}
+
 // ------------------------------------------------------------------ the tag (manila card; brightener in the paper)
 float tagMask(vec2 p, out vec2 tuv) {
   vec2 l = rot2(${f(-TAG.rot)}) * (p - vec2(${f(TAG.x)}, ${f(TAG.y)}));
@@ -252,10 +293,14 @@ float rcap(vec3 p, vec3 a, vec3 b, float ra, float rb) {
   return length(pa - ba * h) - mix(ra, rb, h);
 }
 float sdEll(vec3 p, vec3 r) { float k0 = length(p / r), k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / k1; }
+// a finger, tip a -> DIP b -> PIP c -> knuckle d (radii r in that order): straight phalanges, a little slimmer in
+// their middles than at the joints, which stand as soft knuckle bulges (round 2: not sausages)
 float finger(vec3 p, vec3 a, vec3 b, vec3 c, vec3 d, vec4 r) {
-  float f = rcap(p, a, b, r.x, r.y);
-  f = smin(f, rcap(p, b, c, r.y, r.z), 1.4);
-  return smin(f, rcap(p, c, d, r.z, r.w), 1.6);
+  float f = rcap(p, a, b, r.x, r.y * 0.93);
+  f = smin(f, rcap(p, b, c, r.y * 0.93, r.z * 0.93), 0.7);
+  f = smin(f, rcap(p, c, d, r.z * 0.93, r.w), 0.8);
+  f = smin(f, length(p - b) - r.y * 1.02, 0.9);
+  return smin(f, length(p - c) - r.z * 1.03, 1.0);
 }
 vec2 boxHit(vec3 ro, vec3 rd, vec3 lo, vec3 hi) {
   vec3 iv = 1.0 / rd; vec3 t0 = (lo - ro) * iv, t1 = (hi - ro) * iv;
@@ -268,82 +313,125 @@ float ggx(vec3 N, vec3 H, float rough) {
   return a2 / (3.14159 * dd * dd);
 }
 
-// ------------------------------------------------------------------ the glove (the one glove of the film: the matte
-// film2 nitrile of match-glsl.ts, same finger, palm, wrist and rolled-cuff construction). The lamp hand: lamp frame,
-// y mirrored by gSide so the back of the hand and the knuckles always face the camera's side of the handle. The
-// back of the hand lies over the handle's top, the four fingers curl from the knuckle row down the near side and
-// under it, the thumb lies along the far top edge toward the head.
+// ------------------------------------------------------------------ the gloves: thin black nitrile (round 2, brief
+// item 1: real hands, not mittens; uv's own copy, match-glsl.ts untouched). Slim tapering fingers of unequal lengths,
+// straight phalanges bent at knuckle bulges, the MCP knuckles standing on the back of the hand, the thumb wrapping the
+// handle; fine creases at the joints and the palm, smooth and taut where the grip stretches the film (the knuckles,
+// the back of the hand), a rolled cuff with thickness at the wrist and a sleeve beyond. The lamp hand: lamp frame, y
+// mirrored by gSide so the back of the hand and the knuckles always face the camera's side of the handle.
 ${LAMP_GLOVE}
 float sdLampGlove(vec3 q) {
   q.y *= gSide;
   float d = 1e9;
-  for (int k = 0; k < 4; k++) d = smin(d, finger(q, LF[k * 4], LF[k * 4 + 1], LF[k * 4 + 2], LF[k * 4 + 3], LR[k]), 1.8);
-  float th = finger(q, LT0, LT1, LT2, LT3, vec4(6.4, 7.5, 9.2, 11.0));
-  d = smin(d, th, 1.8);
-  float back = sdEll(q - vec3(122.0, 25.0, -16.0), vec3(38.0, 12.0, 26.0));
-  float then = sdEll(q - THEN, vec3(22.0, 14.0, 14.0));
-  float wrist = rcap(q, LW0, LW1, 23.0, 25.0);
-  float palm = smin(smin(back, then, 14.0), wrist, 14.0);
-  d = smin(d, palm, 6.5);
+  for (int k = 0; k < 4; k++) d = smin(d, finger(q, LF[k * 4], LF[k * 4 + 1], LF[k * 4 + 2], LF[k * 4 + 3], LR[k]), 0.6);
+  float th = finger(q, LT0, LT1, LT2, LT3, vec4(5.4, 6.4, 7.8, 9.6));
+  d = smin(d, th, 0.8);
+  // the back of the hand: flatter, its metacarpals fanning from the wrist to the knuckle row, which stands on it
+  float back = sdEll(q - vec3(126.0, 21.0, -18.0), vec3(36.0, 9.0, 22.0));
+  float kn = 1e9;
+  for (int k = 0; k < 4; k++) {
+    kn = min(kn, length(q - LK[k]) - LR[k].w * 1.08);
+    // (the metacarpal tendons: soft ridges from each knuckle back toward the wrist)
+    kn = min(kn, rcap(q, LK[k], vec3(156.0, 27.0 + 1.5 * float(k), -24.0 - 2.0 * float(k)), 3.6, 2.4));
+  }
+  back = smin(back, kn, 3.0);
+  float then = sdEll(q - THEN, vec3(20.0, 11.0, 12.5));
+  float wrist = rcap(q, LW0, LW1, 21.0, 23.5);
+  float palm = smin(smin(back, then, 10.0), wrist, 12.0);
+  d = smin(d, palm, 4.0);
+  // the rolled cuff: a thick lip of nitrile rolled on itself at the wrist
   vec3 ax = normalize(LW1 - LW0);
   vec3 c = q - (LW0 + ax * 50.0);
   float along = dot(c, ax);
   float rad = length(c - ax * along);
-  d = smin(d, length(vec2(rad - 25.4, along)) - 4.3, 1.2);
-  return max(d, along - 3.0);   // the glove ends at the roll
+  d = smin(d, length(vec2(rad - 24.6, along + 1.0)) - 5.4, 1.0);
+  return max(d, along - 4.4);   // the glove ends at the roll
 }
 float sdLampSleeve(vec3 q) {
   q.y *= gSide;
   vec3 ax = normalize(LW1 - LW0);
   vec3 c0 = LW0 + ax * 50.0;
-  return max(rcap(q, c0, c0 + ax * 170.0, 29.0, 33.0), -dot(q - c0, ax) + 2.0);
+  return max(rcap(q, c0, c0 + ax * 170.0, 29.5, 33.5), -dot(q - c0, ax) + 3.0);
 }
-// creases in the nitrile at the joints (a height field for the shading normal)
 float jn(vec3 q, vec3 c, float r2) { vec3 d = q - c; return exp(-dot(d, d) / r2); }
+// where the grip pulls the film taut (the knuckles and the back of the hand): smooth there, and a sharper sheen
+float lampTaut(vec3 q) {
+  q.y *= gSide;
+  float t = 0.0;
+  for (int k = 0; k < 4; k++) t += jn(q, LK[k], 70.0) + 0.8 * jn(q, LF[k * 4 + 2], 26.0);
+  return sat(t);
+}
+// the creases (a height field for the shading normal): fine lines across each finger at its DIP and PIP and over the
+// knuckles' bend, the palm's and the thumb web's folds where the film bunches, and the film's fine unevenness
 float lampCrease(vec3 q) {
   q.y *= gSide;
+  float ang = atan(q.z + 15.0, q.y);
   float mk = 0.0;
-  for (int k = 0; k < 4; k++) mk += jn(q, LF[k * 4 + 1], 30.0) + jn(q, LF[k * 4 + 2], 45.0) + 0.6 * jn(q, LF[k * 4 + 3], 70.0);
-  mk += jn(q, LT1, 40.0) + jn(q, LT2, 60.0);
-  float ph = atan(q.z + 15.0, q.y) * 34.0 + 2.2 * snoise(q * 0.18);
-  return mk * (0.5 + 0.5 * sin(ph)) * 0.55 + 0.01 * snoise(q * 0.7);
+  for (int k = 0; k < 4; k++) mk += jn(q, LF[k * 4 + 1], 18.0) + 1.2 * jn(q, LF[k * 4 + 2], 26.0) + 0.5 * jn(q, LF[k * 4 + 3], 40.0);
+  mk += jn(q, LT1, 26.0) + jn(q, LT2, 40.0);
+  float lines = 0.5 + 0.5 * sin(ang * 70.0 + 2.0 * snoise(q * 0.25));
+  float c = mk * lines * lines * 0.7;
+  // the web between thumb and index and the palm under the handle: soft folds along the hand
+  float web = jn(q, vec3(98.0, 4.0, -36.0), 220.0) + jn(q, vec3(118.0, -24.0, -4.0), 300.0);
+  c += web * (0.5 + 0.5 * sin(q.x * 0.9 + 3.0 * snoise(q * 0.08))) * 0.9;
+  c *= 1.0 - 0.85 * lampTaut(q * vec3(1.0, gSide, 1.0));
+  // the film bunched round the wrist, short of the cuff: folds running round it
+  vec3 wa = normalize(LW1 - LW0);
+  float al = dot(q - LW0, wa);
+  c += smoothstep(-6.0, 8.0, al) * (1.0 - smoothstep(30.0, 44.0, al)) * 1.1 * pow(0.5 + 0.5 * sin(al * 0.75 + 2.5 * snoise(q * 0.06)), 3.0);
+  return c + 0.012 * snoise(q * 0.9);
 }
-// The swab hand: the match glove itself (a tripod grip, swab frame), set back up the shaft; the index and middle
-// pads closed a little onto the thin stick.
+// The swab hand: a tripod grip (swab frame), set back up the shaft; the index and middle pads closed a little onto
+// the thin stick. Round 2: slim, tapering, unequal fingers, knuckle bulges, the knuckle row on the back of the hand.
 const float SG = 68.0;   // (round 1: gripped further up the shaft, so the hand stays clear of the word it draws through)
 const vec3 SW0 = vec3(138.0, -18.0, 2.0), SW1 = vec3(205.0, -12.0, 6.0);
+const vec3 SK0 = vec3(82.0, -10.0, 20.0), SK1 = vec3(87.0, -27.0, 14.0), SK2 = vec3(100.0, -41.0, 10.0), SK3 = vec3(108.0, -52.0, 5.0);
 float sdSwabGlove(vec3 p) {
   p.x -= SG;
-  float th = finger(p, vec3(30.0, 8.0, 0.6), vec3(47.0, 14.0, 3.0), vec3(70.0, 19.0, -2.0), vec3(98.0, 14.0, -9.0), vec4(6.4, 7.5, 9.2, 11.0));
-  float ix = finger(p, vec3(24.0, -1.4, 7.2), vec3(40.0, -3.0, 11.0), vec3(54.0, -5.0, 20.0), vec3(80.0, -11.0, 16.0), vec4(5.9, 6.7, 7.5, 9.3));
-  float mi = finger(p, vec3(26.0, -6.8, -2.6), vec3(40.0, -13.0, -6.0), vec3(55.0, -22.0, -2.0), vec3(84.0, -27.0, 8.0), vec4(6.1, 6.9, 7.7, 9.5));
-  float ri = finger(p, vec3(52.0, -30.0, -14.0), vec3(66.0, -35.0, -11.0), vec3(80.0, -40.0, -4.0), vec3(100.0, -42.0, 6.0), vec4(6.6, 7.3, 7.9, 9.0));
-  float li = finger(p, vec3(66.0, -43.0, -18.0), vec3(78.0, -49.0, -14.0), vec3(92.0, -53.0, -7.0), vec3(108.0, -54.0, 2.0), vec4(5.7, 6.3, 6.9, 7.9));
-  float d = smin(smin(th, ix, 1.8), smin(mi, smin(ri, li, 1.8), 1.8), 1.8);
-  float back = sdEll(p - vec3(114.0, -20.0, 6.0), vec3(38.0, 32.0, 13.0));
-  float then = sdEll(p - vec3(110.0, 10.0, -8.0), vec3(28.0, 18.0, 12.0));
-  float wrist = rcap(p, SW0, SW1, 23.0, 25.0);
-  float palm = smin(smin(back, then, 14.0), wrist, 14.0);
-  d = smin(d, palm, 6.5);
+  float th = finger(p, vec3(30.0, 8.0, 0.6), vec3(47.0, 14.0, 3.0), vec3(70.0, 19.0, -2.0), vec3(98.0, 14.0, -9.0), vec4(5.0, 6.0, 7.4, 9.2));
+  float ix = finger(p, vec3(24.0, -1.4, 6.6), vec3(40.0, -3.0, 10.8), vec3(54.0, -5.0, 19.0), vec3(80.0, -11.0, 15.0), vec4(4.5, 5.2, 6.0, 7.2));
+  float mi = finger(p, vec3(22.0, -7.4, -3.2), vec3(39.0, -13.5, -6.2), vec3(55.0, -22.0, -2.0), vec3(84.0, -27.0, 7.0), vec4(4.6, 5.4, 6.2, 7.4));
+  float ri = finger(p, vec3(52.0, -30.0, -14.0), vec3(66.0, -35.0, -11.0), vec3(80.0, -40.0, -4.0), vec3(99.0, -41.0, 4.0), vec4(4.5, 5.1, 5.8, 6.8));
+  float li = finger(p, vec3(70.0, -44.0, -17.0), vec3(80.0, -49.0, -13.0), vec3(92.0, -52.0, -6.0), vec3(107.0, -52.0, 1.0), vec4(3.9, 4.4, 5.0, 5.8));
+  float d = smin(smin(th, ix, 0.8), smin(mi, smin(ri, li, 0.6), 0.6), 0.6);
+  float back = sdEll(p - vec3(116.0, -22.0, 5.0), vec3(36.0, 30.0, 10.5));
+  float kn = min(min(length(p - SK0) - 7.0, length(p - SK1) - 7.2), min(length(p - SK2) - 6.6, length(p - SK3) - 5.6));
+  back = smin(back, kn, 3.5);
+  float then = sdEll(p - vec3(110.0, 10.0, -8.0), vec3(26.0, 15.0, 11.0));
+  float wrist = rcap(p, SW0, SW1, 21.0, 23.5);
+  float palm = smin(smin(back, then, 10.0), wrist, 12.0);
+  d = smin(d, palm, 4.0);
   vec3 ax = normalize(SW1 - SW0);
   vec3 q = p - (SW0 + ax * 50.0);
   float along = dot(q, ax);
   float rad = length(q - ax * along);
-  d = smin(d, length(vec2(rad - 25.4, along)) - 4.3, 1.2);
-  return max(d, along - 3.0);
+  d = smin(d, length(vec2(rad - 24.6, along + 1.0)) - 5.4, 1.0);
+  return max(d, along - 4.4);
 }
 float sdSwabSleeve(vec3 p) {
   p.x -= SG;
   vec3 ax = normalize(SW1 - SW0);
-  return max(rcap(p, SW0 + ax * 50.0, SW0 + ax * 190.0, 29.0, 33.0), -dot(p - SW0 - ax * 52.0, ax));
+  return max(rcap(p, SW0 + ax * 50.0, SW0 + ax * 190.0, 29.5, 33.5), -dot(p - SW0 - ax * 53.0, ax));
+}
+float swabTaut(vec3 q) {
+  q.x -= SG;
+  return sat(jn(q, SK0, 70.0) + jn(q, SK1, 70.0) + jn(q, SK2, 60.0) + jn(q, SK3, 50.0) + 0.8 * jn(q, vec3(54.0, -5.0, 19.0), 26.0));
 }
 float swabCrease(vec3 q) {
+  vec3 q0 = q;
   q.x -= SG;
-  float mk = jn(q, vec3(40.0, -3.0, 11.0), 30.0) + jn(q, vec3(54.0, -5.0, 20.0), 45.0) + jn(q, vec3(80.0, -11.0, 18.0), 70.0)
-    + jn(q, vec3(47.0, 14.0, 3.0), 40.0) + jn(q, vec3(70.0, 21.0, -2.0), 60.0) + jn(q, vec3(40.0, -13.0, -6.0), 30.0)
-    + jn(q, vec3(55.0, -22.0, -2.0), 45.0) + 0.6 * jn(q, vec3(84.0, -27.0, 8.0), 80.0);
-  float ph = q.x * 1.55 + 2.2 * snoise(q * 0.18);
-  return mk * (0.5 + 0.5 * sin(ph)) * 0.55 + 0.01 * snoise(q * 0.7);
+  float mk = jn(q, vec3(40.0, -3.0, 11.0), 18.0) + 1.2 * jn(q, vec3(54.0, -5.0, 19.0), 26.0) + 0.5 * jn(q, vec3(80.0, -11.0, 17.0), 40.0)
+    + jn(q, vec3(47.0, 14.0, 3.0), 26.0) + jn(q, vec3(70.0, 21.0, -2.0), 40.0) + jn(q, vec3(39.0, -13.5, -6.2), 18.0)
+    + 1.2 * jn(q, vec3(55.0, -22.0, -2.0), 26.0) + jn(q, vec3(66.0, -35.0, -11.0), 18.0) + jn(q, vec3(80.0, -40.0, -4.0), 26.0);
+  float lines = 0.5 + 0.5 * sin(q.x * 3.0 + 2.0 * snoise(q * 0.25));
+  float c = mk * lines * lines * 0.7;
+  float web = jn(q, vec3(92.0, 6.0, 0.0), 260.0);
+  c += web * (0.5 + 0.5 * sin(q.y * 0.9 + 3.0 * snoise(q * 0.08))) * 0.9;
+  c *= 1.0 - 0.85 * swabTaut(q0);
+  vec3 wa = normalize(SW1 - SW0);
+  float al = dot(q - SW0, wa);
+  c += smoothstep(-6.0, 8.0, al) * (1.0 - smoothstep(30.0, 44.0, al)) * 1.1 * pow(0.5 + 0.5 * sin(al * 0.75 + 2.5 * snoise(q * 0.06)), 3.0);
+  return c + 0.012 * snoise(q * 0.9);
 }
 
 // ------------------------------------------------------------------ the lamp (lamp frame: x along the tube toward the
@@ -438,18 +526,28 @@ float swabShadow(vec3 p) {
 }
 
 // ------------------------------------------------------------------ shading
-// the glove: matte film2 nitrile (match-glsl.ts), a dark body with a broad soft sheen; its only light is the UV tube,
-// a violet rim on the planes that face it (rimL: the tube's strength at P, Lr: toward it), and a trace of the lit
-// cloth's bounce in the planes that face down onto it
-vec3 gloveCol(vec3 N, vec3 V, vec3 bounceC, float rimL, vec3 Lr) {
+// the glove: thin semi-gloss black nitrile (round 2). A near-black body the room's dim ambient barely lifts; the UV
+// tube gives a violet wrap on the planes that face it and a TIGHT specular (Lr: toward the tube, rimL: its strength
+// at P), sharper where the film is stretched taut (taut), broken over the creases (the creased normal); a broad
+// faint sheen; the lit cloth's bounce on the planes facing down onto it, and the beam's spill on the fingertips and
+// the bent fingers under the handle (spill: those in front of the window's plane)
+vec3 gloveCol(vec3 N, vec3 V, vec3 bounceC, float rimL, vec3 Lr, float taut, float spill) {
   float nv = max(dot(N, V), 0.0);
-  float fr = pow(1.0 - nv, 2.5);
-  vec3 base = T_FILM2 * (0.75 + 0.45 * nv);
-  float wrap = sat(dot(N, Lr) * 0.85 + 0.15);
-  vec3 rim = mix(T_UV, T_HALIDE, 0.45) * rimL * wrap * sqrt(wrap) * (0.025 + 0.34 * fr);
-  float spec = ggx(N, normalize(Lr + V), 0.62) * (0.04 + 0.2 * pow(1.0 - nv, 5.0)) * 0.3 * rimL;
+  float fr = pow(1.0 - nv, 4.0);
+  float amb = sat(dot(N, normalize(AMBD)) * 0.7 + 0.3);
+  vec3 base = T_FILM2 * (0.32 + 0.22 * nv + 0.22 * ambK * amb * amb);
+  vec3 tube = mix(T_UV, T_HALIDE, 0.45);
+  float wrap = sat(dot(N, Lr) * 0.8 + 0.2);
+  vec3 rim = tube * rimL * wrap * wrap * (0.02 + 0.26 * fr);
+  vec3 H = normalize(Lr + V);
+  float F = 0.05 + 0.95 * pow(1.0 - max(dot(H, V), 0.0), 5.0);
+  float spec = ggx(N, H, mix(0.3, 0.22, taut)) * F * mix(0.55, 0.95, taut) * rimL * sat(dot(N, Lr) * 4.0);
+  float sheen = ggx(N, H, 0.55) * F * 0.3 * rimL;
+  // (a soft room reflection on the planes facing the far side and up: the semi-gloss reads in the dark too)
+  vec3 Ha = normalize(normalize(AMBD) + V);
+  float aspec = ggx(N, Ha, 0.34) * (0.04 + 0.96 * pow(1.0 - max(dot(Ha, V), 0.0), 5.0)) * 0.3 * ambK * (0.6 + 0.4 * taut);
   float down = sat(-N.z * 0.8 + 0.1);
-  return base + rim + mix(T_UV, T_HALIDE, 0.6) * spec + bounceC * down * 0.05;
+  return base + rim + tube * (spec + sheen) + T_HALIDE * aspec * 0.5 + bounceC * down * (0.05 + 0.35 * spill) + tube * spill * wrap * 0.05 * rimL;
 }
 // the nitrile's creases: the normal tilted by a crease field's gradient (its tangential part)
 vec3 creased(vec3 nl, vec3 g) { g -= nl * dot(g, nl); return normalize(nl - g * 0.9); }
@@ -488,7 +586,12 @@ vec3 shadeWand(vec3 P, vec3 rd, int m) {
   const float ec = 0.25;
   vec3 g = vec3(lampCrease(q + vec3(ec, 0.0, 0.0)) - lampCrease(q - vec3(ec, 0.0, 0.0)), lampCrease(q + vec3(0.0, ec, 0.0)) - lampCrease(q - vec3(0.0, ec, 0.0)), lampCrease(q + vec3(0.0, 0.0, ec)) - lampCrease(q - vec3(0.0, 0.0, ec))) / (2.0 * ec);
   N = fromL(creased(nl, g));
-  return gloveCol(N, V, bounceC, rimL * (0.35 + 0.65 * smoothstep(-6.0, 6.0, q.z)), Lr);
+  // (the beam spill: the bent fingers and the tips that reach in front of the window plane, toward the cloth)
+  vec3 qm = q * vec3(1.0, gSide, 1.0);
+  float tips = 0.0;
+  for (int k = 0; k < 4; k++) tips += jn(qm, LF[k * 4], 30.0) + jn(qm, LF[k * 4 + 1], 40.0) + 0.7 * jn(qm, LF[k * 4 + 2], 50.0);
+  float spill = sat(tips) * smoothstep(-8.0, 6.0, q.z);
+  return gloveCol(N, V, bounceC, rimL * (0.35 + 0.65 * smoothstep(-6.0, 6.0, q.z)), Lr, lampTaut(q), spill);
 }
 vec3 shadeSwab(vec3 P, vec3 rd, int m) {
   vec3 q = toS(P);
@@ -507,7 +610,9 @@ vec3 shadeSwab(vec3 P, vec3 rd, int m) {
   const float ec = 0.25;
   vec3 g = vec3(swabCrease(q + vec3(ec, 0.0, 0.0)) - swabCrease(q - vec3(ec, 0.0, 0.0)), swabCrease(q + vec3(0.0, ec, 0.0)) - swabCrease(q - vec3(0.0, ec, 0.0)), swabCrease(q + vec3(0.0, 0.0, ec)) - swabCrease(q - vec3(0.0, 0.0, ec))) / (2.0 * ec);
   N = fromS(creased(nl, g));
-  return gloveCol(N, V, bounceC, 0.6 * irr(P, N), toLamp(P));
+  // (the swab hand works in the pool: its tips and pads catch the beam where they face the lamp)
+  float tips = jn(q - vec3(SG, 0.0, 0.0), vec3(24.0, -1.4, 6.6), 50.0) + jn(q - vec3(SG, 0.0, 0.0), vec3(30.0, 8.0, 0.6), 50.0) + jn(q - vec3(SG, 0.0, 0.0), vec3(22.0, -7.4, -3.2), 50.0);
+  return gloveCol(N, V, bounceC, 0.6 * irr(P, N), toLamp(P), swabTaut(q), sat(tips));
 }
 
 vec3 shade(vec2 px) {
@@ -516,8 +621,8 @@ vec3 shade(vec2 px) {
   vec3 ro = camPos, rd = normalize(qq.xyz / qq.w - camPos);
   float tC = tHit(ro, rd);
   int mw, ms;
-  float tW = marchW(ro, rd, mw);
-  float tS = marchS(ro, rd, ms);
+  float tW = slamU.x > 0.5 ? 1e9 : marchW(ro, rd, mw);
+  float tS = slamU.x > 0.5 ? 1e9 : marchS(ro, rd, ms);
   if (tW < tC && tW < tS) return shadeWand(ro + rd * tW, rd, mw);
   if (tS < tC) return shadeSwab(ro + rd * tS, rd, ms);
   vec3 P = ro + rd * tC;
@@ -528,9 +633,19 @@ vec3 shade(vec2 px) {
   poolN = 0.06 * snoise(p * 0.011 + 3.0) + 0.03 * snoise(p * 0.04);
   float inside = smoothstep(-0.5, 0.5, clothE(p));
   vec3 N = inside > 0.0 ? clothN(p) : vec3(0.0, 0.0, 1.0);
-  float E = irr(P, N);
-  if (E > 1e-4) E *= foldShadow(P + vec3(0.0, 0.0, 0.05), toLamp(P)) * swabShadow(P);
-  float X = excite(p);
+  float E, X, band = 0.0;
+  vec3 slamC = vec3(0.0);
+  if (slamU.x > 0.5) {
+    // (the slam: the lamp held close above the patch, out of frame: a broad soft pool on the word, and the sweep's edge)
+    slamC = slamGlow(p, N, -rd, band);
+    float r = length((p - SLAMP.xy) / (1.3 * SLAMP.zw));
+    E = lampK * (0.1 + 0.9 * exp(-r * r * 2.6)) * min(max(N.z, 0.0) * 1.1, 1.4) + 5.0 * band;
+    X = 0.0;
+  } else {
+    E = irr(P, N);
+    if (E > 1e-4) E *= foldShadow(P + vec3(0.0, 0.0, 0.05), toLamp(P)) * swabShadow(P);
+    X = excite(p);
+  }
   // the bench: black, a faint grain where the pool spills onto it
   vec3 bench = POOLC * 0.12 * E * (0.85 + 0.15 * snoise(p * 0.05)) + T_FILM * 0.22;
   // the cloth: white cotton; the mouth of the open end in shadow; the band the swab has wetted a shade darker
@@ -548,7 +663,7 @@ vec3 shade(vec2 px) {
   cloth += T_FLUOR * st * 0.05 * X;
   vec3 col = mix(bench, cloth, inside);
   if (inside > 0.0) {
-    col += T_FLUOR * traceGlow(p, X, lift) * inside * 1.2;
+    col += (T_FLUOR * traceGlow(p, X, lift) * 1.2 + slamC * 1.2) * inside;
     // the tag: manila card (its brightener glows faint blue-white), the label printed in black, its string
     vec2 tuv; float tm = tagMask(p, tuv);
     if (tm > 0.0) {

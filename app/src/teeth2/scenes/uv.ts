@@ -39,7 +39,7 @@ import { FSPass, Layer2D, SS_TAP, W as FW, H as FH } from '../../engine/gl';
 import { clamp, ease, lerp, noise1, pulse, smootherstep, springStep } from '../../engine/util';
 import { T_LIN, trgba } from '../palette';
 import { KinClock, KinWord, LyricPath, drawKin, halfPlane, kinCam, kinProbeOn, kinRecord3D, kinShake, type KinPose } from '../kinetic';
-import { TAG, bakeTag, bakeTraces, type TWord } from './uv-type';
+import { TAG, SLAM, bakeSlam, bakeTag, bakeTraces, type SlamCopy, type TWord } from './uv-type';
 import { UV_FRAG, NW, NM } from './uv-glsl';
 
 const DEG = Math.PI / 180;
@@ -58,7 +58,7 @@ const QP = typeof location !== 'undefined' ? new URLSearchParams(location.search
  * the pool's radius (frame widths). open: the first framing's distance over the whole line's (the line opens close on
  * its first word: >= 8% cap).
  */
-interface Plan { az: V2; el: V2; roll: V2; fov: number; bx: [number, number, number]; la: V2; fl: number; lh: number; yaw: number; dep: number; hand: number; pr: number; open: number }
+interface Plan { az: V2; el: V2; roll: V2; fov: number; bx: [number, number, number]; la: V2; fl: number; lh: number; yaw: number; dep: number; hand: number; pr: number; open: number; ae?: number; pull?: number }
 // (checkpoint review 2026-11-23: bx, the words' box (NDC x0, x1, top: below it the words, above it the lamp in its
 // gloved hand); la, the lamp head's place on screen (NDC; x follows the beam by fl); lh its height over the cloth (mm:
 // held low, so it hangs beyond the words); yaw, the handle's direction on screen (deg up from the hand's side); dep,
@@ -68,7 +68,10 @@ const PLANS: Plan[] = [
   // words), tracking right with the words
   { az: [-16, -4], el: [50, 54], roll: [-1.5, -0.5], fov: 30, bx: [-0.86, 0.86, 0.05], la: [-0.3, 0.36], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: 1, pr: 0.2, open: 0.58 },
   // line 2: a three-quarter crane down from the right, the lamp and its glove in frame
-  { az: [22, 12], el: [54, 47], roll: [2, 1], fov: 30, bx: [-0.86, 0.86, 0.0], la: [0.3, 0.34], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: -1, pr: 0.2, open: 0.58 },
+  // (round 2, brief item 4: no slow drift over TALK: the arc and the widening onto "so" land in one purposeful eased
+  // move over Talk landing on "so" (ae: 80% of the angle by then; its framing already holds the room for
+  // PRETTY, so the camera does not creep back again before the macro; pull: the widening paced to that one move))
+  { az: [32, 12], el: [54, 47], roll: [2, 1], fov: 30, bx: [-0.86, 0.86, 0.0], la: [0.3, 0.34], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: -1, pr: 0.2, open: 0.58, ae: 0.43, pull: 1.3 },
   // line 3: a slow orbit round the swab, left to right
   { az: [-26, 2], el: [52, 49], roll: [-1.5, 1.5], fov: 30, bx: [-0.86, 0.86, 0.15], la: [0.3, 0.42], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: -1, pr: 0.2, open: 0.58 },
   // line 4: a lower profile across the cloth for the three sweeps, then GO
@@ -133,15 +136,22 @@ const blendCam = (a: Cam, b: Cam, w: number): Cam => ({
 
 interface Line { k: number; t0: number; t1: number; words: TWord[]; plan: Plan; path: LyricPath; box: [number, number, number, number] }
 interface Macro { line: number; hero: TWord; t0: number; t1: number; te: number; ease: boolean; cam: Cam; push: number; cap: number; span: number; sup: number; ratio: number; hold: number; peak: number }
-interface Hit { t: number; k: number; tier: 1 | 2 }
-interface Key { t: number; d: number; v: number[] }
-/** Piecewise moves: from each key's value to the next, eased (smootherstep), arriving at the key's time. */
+/** A pump of the lamp (round 2): its time, strength (0..1), tier (1: openers and heroes, 2: sweeps, 3: kicks), and
+ *  the hero it flares. */
+interface Pump { t: number; k: number; tier: 1 | 2 | 3; hero: TWord | null }
+/** A move of the beam: arriving at t over d; e: 0 eased (smootherstep), 1 a snap (outBack: a small overshoot and
+ *  settle), 2 a sweep (an even pass, eased at its ends). */
+interface Key { t: number; d: number; v: number[]; e?: 0 | 1 | 2 }
+/** The beam snap (s) and where in it the outBack(1.2) curve first reaches the word (so it lands on the onset). */
+const SNAP = 0.2, SNAP_X = 1 - 1.2 / 2.2;
+/** Piecewise moves: from each key's value to the next, arriving at the key's time (eased, snapped or swept: Key.e). */
 function track(keys: Key[], t: number): number[] {
   const v = keys[0]!.v.slice();
   for (let i = 1; i < keys.length; i++) {
     const k = keys[i]!, p = keys[i - 1]!;
-    const u = smootherstep(0, 1, (t - (k.t - k.d)) / k.d);
-    if (u <= 0) break;
+    const s = clamp((t - (k.t - k.d)) / k.d);
+    if (s <= 0) break;
+    const u = k.e === 1 ? ease.outBack(s, 1.2) : k.e === 2 ? 0.5 - 0.5 * Math.cos(Math.PI * s) : smootherstep(0, 1, s);
     for (let j = 0; j < v.length; j++) v[j]! += (k.v[j]! - p.v[j]!) * u;
   }
   return v;
@@ -167,6 +177,8 @@ const framePts = (k: number, ws: TWord[]) => {
 const LAMP_CAPS: [number[], number[], number][] = [
   [[-50, 0, -15], [50, 0, -15], 26], [[58, 0, -15], [178, 0, -15], 15], [[88, 14, -15], [150, 14, -15], 30],
   [[158, 30, -22], [262, 52, -86], 26], [[210, 41, -55], [360, 70, -150], 33],
+  // (round 2: the fingers curled round the handle, reaching a little further toward the cloth)
+  [[92, 0, -15], [152, 0, -15], 36],
 ];
 const SWAB_CAPS: [number[], number[], number][] = [
   [[0, 0, 0], [9, 0, 0], 3.2], [[8, 0, 0], [158, 0, 0], 1.4], [[90, -8, 4], [155, -32, 2], 16], [[145, -20, 4], [220, -16, 4], 30],
@@ -178,8 +190,8 @@ export default class UvPlate extends Scene {
   private words: TWord[] = [];
   private lines: Line[] = [];
   private macros: Macro[] = [];
-  private hits: Hit[] = [];
-  private backs: number[] = [];
+  private pumps: Pump[] = [];
+  private sweeps: { t: number; L: number }[] = [];
   private beamKeys: Key[] = [];
   private clk!: KinClock;
   private cam = new THREE.PerspectiveCamera(30, 16 / 9, 5, 8000);
@@ -187,7 +199,7 @@ export default class UvPlate extends Scene {
   private swab = { t0: 0, t1: 0, s: [] as number[], sd: [] as number[], A: [] as V2[], B: [] as V2[], wt: [] as number[] };
   private kws = new Map<TWord, KinWord>();
   private L = new Layer2D();
-  private slamA!: KinWord; private slamB!: KinWord;
+  private slamA!: SlamCopy; private slamB!: SlamCopy; private kinA!: KinWord; private kinB!: KinWord; private slamCam!: Cam;
   private logged = false; private occLogged = false;
 
   override init() {
@@ -225,47 +237,85 @@ export default class UvPlate extends Scene {
     // the probe's words (cells in cloth mm)
     for (const w of this.words) this.kws.set(w, KinWord.fromCells(w.text, w.size, w.cells, { family: w.serif ? 'serif' : 'archivo', width: w.st === 'sup' ? 100 : 62 }));
 
-    // the beam: word to word, landing on each onset (a jump on each cut); held still over "put your HANDS" while the
-    // swab works; three sweeps across the NEVERs, faster each time; held still on GO
+    // ROUND 2, THE BEAM ON THE BEAT (brief-uv-r2 item 2; R37, R38, R79). The pool SNAPS from word to word, landing on
+    // each onset with a small overshoot and settle (outBack; SNAP); on the chosen downbeats inside a line a quick
+    // SWEEP across the line so far (a jump to its first word, then one straight pass onto the newest word, arriving on
+    // the downbeat): the words it crosses flare from their floor to full and back (the excitation memory M); "got" takes
+    // a pass along its row (68.15, building into TEETH; brief item 4); held still over "put your HANDS" while the swab
+    // works; three sweeps across the NEVERs, faster each time; held still on GO.
     const sweep = [0.5, 0.34, 0.2];
+    const sweepAt = (td: number, L: Line) => !L.words.some((w) => w.start > td - 0.2 && w.start < td - 0.03);
+    const gotW = this.lines[1]!.words.find((w) => w.line === 1 && w.k === 6);
+    const butW = this.lines[1]!.words.find((w) => w.line === 1 && w.k === 3);
     for (const L of this.lines) {
       const sung = L.words.filter((w) => w.start >= L.t0 - 0.05);
       const standing = L.words.filter((w) => w.start < L.t0 - 0.05);
       const first = sung[0] ?? standing[standing.length - 1]!;
       const swabbed = L.k === 2 ? L.words.filter((w) => w.line === 2 && w.k >= 3) : [];
       const holdP: V2 = swabbed.length ? [(hands.x0 - 40 + hands.x0 + hands.w) / 2, hands.y - 4] : [0, 0];
-      let prevT = L.t0;
+      const posOf = (w: TWord): V2 => (swabbed.includes(w) ? holdP : [w.x, w.y]);
+      // the sweeps: the line's downbeats (not its cut, not under the slam, not onto the swab) with >= 2 words lit and
+      // no onset in the 0.2 s before; and got's row pass
+      const sw: { td: number; from: TWord }[] = [];
+      for (const d of downs) if (d > L.t0 + 0.1 && d < L.t1 - 0.1) {
+        const lit = L.words.filter((w) => w.start <= d + 0.03);
+        const nw = lit[lit.length - 1];
+        if (lit.length >= 2 && nw && !swabbed.includes(nw) && sweepAt(d, L)) sw.push({ td: d, from: L.words[0]! });
+      }
+      if (L.k === 1 && gotW && butW) sw.push({ td: gotW.start, from: butW });
+      sw.sort((a, b) => a.td - b.td);
+      let prevEnd = L.t0, prevOn = L.t0;
+      const push = (k: Key) => { k.d = Math.max(0.001, Math.min(k.d, k.t - prevEnd)); this.beamKeys.push(k); prevEnd = k.t; };
+      const doSweep = (s: { td: number; from: TWord }) => {
+        const nw = L.words.filter((w) => w.start <= s.td + 0.03).pop()!;
+        push({ t: s.td - 0.15, d: 0.045, v: [s.from.x0 + 0.08 * s.from.w, s.from.y], e: 1 });
+        push({ t: s.td, d: 0.15, v: posOf(nw), e: 2 });
+        this.sweeps.push({ t: s.td, L: L.k });
+        prevOn = s.td;
+        return nw;
+      };
       const seq = [first, ...sung.filter((w) => w !== first)];
       seq.forEach((w, i) => {
-        const t = i === 0 ? L.t0 + 0.001 : w.start + 0.02;
-        const d = i === 0 ? 0.001 : Math.min(0.85 * (w.start - prevT), 0.4);
+        // (a sweep due before this word: it runs first; one landing on this word's onset lands it)
+        while (sw.length && sw[0]!.td < w.start + 0.03 && i > 0) {
+          const s = sw.shift()!;
+          if (doSweep(s) === w) return;
+        }
+        if (i === 0) { push({ t: L.t0 + 0.001, d: 0.001, v: w.rep ? [w.x0 - 0.1 * w.w, w.y - 3] : posOf(w) }); if (!w.rep) return; }
         if (w.rep) {
           const s = sweep[w.rep - 1]!;
-          if (i === 0) this.beamKeys.push({ t, d, v: [w.x0 - 0.1 * w.w, w.y - 3] });
-          else this.beamKeys.push({ t: w.start - 0.04, d: Math.min(0.12, 0.6 * (w.start - prevT)), v: [w.x0 - 0.1 * w.w, w.y - 3] });
-          this.beamKeys.push({ t: Math.max(t, w.start - 0.04) + s, d: s, v: [w.x0 + 0.95 * w.w, w.y + 2] });
-        } else if (swabbed.includes(w)) this.beamKeys.push({ t, d, v: holdP });
-        else this.beamKeys.push({ t, d, v: [w.x, w.y] });
-        prevT = Math.max(w.start, L.t0);
+          if (i > 0) push({ t: w.start - 0.04, d: Math.min(0.12, 0.6 * (w.start - prevOn)), v: [w.x0 - 0.1 * w.w, w.y - 3], e: 1 });
+          push({ t: Math.max(L.t0 + 0.002, w.start - 0.04) + s, d: s, v: [w.x0 + 0.95 * w.w, w.y + 2] });
+        } else {
+          const d = Math.min(SNAP, 0.9 * (w.start - prevOn));
+          push({ t: w.start + (1 - SNAP_X) * d, d, v: posOf(w), e: 1 });
+        }
+        prevOn = Math.max(w.start, L.t0);
       });
+      for (const s of sw) doSweep(s);
     }
     this.beamKeys.sort((a, b) => a.t - b.t);
 
-    // the hits (R37, R38, R79; the type card): tier 1, the lamp: hardest on the openers and the three sweeps, the
-    // heroes lighter; line 2 builds into TEETH (its opener, PRETTY and the downbeat before TEETH each stronger); tier 2,
-    // the other downbeats; tier 3, the backbeats (a nudge)
+    // THE PUMPS (R37, R79; graded, a pattern unlike scale's flashes): on every kick inside a line the lamp pumps toward
+    // the cloth (the pool tightens and brightens, then eases back), graded by line and building over line 2 into
+    // TEETH; each sweep a step up (tier 2); the line openers and the hero onsets hardest (tier 1), the hero's flare
+    // peaking on the hero word and the lamp's window; line 4: a pump on each NEVER as the sweeps speed up.
     const L4 = this.lines[3]!;
     const nev = L4.words.filter((w) => w.rep).sort((a, b) => a.rep - b.rep);
-    const H1: [number, number][] = [
-      [this.lines[0]!.t0, 1.0], [byText('DIRTY')[0]!.start, 0.45], [byText('SWEET')[0]!.start, 0.5],
-      [this.lines[1]!.t0, 0.7], [byText('PRETTY')[0]!.start, 0.8], [downs.find((d) => d > byText('PRETTY')[0]!.start && d < this.tTeeth) ?? 0, 0.9],
-      [this.lines[2]!.t0, 1.0], [byText('DEVIL')[0]!.start, 0.5], [hands.start, 0.55],
-      [L4.t0, 1.0], [nev[1]!.start, 1.0], [nev[2]!.start, 1.0], [byText('GO')[0]!.start, 0.6],
+    const tier1: [number, number, TWord | null][] = [
+      [this.lines[0]!.t0, 0.75, null], [byText('DIRTY')[0]!.start, 1, byText('DIRTY')[0]!], [byText('SWEET')[0]!.start, 0.9, byText('SWEET')[0]!],
+      [this.lines[1]!.t0, 0.7, null], [byText('PRETTY')[0]!.start, 1, byText('PRETTY')[0]!],
+      [this.lines[2]!.t0, 0.8, null], [byText('DEVIL')[0]!.start, 1, byText('DEVIL')[0]!], [hands.start, 1, hands],
+      [nev[0]!.start, 1, nev[0]!], [nev[1]!.start, 0.9, nev[1]!], [nev[2]!.start, 0.95, nev[2]!], [byText('GO')[0]!.start, 1, byText('GO')[0]!],
     ];
-    for (const [t, k] of H1) if (t > 0) this.hits.push({ t, k, tier: 1 });
-    for (const d of downs) if (d >= this.ctx.start && d < this.ctx.end && !this.hits.some((h) => Math.abs(h.t - d) < 0.1) && !(d > this.tTeeth && d < this.lines[2]!.t0)) this.hits.push({ t: d, k: 1, tier: 2 });
-    this.hits.sort((a, b) => a.t - b.t);
-    this.backs = audio.beats.filter((b) => b >= this.ctx.start && b < this.ctx.end && !this.hits.some((h) => Math.abs(h.t - b) < 0.1));
+    for (const [t, k, w] of tier1) this.pumps.push({ t, k, tier: 1, hero: w });
+    for (const s of this.sweeps) if (!this.pumps.some((p) => Math.abs(p.t - s.t) < 0.1)) this.pumps.push({ t: s.t, k: s.L === 1 ? (s.t > 68 ? 0.9 : 0.8) : 0.6, tier: 2, hero: null });
+    const grade = (t: number) => {
+      const L = this.lineAt(t);
+      return L.k === 1 ? lerp(0.4, 0.75, clamp((t - L.t0) / (this.tTeeth - L.t0))) : [0.35, 0, 0.45, 0.55][L.k]!;
+    };
+    for (const b of audio.beats) if (b >= this.ctx.start && b < this.ctx.end - 0.05 && !this.slamAt(b) && this.clk.kick(b + 1e-3) > 0.9 && !this.pumps.some((p) => Math.abs(p.t - b) < 0.1)) this.pumps.push({ t: b, k: grade(b), tier: 3, hero: null });
+    this.pumps.sort((a, b) => a.t - b.t);
 
     // the swab: one stroke per word of "put your hands on me", each across its own trace and drawn toward the camera,
     // HANDS the heaviest (a wider band, a longer stroke)
@@ -279,11 +329,15 @@ export default class UvPlate extends Scene {
     this.swab.t0 = this.swab.s[0]! - 0.4;
     this.swab.t1 = Math.min(this.swab.s[4]! + this.swab.sd[4]! + 0.32, andW.start - 0.06);
 
-    // the TEETH slam: the first copy (wide) fills title-safe; the second, condensed and tall
-    const a0 = new KinWord('TEETH', { size: 400, width: 100, weight: 900 });
-    this.slamA = new KinWord('TEETH', { size: (400 * (FW - 2 * 96) * 0.9) / a0.width, width: 100, weight: 900 });
-    const b0 = new KinWord('TEETH', { size: 400, width: 62, weight: 900 });
-    this.slamB = new KinWord('TEETH', { size: (400 * (FW - 2 * 96) * 0.78) / b0.width, width: 62, weight: 900 });
+    // the TEETH slam (round 2, in-world): the two traces in their patch, and the macro that frames both whole in
+    // title-safe at a table-height oblique (az, el: not from above)
+    const sl = bakeSlam();
+    this.slamA = sl.A; this.slamB = sl.B;
+    this.kinA = KinWord.fromCells('TEETH', sl.A.size, sl.A.cells, { family: 'archivo', width: 125, weight: 900 });
+    this.kinB = KinWord.fromCells('TEETH', sl.B.size, sl.B.cells, { family: 'archivo', width: 62, weight: 900 });
+    const sp: V3[] = [];
+    for (const cp of [sl.A, sl.B]) for (const [x, y] of [[cp.x0, cp.base], [cp.x0 + cp.w, cp.base], [cp.x0 + cp.w, cp.base + cp.cap * cp.sy], [cp.x0, cp.base + cp.cap * cp.sy]]) sp.push(V(x!, y!, ZC));
+    this.slamCam = this.fit(sp, V(SLAM.x, SLAM.y, ZC), 12, 54, levelRoll(12, 54) - 2, 30, 0, { x0: -0.85, x1: 0.85, y0: -0.78, y1: 0.78 });   // (inside title-safe through the landing's overshoot, the jolt and the drift)
 
     const W = Array.from({ length: NW }, () => new THREE.Vector4());
     const W2 = Array.from({ length: NW }, () => new THREE.Vector4(0, 0, 1, 1));
@@ -295,6 +349,7 @@ export default class UvPlate extends Scene {
       M: { value: Array.from({ length: NM }, () => new THREE.Vector4()) },
       sP: { value: V(0, 0, 0) }, sX: { value: V(0, 0, 0) }, sY: { value: V(0, 0, 0) }, sZ: { value: V(0, 0, 0) }, swabOn: { value: 0 }, swabGlow: { value: 0 },
       strokes: { value: Array.from({ length: 5 }, () => new THREE.Vector4()) }, strokeK: { value: [0, 0, 0, 0, 0] }, strokeW: { value: sw.map((w) => (w === hands ? 12 : 7.5)) },
+      slamU: { value: new THREE.Vector4() }, slamT: { value: new THREE.Vector4(0.5, 0.5, 0, 0) }, slamD: { value: new THREE.Vector2(1, 0.16).normalize() }, slamTex: { value: sl.tex },
       pxAng: { value: 0 }, lS: { value: LS }, ambK: { value: QP?.get('uv_amb') ? +QP.get('uv_amb')! : AMB }, wordBounce: { value: V(0, 0, 0) }, gSide: { value: 1 }, ssTap: SS_TAP,
     });
     const st = this.pass.u.strokes!.value as THREE.Vector4[];
@@ -362,14 +417,16 @@ export default class UvPlate extends Scene {
   private buildPath(L: Line) {
     const P = L.plan, n = L.words.length, lead = 0.06, bx = boxOf(P);
     const prog = (t: number) => clamp((t - L.t0) / Math.max(1e-3, L.t1 - L.t0));
-    const ang = (t: number) => { const u = prog(t); return [lerp(P.az[0], P.az[1], u), lerp(P.el[0], P.el[1], u), lerp(P.roll[0], P.roll[1], u)] as const; };
+    const ang = (t: number) => { const u = P.ae ? 0.8 * ease.inOutCubic(clamp((t - L.t0) / P.ae)) + 0.2 * prog(t) : prog(t); return [lerp(P.az[0], P.az[1], u), lerp(P.el[0], P.el[1], u), lerp(P.roll[0], P.roll[1], u)] as const; };
     const i0 = Math.max(0, L.words.filter((w) => w.start < L.t0 + 0.1).length - 1);
     const keys: { t: number; c: Cam }[] = [];
     for (let i = i0; i < n; i++) {
       const w = L.words[i]!;
       const t = i === i0 ? L.t0 : Math.max(L.t0 + 0.02, w.start - lead);
       const [az, el, roll] = ang(t);
-      keys.push({ t, c: this.fit(framePts(L.k, L.words.slice(0, i + 1)), V(w.x, w.y, ZC), az, el, roll + levelRoll(az, el), P.fov, RIDE, bx) });
+      // (a plan with ae: a word before the hero frames the hero's room too)
+      const look = P.ae && L.words[i + 1]?.hero && i > i0 ? 1 : 0;
+      keys.push({ t, c: this.fit(framePts(L.k, L.words.slice(0, i + 1 + look)), V(w.x, w.y, ZC), az, el, roll + levelRoll(az, el), P.fov, RIDE, bx) });
     }
     const Dend = Math.max(...keys.map((k) => k.c.D));
     keys[0]!.c.D = Math.max(keys[0]!.c.D, Dend * P.open);
@@ -392,7 +449,7 @@ export default class UvPlate extends Scene {
     keys.push({ t: L.t1, c: { ...last.c, az: az1, el: el1, roll: r1, D: Math.max(last.c.D * 1.01, this.needD({ ...last.c, az: az1, el: el1, roll: r1 }, framePts(L.k, L.words), bx)) } });
     // (the pull-back paced: the framing never has to widen faster than PULL per second, so the words already sung ease
     // down in size from the first word on instead of dropping just before the hero; checkpoint review item 3)
-    for (let i = keys.length - 2; i >= 0; i--) keys[i]!.c.D = Math.max(keys[i]!.c.D, keys[i + 1]!.c.D * Math.exp(-PULL * (keys[i + 1]!.t - keys[i]!.t)));
+    for (let i = keys.length - 2; i >= 0; i--) keys[i]!.c.D = Math.max(keys[i]!.c.D, keys[i + 1]!.c.D * Math.exp(-(P.pull ?? PULL) * (keys[i + 1]!.t - keys[i]!.t)));
     L.path = new LyricPath(keys.map((k) => ({ t: k.t, v: [k.c.tx, k.c.ty, Math.log(k.c.D), k.c.az, k.c.el, k.c.roll] })), { clk: this.clk, settle: 0.3, down: 0.2 });
   }
   private lineCam(L: Line, t: number): Cam {
@@ -484,14 +541,16 @@ export default class UvPlate extends Scene {
   private slamAt(t: number) { return t >= this.tTeeth - 1e-6 && t < this.lines[2]!.t0 - 1e-6; }
 
   // ================================================================================================ light and hits
-  /** The tier-1 hit's strength at t (0..1+): the lamp's drop, the pool's tightening, the glow's peak. */
-  private hit1(t: number) { return this.hits.reduce((a, h) => (h.tier === 1 ? Math.max(a, h.k * pulse(t, h.t, 0.11)) : a), 0); }
+/** A pump's envelope: a 40 ms drive in, peaking on its time, then easing back (half-life 90 ms). */
+  private env(t: number, t0: number) { const d = t - t0; return d < -0.04 ? 0 : d < 0 ? smootherstep(-0.04, 0, d) : Math.pow(0.5, d / 0.09); }
+  /** The lamp's pump at t (0..1): it drops toward the cloth, the pool tightens and brightens (the strongest pump now). */
+  private hit1(t: number) { let a = 0; for (const p of this.pumps) if (Math.abs(t - p.t) < 0.8) a = Math.max(a, p.k * this.env(t, p.t)); return a; }
+  /** The hero flare: a hero word's extra glow on its own pump. */
+  private flare(w: TWord, t: number) { const p = this.pumps.find((x) => x.hero === w); return p ? this.env(t, p.t) : 0; }
   /** The lamp's brightness: on with the first word; tier-1 hits lift it, tier-2 downbeats kick it a little. */
   private lampK(t: number): number {
     if (t < this.tOn) return 0;
-    let k = 1;
-    for (const h of this.hits) if (t >= h.t) k += (h.tier === 1 ? 0.5 * h.k : 0.14) * pulse(t, h.t, h.tier === 1 ? 0.1 : 0.07);
-    return k;
+    return 1 + 0.6 * this.hit1(t);
   }
   /** The beam's aim point on the cloth (mm), with the hand's tremor. */
   private aim(t: number): V2 {
@@ -542,7 +601,8 @@ export default class UvPlate extends Scene {
     const w = 2 * lc.D * Math.tan((lc.fov * DEG) / 2) * ASP;   // (the line's framing: a macro does not move the lamp)
     const h1 = this.hit1(t);
     const Q = this.aim(t), Qa = this.aim(t - 0.03), Qb = this.aim(t + 0.03);
-    const vx = (Qb[0] - Qa[0]) / 0.06, vy = (Qb[1] - Qa[1]) / 0.06;
+    // (the lag behind the beam: clamped, and none across a cut, where the aim jumps)
+    const vx = clamp((Qb[0] - Qa[0]) / 0.06, -1500, 1500) * (this.lineAt(t - 0.03) === this.lineAt(t + 0.03) ? 1 : 0), vy = clamp((Qb[1] - Qa[1]) / 0.06, -1500, 1500) * (this.lineAt(t - 0.03) === this.lineAt(t + 0.03) ? 1 : 0);
     // (checkpoint review item 2: the lamp in its gloved hand holds the top of the frame, above the words' box (the
     // plan's y1), housing, the tube's end and the glove's wrist in view: its head at the plan's place on screen,
     // following the beam across a little, beyond the words and over the cloth; it shines back toward the lens onto
@@ -555,7 +615,7 @@ export default class UvPlate extends Scene {
     const ray = A.fw.clone().addScaledVector(A.rt, sx * A.tanH * ASP).addScaledVector(A.up, sy * A.tanH);
     const kr = ray.z < -0.05 ? (ZC + P.lh - A.pos.z) / ray.z : A.pos.distanceTo(A.tgt);
     const lC = A.pos.clone().addScaledVector(ray, kr).add(V(-vx * 0.012, -vy * 0.008, 0));
-    lC.lerp(Qw, 0.12 * clamp(h1));
+    lC.lerp(Qw, 0.18 * clamp(h1));
     // the handle: toward the hand's side of the frame, up it by yaw and into it by dep, turning a little with the
     // sweep; the window turned toward the beam's aim as far as the tube allows (it shines across its axis)
     const yw = (P.yaw * DEG) + clamp(vx * 0.0003, -0.16, 0.16);
@@ -565,7 +625,7 @@ export default class UvPlate extends Scene {
     const lY = new THREE.Vector3().crossVectors(lZ, lX);
     // (the back of the glove toward the camera)
     const gSide = lY.dot(A.pos.clone().sub(lC)) >= 0 ? 1 : -1;
-    const pr = P.pr * w * (1 - 0.16 * clamp(h1));
+    const pr = P.pr * w * (1 - 0.2 * clamp(h1));
     // the swab: in from the near right, down onto each stroke's start, drawn through it, lifted between strokes, away
     // after "me"
     const s = this.swab;
@@ -628,21 +688,13 @@ export default class UvPlate extends Scene {
       const a = ages[k]!, ta = t - a;
       const La = this.lineAt(ta), ca = this.lineCam(La, ta);
       const q = this.aim(ta), wa = 2 * ca.D * Math.tan((ca.fov * DEG) / 2) * ASP;
-      const wgt = Math.min(this.lampK(ta), 1.3) * (a < 0.12 ? 1 : Math.exp(-(a - 0.12) / 0.17));
-      M[k]!.set(q[0], q[1], La.plan.pr * wa * (1 - 0.16 * clamp(this.hit1(ta))), wgt);
+      const wgt = Math.min(this.lampK(ta), 1.6) * (a < 0.12 ? 1 : Math.exp(-(a - 0.12) / 0.17));
+      M[k]!.set(q[0], q[1], La.plan.pr * wa * (1 - 0.2 * clamp(this.hit1(ta))), wgt);
     }
 
     // the camera
-    this.cam.fov = c.fov;
-    this.cam.position.copy(B.pos);
-    this.cam.up.copy(B.up);
-    this.cam.lookAt(B.pos.clone().add(B.fw));
-    this.cam.updateProjectionMatrix();
-    this.cam.updateMatrixWorld();
-    (u.invVP!.value as THREE.Matrix4).multiplyMatrices(this.cam.matrixWorld, this.cam.projectionMatrixInverse);
-    (u.camPos!.value as V3).copy(B.pos);
-    (u.res!.value as THREE.Vector2).set(out.width, out.height);
-    u.pxAng!.value = (2 * B.tanH) / out.height;
+    this.setCam(B, out);
+    (u.slamU!.value as THREE.Vector4).x = 0;
 
     // the words
     const W = u.W!.value as THREE.Vector4[], W2 = u.W2!.value as THREE.Vector4[], WL = u.WL!.value as number[];
@@ -660,7 +712,7 @@ export default class UvPlate extends Scene {
         const snap = ease.outCubic(clamp((t - w.start) / 0.05));
         thr = w.serif ? lerp(0.62, 0.42, snap) : w.start < L.t0 + 0.05 ? (w.serif ? 0.42 : 0.5) : lerp(0.74, 0.5, snap);
       }
-      W[w.id]!.set(s.lvl, thr, (w.hero ? 1.15 : 0.95) * (1 + 0.25 * clamp(h1)), fl0);
+      W[w.id]!.set(s.lvl, thr, (w.hero ? 1.15 : 0.95) * (1 + 0.2 * clamp(h1) + 0.6 * this.flare(w, t)), fl0 * (L.k === 1 && w.row === 1 ? 1.7 : 1));
       W2[w.id]!.set(s.ax, s.ay, s.sx, s.sy);
       WL[w.id] = s.lean;
       const d = Math.hypot(w.x - R.Q[0], w.y - R.Q[1]);
@@ -690,51 +742,81 @@ export default class UvPlate extends Scene {
     this.pass.render(this.ctx.renderer, out);
     // GRADED IMPACTS (R37, R79): tier 1 a shake of up to 12 px with the lamp's hit, tier 2 an exposure kick and up to
     // 5 px on the other downbeats, tier 3 up to 2 px on the backbeats
-    let shake = 12 * h1, kick = 0;
-    for (const h of this.hits) if (h.tier === 2 && t >= h.t) { const p = pulse(t, h.t, 0.05); shake = Math.max(shake, 5 * p); kick = Math.max(kick, 0.08 * p); }
-    for (const b of this.backs) if (t >= b && t < b + 0.3) shake = Math.max(shake, 2 * pulse(t, b, 0.04));
-    kick = Math.max(kick, 0.1 * h1);
+    // (round 2: the pumps carry them: tier 1 up to 12 px and the exposure kick, tier 2 the sweeps 5 px, tier 3 the
+    // kicks 2 px; the camera rides the line, not the beam: no camera move follows a pump)
+    let shake = 0, kick = 0;
+    for (const p of this.pumps) if (t >= p.t && t < p.t + 0.4) {
+      const e = p.k * pulse(t, p.t, 0.06);
+      shake = Math.max(shake, (p.tier === 1 ? 12 : p.tier === 2 ? 5 : 2) * e);
+      kick = Math.max(kick, (p.tier === 1 ? 0.12 : p.tier === 2 ? 0.08 : 0.03) * e);
+    }
     return { exposure: 1 + kick, halation: 0.12, bloom: 0.4, shake: kinShake(t, Math.min(12, shake)) };
   }
 
+  private setCam(B: Basis, out: THREE.WebGLRenderTarget) {
+    const u = this.pass.u;
+    this.cam.fov = (2 * Math.atan(B.tanH)) / DEG;
+    this.cam.position.copy(B.pos);
+    this.cam.up.copy(B.up);
+    this.cam.lookAt(B.pos.clone().add(B.fw));
+    this.cam.updateProjectionMatrix();
+    this.cam.updateMatrixWorld();
+    (u.invVP!.value as THREE.Matrix4).multiplyMatrices(this.cam.matrixWorld, this.cam.projectionMatrixInverse);
+    (u.camPos!.value as V3).copy(B.pos);
+    (u.res!.value as THREE.Vector2).set(out.width, out.height);
+    u.pxAng!.value = (2 * B.tanH) / out.height;
+  }
+
   // ================================================================================================ the TEETH slam
-  /** THE TEETH HOOK, hook 2 of 7 (TYPE.md section 8 item 2; R24, R82): on TEETH's onset a full-frame slam, fluor-white
-   *  Archivo 900 on film-black, stamped and shaking; on the 8th (68.80) a condensed copy is stamped over it, and the
-   *  beam's sweep crosses the frame as the break line: a straight wipe edge, left to right, taking the first copy away
-   *  behind it. Flat fills, no outlines; the plate's grain and no halation. Held to LATE with no orphan frame. */
+  /** THE TEETH HOOK, hook 2 of 7 (TYPE.md section 8 item 2 as amended by the client 2026-11-23; brief-uv-r2 item 3):
+   *  IN-WORLD. On TEETH's onset the camera slams into a macro of the weave (a cut onto the slam framing from further
+   *  out, landing in ~0.1 s with a small overshoot), and TEETH is a full-frame glowing trace on the cloth itself
+   *  (uv-type.ts bakeSlam, uv-glsl.ts slamGlow: fibre texture and fold shading in the glow), stamped thin -> heavy;
+   *  on the 8th (68.80) the beam's sweep crosses the word as the break line, a straight wipe edge of light, and behind
+   *  it the condensed copy flares (a second trace re-excited) while the first falls to its dried floor (no ghost, no
+   *  flat title card). A slow push holds it to LATE (69.44), then the cut back onto LATE, already readable. Glow by R11
+   *  (bloom only above 1.0; the letter edges crisp). */
+  private slamCamAt(t: number): Cam {
+    const c = this.slamCam, t0 = this.tTeeth, t2 = this.tSlam2;
+    const land = 1 + 0.2 * (1 - ease.outBack(clamp((t - t0) / 0.12), 1.4));
+    const jolt = t >= t2 ? 1 + 0.035 * Math.pow(0.5, (t - t2) / 0.04) : 1;
+    const push = 1 - 0.07 * ease.inOutQuad(clamp((t - t0) / (this.lines[2]!.t0 - t0)));
+    const k = ease.inOutQuad(clamp((t - t0) / 0.97));
+    return { ...c, D: c.D * land * jolt * push, az: c.az + 2.5 * k - 1.25, roll: c.roll - 1.5 * k };
+  }
   private renderSlam(t: number, out: THREE.WebGLRenderTarget): PostOverrides {
-    const c = this.L.ctx;
-    this.L.clear(trgba('film'));
-    c.textBaseline = 'alphabetic';
-    const tag = { role: 'hero' as const, start: this.tTeeth };
-    let shake = 0;
-    // the first copy
-    const A = this.slamA;
-    const PA = A.pose(t, this.clk, { t0: this.tTeeth, lead: 0, spring: false, stamp: { at: this.tTeeth, over: 1.22 }, stretch: { kick: 0.08, snare: 0.05 }, track: { amt: 0.02 }, anchor: 'center' });
-    shake = Math.max(shake, 12 * PA.shake);
-    const capA = A.style.size * 0.686;
-    const xA = (FW - A.width) / 2, baseA = FH / 2 + capA / 2;
-    const t2 = this.tSlam2;
-    // the beam's sweep: a straight edge, tilted a little, crossing the frame in 0.22 s from the second slam
-    const ws = clamp((t - t2) / 0.22);
-    const edge = lerp(-260, FW + 260, ease.inOutQuad(ws));
-    if (t < t2) drawKin(c, A, PA, xA, baseA, { fill: trgba('fluor'), tag });
-    else if (ws < 1) {
-      // behind the edge (already swept) the first copy is gone; ahead of it, it still stands, a shade down under the copy
-      drawKin(c, A, PA, xA, baseA, { fill: trgba('fluor', 0.42), brk: { mask: halfPlane(edge, FH / 2, Math.PI / 2 + 0.16), k: 1, aOn: 0 } });
+    const u = this.pass.u, t0 = this.tTeeth, t2 = this.tSlam2;
+    const B = basis(this.slamCamAt(t));
+    this.setCam(B, out);
+    // (nothing else on the cloth: the other traces off, no excitation memory, no swab; the lamp out of frame)
+    const W = u.W!.value as THREE.Vector4[];
+    for (const w of this.words) W[w.id]!.set(0, 0.5, 0, 0);
+    for (const m of u.M!.value as THREE.Vector4[]) m.set(0, 0, 1, 0);
+    u.swabOn!.value = 0;
+    (u.strokeK!.value as number[]).fill(0);
+    (u.wordBounce!.value as V3).set(0, 0, 0);
+    u.lampK!.value = 1 + 0.6 * this.hit1(t);
+    // the levels: the first copy stamps (thin -> heavy) on the onset; the wipe from the 8th, 0.22 s across
+    const sA = ease.outCubic(clamp((t - t0) / 0.05)), sB = ease.outCubic(clamp((t - t2) / 0.05));
+    const wp = clamp((t - t2) / 0.22);
+    const edge = t < t2 ? -1e4 : lerp(-SLAM.hx - 30, SLAM.hx + 30, ease.inOutQuad(wp));
+    (u.slamU!.value as THREE.Vector4).set(1, 1, t >= t2 ? 1 : 0, edge);
+    (u.slamT!.value as THREE.Vector4).set(lerp(0.82, 0.5, sA), lerp(0.82, 0.5, sB), 0.7 * pulse(t, t0, 0.09) + (t >= t2 ? 0.55 * pulse(t, t2, 0.09) : 0), 0);
+    this.pass.render(this.ctx.renderer, out);
+    if (kinProbeOn()) {
+      const kc = kinCam(B.pos, B.fw, B.rt, B.up, B.tanH);
+      const tag = { start: t0, role: 'hero' as const };
+      const rec = (kw: KinWord, cp: SlamCopy, on: number) => {
+        if (on <= 0) return;
+        const P: KinPose = { shake: 0, scale: cp.sy, glyphs: cp.cells.map((c) => ({ cx: c.cx, y: 0, sx: 1, sy: cp.sy, rot: 0, on, width: cp.width, weight: 900 })) };
+        kinRecord3D(kw, P, cp.cap, cp.base + (cp.cap * cp.sy) / 2, (x, y) => [x, y, ZC + 1, 0, 0, 1], kc, tag);
+      };
+      rec(this.kinA, this.slamA, wp < 0.5 ? 1 : 0);
+      rec(this.kinB, this.slamB, wp >= 0.5 ? 1 : 0);
     }
-    if (t >= t2) {
-      const Bk = this.slamB;
-      const PB = Bk.pose(t, this.clk, { t0: t2, lead: 0, spring: false, stamp: { at: t2, over: 1.28 }, stretch: { kick: 0.1, snare: 0.06 }, anchor: 'center' });
-      const tall = Math.min(1.75, 700 / (0.686 * Bk.style.size));
-      for (const g of PB.glyphs) g.sy *= tall;
-      const capB = Bk.style.size * 0.686 * tall;
-      drawKin(c, Bk, PB, (FW - Bk.width) / 2, FH / 2 + capB / 2, { fill: trgba('fluor'), tag });
-      shake = Math.max(shake, 12 * PB.shake);
-    }
-    this.L.upload();
-    this.ctx.comp.draw(this.ctx.renderer, this.L.texture, out, { mode: 'replace' });
-    return { exposure: 1, halation: 0, bloom: 0, shake: kinShake(t, Math.min(12, shake)), zoom: 1 + 0.02 * Math.max(PA.shake, 0) };
+    const hit = Math.max(pulse(t, t0, 0.07), t >= t2 ? pulse(t, t2, 0.07) : 0);
+    const shake = Math.max(12 * hit, 2 * this.clk.kick(t));
+    return { exposure: 1 + 0.12 * hit, halation: 0.12, bloom: 0.4, shake: kinShake(t, Math.min(12, shake)) };
   }
 
   // ================================================================================================ look-dev logs
@@ -808,7 +890,7 @@ export default class UvPlate extends Scene {
       // (the EXHIBIT 5 tag whole in frame: its four corners)
       if ([[-1, -1], [1, -1], [1, 1], [-1, 1]].every(([a, b]) => { const [x, y, z] = proj(B, V(TAG.x + a! * TAG.hx, TAG.y + b! * TAG.hy, ZC)); return z > 5 && Math.abs(x) < 0.97 && Math.abs(y) < 0.97; })) tagSeen[L.k]!++;
       if ([[-62, -24, -15], [-62, 24, -15], [62, -24, -15], [62, 24, -15], [122, 25, -16], [205, 45, -60]].every(inF)) seen[L.k]![0]++;
-      LAMP_CAPS.forEach(([a, b, r], i) => add(fromL(a), fromL(b), r * LS, ['lamp head', 'lamp handle', 'lamp glove', 'lamp wrist', 'lamp sleeve'][i]!));
+      LAMP_CAPS.forEach(([a, b, r], i) => add(fromL(a), fromL(b), r * LS, ['lamp head', 'lamp handle', 'lamp glove', 'lamp wrist', 'lamp sleeve', 'lamp fingers'][i]!));
       if (R.swOn && R.sP) {
         const fromS = (v: number[]) => R.sP!.clone().addScaledVector(R.sX, v[0]!).addScaledVector(R.sY, v[1]!).addScaledVector(R.sZ, v[2]!);
         SWAB_CAPS.forEach(([a, b, r], i) => add(fromS(a), fromS(b), r, ['swab tip', 'swab shaft', 'swab fingers', 'swab glove', 'swab sleeve'][i]!));
