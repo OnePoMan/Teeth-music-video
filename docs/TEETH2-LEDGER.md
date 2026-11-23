@@ -168,3 +168,26 @@ The spec was consolidated: `docs/teeth2/RULES.md` (R1-R74, with precedence: clie
 The type probe (`de41447`, Sonnet high) makes the Teeth lint see kit words (presence, SMALL, HERO, SAFE, EARLY, CROP; LINGER retired). `scale` r3 (`8405c17`, Opus high) went checkpoint, lead fix list (word gaps collapsing on onsets, flat openers, invisible flash, BUT cut at a row end, SO under the floor), then full pass: lint 0 errors, presence 100%, 125-139 ms/frame. The third blind review passes R83 (`scale` preferred on presence, legibility and camera flow; P(doom) on energy and finish). Still open: flat midtone openers, no whites, letters lost at the sphere's dark edge. Both builders' worktrees started from `main`, not `teeth-v2`; each builder repaired its own tree. Brief future builders to check `git log -1` first.
 - **Round 4 (client: "fix the flat frames"):** `a4afd26` adds a feathered pool aimed at the row starts and a strip-light coat streak, so every shot reaches black and lightbox (checkpoint p99 155-174 in r3, 236-245 now). The lead's checkpoint fixes were a sandy coat halo, the hot spot sitting behind the opener word, and the flash multiplying the streak. In blind review 4, `scale` won overall, but P(doom) won on camera flow with an unchanged camera: a strict R83 fail, probably reviewer variance. Energy is the standing weakness.
 - **Round 5 (client: camera and energy, 2026-11-22):** `00be710`, then `8fd2354`. The client's calls: bigger continuous moves per line plus one hero macro per half-line, carving debris, motion between r4 and P(doom). The lead read R36 as "the macro keeps the line so far in frame", so macros reach 1.3-2.0x. The lead found BUT, HANDS and NEVER cropped by the apple's limb, a defect lint can't see. The fix added a per-glyph facing check, and the light now follows the line. Blind review 5 passes R83. Energy and finish still go to P(doom). Lesson: future plates on curved surfaces need a limb/occlusion check in the probe, not only frame-edge CROP.
+
+## `uv` round 1, the lyric-led pass (2026-11-22 to 11-23)
+- **The plan:** the lead filled the `uv` type card (`efa5258`) and wrote the brief `docs/gate3/brief-uv-r1.md`. The first builder stopped at 67% of the 5-hour window before touching code and raised six questions, which the lead settled (`0a8a74d`):
+  - the line 4 cut on NEVER at 72.90, with AND as a pickup;
+  - the second slam at 68.80;
+  - the swab stops at the readable floor;
+  - one stroke per word;
+  - row 2 indented right;
+  - occlusion stand-ins in JS.
+- **The checkpoint** (`b310cfb`, Opus high): two-row line blocks, a camera family per line, hero macros, a readable floor, the TEETH double slam, `kinRecord3D` and the `?uv_occ` scan.
+  - The camera sits at 44-54° elevation, not table height. On flat cloth, cap height falls with sin(elevation), so a lower camera drops supporting words below 5%.
+  - The lead's review found the pillowcase and the lamp had vanished: words on a dark void, and the lamp a violet sliver at the frame's top. Supporting words also shrank inside the macros, and the macros were only 0.93-1.14x.
+- **The fix and full pass** (`65680b3`, client: "fix, then full pass"):
+  - a film2 ambient on the cloth, every block on an edge, the tag readable in line 3;
+  - the lamp held in the glove across the top, readable in 69-78% of frames;
+  - per-row caps, so the smallest supporting word is ≥5.2%;
+  - macros at 1.11-1.35x.
+  - Lint shows 0 errors and 100% presence; `uv_occ` 0 hits; the floor is 53-95 luma steps; 59 ms per frame.
+- **Blind review uv-1** (`../blind-uv1/`, key `out/merge/blind-uv1-key.txt`) **passes R83.** `uv` was preferred on presence (~97% vs ~72%), legibility, camera flow, type as subject and finish; P(doom) on energy.
+  - `uv`'s weaknesses: slow drift before the hook (66.1-66.8), TEETH slams that read as flat title cards leaving the world (with ghosting at 68.84), and a murky "but your heart got" (68.06-68.45).
+- **Lessons:**
+  - Reveal-by-light plates need an ambient on the exhibit as well as a floor on the words, or the exhibit vanishes.
+  - A builder's first read of a large plate costs about 10% of the window. Brief a known code map up front.
