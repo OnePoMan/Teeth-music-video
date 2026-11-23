@@ -38,14 +38,16 @@ ${GLSL_TEETH_PALETTE}
 ${SS_TAP_GLSL}
 uniform mat4 invVP; uniform vec3 camPos; uniform vec2 res;
 uniform sampler2D covTex, idTex, tagTex;
-uniform vec4 W[${NW}];          // per word id: level (gate x exit x decay), threshold, beam gain, residual
+uniform vec4 W[${NW}];          // per word id: level (gate x line x decay), threshold, beam gain, the readable floor
+uniform vec4 W2[${NW}];         // per word id: the trace's pose on the cloth: anchor (mm), scale x, y (stamp, stretch, condense)
+uniform float WL[${NW}];        // per word id: its lean (a shear, DEVIL)
 uniform vec3 lC, lX, lY, lZ;    // the lamp: window centre, tube axis (toward the handle), across, window normal
 uniform float lampK;
 uniform vec2 Q, pAx; uniform float pR;   // the pool now: centre, tube axis on the cloth, radius across (mm)
 uniform vec4 M[${NM}];          // the pool's recent positions: centre, radius, weight (fading with age)
 uniform vec3 sP, sX, sY, sZ; uniform float swabOn, swabGlow;
 uniform float gSide;            // which side of the handle faces the camera (the lamp glove mirrored to it)
-uniform vec4 strokes[5]; uniform float strokeK[5];
+uniform vec4 strokes[5]; uniform float strokeK[5], strokeW[5];
 uniform float pxAng;
 uniform vec3 wordBounce;        // the glow of the lit words, as light onto the hands above them
 
@@ -170,7 +172,7 @@ float swabLift(vec2 p) {
     if (pk <= 0.0) continue;
     vec2 a = strokes[k].xy, b = mix(strokes[k].xy, strokes[k].zw, pk);
     vec2 dir = normalize(strokes[k].zw - strokes[k].xy);
-    float hw = 8.0 + 0.9 * snoise(vec2(dot(p, dir) * 0.035, float(k) * 3.7));
+    float hw = strokeW[k] + 0.9 * snoise(vec2(dot(p, dir) * 0.035, float(k) * 3.7));
     float ds = sdSegment(p, a, b);
     lift = max(lift, 1.0 - smoothstep(hw - 2.5, hw + 1.0, ds));
   }
@@ -188,6 +190,15 @@ float traceGlow(vec2 p, float X, float lift) {
   if (id <= 0 || id >= ${NW}) return 0.0;
   vec4 w = W[id];
   if (w.x <= 0.0) return 0.0;
+  // the word's pose (round 1): the baked trace read through its stamp, stretch, condense and lean about its anchor
+  vec4 a = W2[id];
+  vec2 q = p - a.xy;
+  q.x -= WL[id] * q.y;
+  uv = cuv(a.xy + q / a.zw);
+  // (read only the word's own trace: where the pose reaches into a neighbour's, nothing)
+  ivec2 ij2 = clamp(ivec2(uv * vec2(${TW}.0, ${TH}.0)), ivec2(0), ivec2(${TW - 1}, ${TH - 1}));
+  int id2 = int(texelFetch(idTex, ij2, 0).r * 255.0 + 0.5);
+  if (id2 != id && id2 != 0) return 0.0;
   float cov = mix(textureLod(covTex, uv, gLod).r, textureLod(covTex, uv, gLod + 1.6).r, 0.45);
   // dried saliva wicked into the weave: a soft, broken edge, an uneven body (60-100%), thin places
   float n = 0.06 * fbm(p * 0.07, 3) + 0.035 * snoise(p * 0.7) + 0.02 * snoise(p * 2.1);
@@ -200,8 +211,9 @@ float traceGlow(vec2 p, float X, float lift) {
   // the glow bleeds a little into the threads round the deposit
   float halo = 0.16 * smoothstep(0.08, 0.5, textureLod(covTex, uv, gLod + 2.5).r);
   float amt = max(body * mott, halo * thin) * mix(0.9 + 0.1 * snoise(p * 3.0), weave(p) * 1.25, weaveK);
-  amt *= 1.0 - 0.97 * lift;   // ~20% to the eye left inside the band (the glow is far over white)
-  return amt * w.x * (X * w.z + w.w);
+  // the swab lifts the beam's glow off the cloth down to the dried floor, never below it (lead 2026-11-22); the floor
+  // (w.w) is the stain the beam is not on: readable, ~40 luma steps over the cloth round it (R23)
+  return amt * w.x * (X * w.z * (1.0 - 0.97 * lift) + w.w);
 }
 
 // ------------------------------------------------------------------ the tag (manila card; brightener in the paper)
@@ -292,7 +304,7 @@ float lampCrease(vec3 q) {
 }
 // The swab hand: the match glove itself (a tripod grip, swab frame), set back up the shaft; the index and middle
 // pads closed a little onto the thin stick.
-const float SG = 38.0;
+const float SG = 68.0;   // (round 1: gripped further up the shaft, so the hand stays clear of the word it draws through)
 const vec3 SW0 = vec3(138.0, -18.0, 2.0), SW1 = vec3(205.0, -12.0, 6.0);
 float sdSwabGlove(vec3 p) {
   p.x -= SG;
@@ -370,7 +382,7 @@ float sdSwabD(vec3 q) { int m; return sdSwabHand(q, m); }
 vec3 toS(vec3 p) { vec3 d = p - sP; return vec3(dot(d, sX), dot(d, sY), dot(d, sZ)); }
 vec3 dirS(vec3 v) { return vec3(dot(v, sX), dot(v, sY), dot(v, sZ)); }
 vec3 fromS(vec3 v) { return sX * v.x + sY * v.y + sZ * v.z; }
-const vec3 SLO = vec3(-10.0, -68.0, -38.0), SHI = vec3(405.0, 38.0, 46.0);
+const vec3 SLO = vec3(-10.0, -68.0, -38.0), SHI = vec3(440.0, 38.0, 46.0);
 
 float marchW(vec3 ro, vec3 rd, out int m) {
   m = -1;

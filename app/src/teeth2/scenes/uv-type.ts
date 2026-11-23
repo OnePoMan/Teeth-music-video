@@ -3,10 +3,19 @@
 //   cov  the trace's coverage, blurred into a soft distance-like ramp (thresholded in the shader: a dried edge that
 //        can be eroded, so a hero word appears thin and snaps heavy on its onset with its letters locked in place)
 //   id   which word a texel belongs to (dilated round each word; read with texelFetch), so each word is gated by its
-//        own sung onset and its phrase's exit.
-// Layout: one line per row of the case, two blocks per row (the line's two hero words, as in plate 5: DIRTY, sweet,
-// PRETTY, TEETH, DEVIL, HANDS, NEVER x3, GO). A block is a row of small supporting words (Archivo wide) over its hero
-// (Archivo condensed black; "sweet" in Cormorant italic, the tender register). GO sits in the free centre column.
+//        own sung onset and its line's cut.
+// ROUND 1 LYRIC-LED LAYOUT (brief docs/gate3/brief-uv-r1.md; the uv type card in docs/teeth2/PLATES.md): each line is
+// a compact block of two rows, one half-line per row, each row ending on its hero, the second row indented to the
+// right (so the camera riding the words only ever moves right and down):
+//      Fight so DIRTY                       Talk so PRETTY
+//         but your love's so sweet             but your heart got          (TEETH slams full-frame)
+//      Late night DEVIL,                     And NEVER,
+//         put your HANDS                        never, never ever let GO
+//                 on me And                  (line 3 carries AND, the pickup, as the head of line 4: R39)
+// Each block sits on its own part of the case: line 1 over the open end and its hem (far right), line 2 in the middle,
+// line 3 along the side seam by the closed end (near left), line 4 over the hem by the side seam (near right). Supporting
+// words are Archivo wide-ish (100/500, mixed case as sung), heroes Archivo condensed black, *sweet* Cormorant italic
+// (the tender register, fluor-white under the lamp: R15), the second and third "never" condensed black at a middle size.
 import * as THREE from 'three';
 import { F, font } from '../../engine/type';
 import type { Line } from '../../engine/lyrics';
@@ -16,47 +25,48 @@ export const CLOTH = { x0: -380, x1: 380, y0: -255, y1: 255 };
 export const TPPM = 5;
 export const TW = (CLOTH.x1 - CLOTH.x0) * TPPM;
 export const TH = (CLOTH.y1 - CLOTH.y0) * TPPM;
-/** The evidence tag (EXHIBIT 5, the plate's one label): lying on the hem near the open end; centre, half size (mm),
- *  rotation (rad). */
-export const TAG = { x: 214, y: -120, hx: 30, hy: 13, rot: 0.12 };
+/** The evidence tag (EXHIBIT 5, the plate's one label): lying by the closed end, far side (clear of the four blocks);
+ *  centre, half size (mm), rotation (rad). */
+export const TAG = { x: -262, y: 196, hx: 30, hy: 13, rot: 0.1 };
 
+export type St = 'sup' | 'hero' | 'serif' | 'mid' | 'go';
 export interface TWord {
-  id: number; text: string; start: number; end: number; hero: boolean; serif?: boolean;
+  id: number; text: string; start: number; end: number; hero: boolean; serif?: boolean; st: St;
   /** centre and size on the cloth (mm) */
   x: number; y: number; w: number; h: number;
-  phrase: number;
+  /** left edge, baseline, cap height (mm), em size (mm), the family; per glyph centre and advance (cloth x, mm) */
+  x0: number; base: number; cap: number; size: number; fam: string; cells: { cx: number; adv: number }[];
+  /** the lyric line (0..3 in the window) and word index the trace stands for; the block (line) it is shown in */
+  line: number; k: number; disp: number;
+  /** its row in the block; which "never" (1..3, else 0) */
+  row: number; rep: number;
 }
-export interface TPhrase { words: TWord[]; t0: number; t1: number; block: [number, number]; hero: TWord | null }
+export interface TBlock { disp: number; words: TWord[] }
 
-interface BlockSpec { line: number; x0: number; base: number; row: number[]; hero: number; after?: number[]; below?: number[]; cap?: number; maxW?: number; serif?: boolean }
+/** Cap heights (mm): supporting words, heroes, sweet (Cormorant: its cap, the lowercase reads a size down), the second
+ *  and third "never", GO (lands biggest). Heroes 3x the supporting words: a whole line fits title-safe at its framing
+ *  with every supporting word >= 5% of the frame (R22) and every hero spanning >= 30% of the width or, in its macro,
+ *  a cap of >= 20% (R21). */
+export const CAP = { sup: 13, hero: 42, serif: 36, mid: 15, go: 52 };
+/** Line 3's heroes a little smaller (its tail row makes it the widest block). */
+const HERO3 = 40;
+const ROW_GAP = 10;
+const FAM: Record<St, () => string> = {
+  sup: () => F.archivo(100, 500), hero: () => F.archivo(62, 900), serif: () => F.serif(600, true), mid: () => F.archivo(62, 900), go: () => F.archivo(62, 900),
+};
 
-const ROW_CAP = 16, ROW_GAP = 12, HERO_CAP = 60;
-const ROW_FAM = () => F.archivo(100, 500);
-const HERO_FAM = () => F.archivo(62, 900);
-const SERIF_FAM = () => F.serif(600, true);
-
-/** The blocks (lines A..D = the window's four lines, word indices into each line). */
+interface Item { l: number; k: number; st: St }
+interface RowSpec { items: Item[]; dx: number; /** start under this item's centre (by lyric k) in the row above */ under?: number }
+interface BlockSpec { disp: number; x0: number; base: number; rows: RowSpec[] }
+const I = (l: number, ks: number[], st: St = 'sup'): Item[] => ks.map((k) => ({ l, k, st }));
 const BLOCKS: BlockSpec[] = [
-  { line: 0, x0: -330, base: 150, row: [0, 1, 3, 4], hero: 2 },
-  { line: 0, x0: 100, base: 150, row: [5, 6], hero: 7, serif: true, maxW: 215 },
-  { line: 1, x0: -330, base: 30, row: [0, 1, 3, 4], hero: 2 },
-  { line: 1, x0: 100, base: 30, row: [5, 6], hero: 7 },
-  { line: 2, x0: -330, base: -90, row: [0, 1], hero: 2 },
-  { line: 2, x0: 100, base: -90, row: [3, 4], hero: 5, below: [6, 7], maxW: 190 },   // "on me" under HANDS, clear of the tag's string
-  { line: 3, x0: -335, base: -215, row: [0], hero: 1, cap: 40, maxW: 150 },
-  { line: 3, x0: -80, base: -215, row: [], hero: 2, cap: 40, maxW: 150 },
-  { line: 3, x0: 125, base: -215, row: [], hero: 3, after: [4], cap: 40, maxW: 140 },
-  { line: 3, x0: -48, base: -150, row: [5], hero: 6, cap: 60, maxW: 108 },
-];
-/** The phrases on screen (1-4 words each): [line, word indices, hero index or -1]. */
-const PHRASES: [number, number[], number][] = [
-  [0, [0, 1, 2], 2], [0, [3, 4], -1], [0, [5, 6, 7], 7],
-  [1, [0, 1, 2], 2], [1, [3, 4], -1], [1, [5, 6, 7], 7],
-  [2, [0, 1, 2], 2], [2, [3, 4], -1], [2, [5, 6, 7], 5],
-  [3, [0, 1], 1], [3, [2], 2], [3, [3, 4], 3], [3, [5, 6], 6],
+  { disp: 0, x0: 36, base: 196, rows: [{ items: [...I(0, [0, 1]), ...I(0, [2], 'hero')], dx: 0 }, { items: [...I(0, [3, 4, 5, 6]), ...I(0, [7], 'serif')], dx: 15 }] },
+  { disp: 1, x0: -170, base: 72, rows: [{ items: [...I(1, [0, 1]), ...I(1, [2], 'hero')], dx: 0 }, { items: I(1, [3, 4, 5, 6]), dx: 15 }] },
+  { disp: 2, x0: -366, base: -108, rows: [{ items: [...I(2, [0, 1]), ...I(2, [2], 'hero')], dx: 0 }, { items: [...I(2, [3, 4]), ...I(2, [5], 'hero')], dx: 15 }, { items: [...I(2, [6, 7]), ...I(3, [0])], dx: 0, under: 5 }] },
+  { disp: 3, x0: 24, base: -78, rows: [{ items: [...I(3, [0]), ...I(3, [1], 'hero')], dx: 0 }, { items: [...I(3, [2, 3], 'mid'), ...I(3, [4, 5]), ...I(3, [6], 'go')], dx: 15 }] },
 ];
 
-const clean = (s: string) => s.replace(/[,.!?]/g, '');
+const clean = (s: string) => s.replace(/'/g, '’').replace(/[^A-Za-z’]/g, '');
 
 /** The tag's face: manila card, the label in Plex Mono (lab text lives only inside objects). */
 export function bakeTag(): THREE.CanvasTexture {
@@ -72,10 +82,10 @@ export function bakeTag(): THREE.CanvasTexture {
   return t;
 }
 
-export interface Baked { words: TWord[]; phrases: TPhrase[]; cov: THREE.CanvasTexture; id: THREE.CanvasTexture }
+export interface Baked { words: TWord[]; blocks: TBlock[]; cov: THREE.CanvasTexture; id: THREE.CanvasTexture }
 
 /** Lays the lyric out on the cloth and bakes the textures. `lines`: the window's four lines in order. */
-export function bakeTraces(lines: Line[], beats: number[], plateEnd: number): Baked {
+export function bakeTraces(lines: Line[]): Baked {
   const cv = document.createElement('canvas'); cv.width = TW; cv.height = TH;
   const c = cv.getContext('2d')!;
   c.fillStyle = '#000'; c.fillRect(0, 0, TW, TH);
@@ -84,103 +94,76 @@ export function bakeTraces(lines: Line[], beats: number[], plateEnd: number): Ba
   ic.fillStyle = '#000'; ic.fillRect(0, 0, TW, TH);
   const X = (x: number) => (x - CLOTH.x0) * TPPM, Y = (y: number) => (CLOTH.y1 - y) * TPPM;
   const capRatio = (fam: string) => { c.font = font(fam, 1000); return c.measureText('H').actualBoundingBoxAscent / 1000; };
+  const meas = (fam: string, sizeMM: number, s: string) => { c.font = font(fam, sizeMM * TPPM); return c.measureText(s).width / TPPM; };
 
   const words: TWord[] = [];
-  const byKey = new Map<string, TWord>();
-  const place = (li: number, wi: number, text: string, fam: string, sizeMM: number, x0: number, base: number, hero: boolean, blur = 4) => {
-    const px = sizeMM * TPPM;
-    c.font = font(fam, px);
-    const m = c.measureText(text);
-    const w = m.width / TPPM;
-    const asc = m.actualBoundingBoxAscent / TPPM, desc = m.actualBoundingBoxDescent / TPPM;
-    const wd = lines[li]!.words[wi]!;
-    const tw: TWord = { id: words.length + 1, text, start: wd.start, end: wd.end, hero, x: x0 + w / 2, y: base + (asc - desc) / 2, w, h: asc + desc, phrase: -1 };
-    words.push(tw);
-    byKey.set(`${li}:${wi}`, tw);
-    // coverage: white on black, blurred (heroes wider: their threshold erodes them to a light weight)
-    c.save();
-    c.filter = `blur(${blur}px)`;
-    c.fillStyle = '#fff'; c.textBaseline = 'alphabetic';
-    c.fillText(text, X(x0), Y(base));
-    c.restore();
-    // id: dilated round the word (heroes first, so a later small word's own id wins where they meet)
-    return { tw, fam, px, x0, base };
-  };
-  const idDraws: { tw: TWord; fam: string; px: number; x0: number; base: number }[] = [];
-
+  const blocks: TBlock[] = [];
   for (const b of BLOCKS) {
-    const L = lines[b.line]!;
-    const cap = b.cap ?? HERO_CAP;
-    const hfam = b.serif ? SERIF_FAM() : HERO_FAM();
-    const htext = b.serif ? clean(L.words[b.hero]!.w).toLowerCase() : clean(L.words[b.hero]!.w).toUpperCase();
-    let size = cap / capRatio(hfam);
-    c.font = font(hfam, size * TPPM);
-    const maxW = b.maxW ?? 225;
-    const wHero = c.measureText(htext).width / TPPM;
-    if (wHero > maxW) size *= maxW / wHero;
-    idDraws.push(place(b.line, b.hero, htext, hfam, size, b.x0, b.base, true, b.serif ? 4 : 9));
-    words[words.length - 1]!.serif = !!b.serif;
-    const heroW = words[words.length - 1]!.w;
-    const rfam = ROW_FAM();
-    const rsize = ROW_CAP / capRatio(rfam);
-    c.font = font(rfam, rsize * TPPM);
-    const space = c.measureText(' ').width / TPPM * 1.15;
-    const heroCapH = cap;
-    let x = b.x0;
-    for (const wi of b.row) {
-      const t = clean(L.words[wi]!.w);
-      const r = place(b.line, wi, t, rfam, rsize, x, b.base + heroCapH + ROW_GAP, false);
-      idDraws.push(r);
-      x += r.tw.w + space;
-    }
-    x = b.x0 + heroW + 9;
-    for (const wi of b.after ?? []) {
-      const t = clean(L.words[wi]!.w);
-      const r = place(b.line, wi, t, rfam, rsize, x, b.base, false);
-      idDraws.push(r);
-      x += r.tw.w + space;
-    }
-    // a line's tail set under its hero, left-aligned (reads "HANDS / on me")
-    x = b.x0;
-    for (const wi of b.below ?? []) {
-      const t = clean(L.words[wi]!.w);
-      const r = place(b.line, wi, t, rfam, rsize, x, b.base - 57, false);   // under the tag's string, which lies across -118..-123
-      idDraws.push(r);
-      x += r.tw.w + space;
-    }
+    const bw: TWord[] = [];
+    let base = b.base;
+    b.rows.forEach((r, ri) => {
+      const capOf = (st: St) => (st === 'serif' ? CAP.serif : st === 'hero' ? (b.disp === 2 ? HERO3 : CAP.hero) : st === 'mid' ? CAP.mid : st === 'go' ? CAP.go : CAP.sup);
+      // (a row of supporting words alone sits a little further down: clear of the descenders above)
+      if (ri > 0) { const m = Math.max(...r.items.map((it) => capOf(it.st))); base -= (m <= CAP.sup ? ROW_GAP + 5 : ROW_GAP) + m; }
+      let x = b.x0 + r.dx;
+      if (r.under !== undefined) { const u = bw.find((w) => w.k === r.under && w.line === b.disp); if (u) x = u.x; }
+      for (const it of r.items) {
+        const wd = lines[it.l]!.words[it.k]!;
+        const fam = FAM[it.st]();
+        const cap = capOf(it.st);
+        const size = cap / capRatio(fam);
+        const raw = clean(wd.w);
+        const text = it.st === 'sup' ? raw : it.st === 'serif' ? raw.toLowerCase() : raw.toUpperCase();
+        const w = meas(fam, size, text);
+        c.font = font(fam, size * TPPM);
+        const m = c.measureText(text);
+        const asc = m.actualBoundingBoxAscent / TPPM, desc = m.actualBoundingBoxDescent / TPPM;
+        const cells = Array.from(text).map((_, i) => {
+          const a = meas(fam, size, text.slice(0, i)), z = meas(fam, size, text.slice(0, i + 1));
+          return { cx: x + (a + z) / 2, adv: z - a };
+        });
+        const rep = 0;
+        const tw: TWord = {
+          id: words.length + 1, text, start: wd.start, end: wd.end, hero: it.st === 'hero' || it.st === 'serif' || it.st === 'go', serif: it.st === 'serif', st: it.st,
+          x: x + w / 2, y: base + (asc - desc) / 2, w, h: asc + desc, x0: x, base, cap, size, fam, cells,
+          line: it.l, k: it.k, disp: b.disp, row: ri, rep,
+        };
+        words.push(tw); bw.push(tw);
+        // the gap to the next word: the supporting face's space, at least a fifth of this word's cap
+        x += w + Math.max(meas(FAM.sup(), CAP.sup / capRatio(FAM.sup()), ' ') * 1.1, 0.2 * cap);
+      }
+    });
+    blocks.push({ disp: b.disp, words: bw });
   }
-  // ids: heroes first
-  idDraws.sort((a, b) => Number(b.tw.hero) - Number(a.tw.hero));
-  for (const d of idDraws) {
-    ic.font = font(d.fam, d.px);
-    const col = `rgb(${d.tw.id},0,0)`;
+  // the NEVERs in order (1: the hero; 2, 3 the middle copies)
+  let n = 0;
+  for (const w of words) if (w.text.toLowerCase() === 'never' && w.disp === 3) w.rep = ++n;
+
+  // coverage: white on black, blurred (heroes wider: their threshold erodes them to a light weight)
+  for (const w of words) {
+    c.save();
+    c.filter = `blur(${w.hero && !w.serif ? 9 : 4}px)`;
+    c.fillStyle = '#fff'; c.textBaseline = 'alphabetic';
+    c.font = font(w.fam, w.size * TPPM);
+    c.fillText(w.text, X(w.x0), Y(w.base));
+    c.restore();
+  }
+  // ids: dilated round each word (heroes widest: their stamp and stretch reach past the rest shape), heroes first;
+  // then every word's own letters (and a thin margin) on top, so no neighbour's dilation ever takes a word's letters
+  const order = [...words].sort((a, b) => Number(b.hero) - Number(a.hero));
+  // (a hero's dilation is wide across, for its stamp, stretch and lean, and shallow up and down, clear of the next row)
+  for (const pass of [0, 1]) for (const w of order) {
+    ic.font = font(w.fam, w.size * TPPM);
+    const col = `rgb(${w.id},0,0)`;
     ic.fillStyle = col; ic.strokeStyle = col;
     ic.lineJoin = 'round';
-    ic.lineWidth = (d.tw.hero ? 13 : 4) * 2 * TPPM;
-    ic.strokeText(d.tw.text, X(d.x0), Y(d.base));
-    ic.fillText(d.tw.text, X(d.x0), Y(d.base));
-  }
-
-  // phrases: a phrase hands over on the next phrase's onset; a line leaves on the next beat after it ends
-  const phrases: TPhrase[] = PHRASES.map(([li, idx, hero]) => {
-    const ws = idx.map((wi) => byKey.get(`${li}:${wi}`)!);
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    // the block's extent: every word placed in the same block as this phrase's words
-    for (const w of ws) { x0 = Math.min(x0, w.x - w.w / 2); x1 = Math.max(x1, w.x + w.w / 2); y0 = Math.min(y0, w.y - w.h / 2); y1 = Math.max(y1, w.y + w.h / 2); }
-    return { words: ws, t0: ws[0]!.start - 0.045, t1: 0, block: [(x0 + x1) / 2, (y0 + y1) / 2] as [number, number], hero: hero >= 0 ? byKey.get(`${li}:${hero}`)! : null };
-  });
-  phrases.forEach((p, i) => {
-    const nx = phrases[i + 1];
-    const line = lines[PHRASES[i]![0]]!;
-    const sameLine = nx && PHRASES[i + 1]![0] === PHRASES[i]![0];
-    if (sameLine) p.t1 = nx!.t0;
-    else {
-      p.t1 = beats.find((b) => b > line.end + 0.02) ?? plateEnd;
-      if (nx) p.t1 = Math.min(p.t1, nx.t0);
-      p.t1 = Math.min(p.t1, plateEnd);
+    const wide = !pass && (w.hero || w.st === 'mid');
+    ic.lineWidth = (pass ? 1.5 : wide ? 5 : 4) * 2 * TPPM;
+    for (const dx of wide ? [-16, -12, -8, -4, 0, 4, 8, 12, 16] : [0]) {
+      ic.strokeText(w.text, X(w.x0 + dx), Y(w.base));
+      ic.fillText(w.text, X(w.x0 + dx), Y(w.base));
     }
-    for (const w of p.words) w.phrase = i;
-  });
+  }
 
   const tex = (cvs: HTMLCanvasElement, mips: boolean) => {
     const t = new THREE.CanvasTexture(cvs);
@@ -192,5 +175,5 @@ export function bakeTraces(lines: Line[], beats: number[], plateEnd: number): Ba
     t.needsUpdate = true;
     return t;
   };
-  return { words, phrases, cov: tex(cv, true), id: tex(iv, false) };
+  return { words, blocks, cov: tex(cv, true), id: tex(iv, false) };
 }
