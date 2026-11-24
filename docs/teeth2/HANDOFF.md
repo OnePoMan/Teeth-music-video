@@ -31,6 +31,7 @@ From the rules review (`docs/gate3/review-rules.md`); each is marked "open (clie
 2. **Allowed exhibits** (review question 4): are her odontogram (plate 7), the bed (plate 3) and plate 2's radiograph allowed under R47?
 3. **Energy bands outside the choruses** (review question 5): how far below the chorus band do the verses, 3a and the bridge sit (and the pre-choruses and outro)? Also the camera-travel floor for those sections (R26, R35).
 4. **SWEET as a half-line hero on later plates** (raised by the rewrite): R15's answer makes the hero idiom win for PRETTY and keeps *sweet* Cormorant under UV; `scale` and `uv` keep SWEET Cormorant as built, but `pour`, `articulator`, `acetate` and `match` need a call.
+5. **`filed`'s last TEETH slam** (review finding 10): does it hold to the end (TYPE §8 item 7) or leave with a move as the 183.40 line takes over (R28)? R82 marks it open.
 
 ## Staffing
 
