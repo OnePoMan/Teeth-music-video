@@ -22,7 +22,7 @@ One list, gathered from the handoff, the ledger, `docs/gate3/review1.md`-`review
 
 ## Cross-cutting
 
-- **Kit:** the shared glove's knuckle lumps (`sdGlove` in `match-glsl.ts`), fixed in the kit and re-checked against the gate 2 match stills (`match`, `chart`, `uv`, `acetate`). (handoff; reviews 3, 4; ledger)
+- **Kit (now R51: after `uv`'s r2 full pass, a chore ports `uv`'s glove into `GLSL_HAND`; this item closes with it):** the shared glove's knuckle lumps (`sdGlove` in `match-glsl.ts`), fixed in the kit and re-checked against the gate 2 match stills (`match`, `chart`, `uv`, `acetate`). (handoff; reviews 3, 4; ledger)
 - **Render budget:** one measured 4K test render of 2 s per plate with `--samples auto`, then a whole-video budget in GPU-hours, slowest plates optimised first (lead call 2026-11-21; the review's rough estimate is 12 - 50 GPU-hours, unchecked).
 - **Lint:** list the frame checker's "known false hits" so "0 errors" means something (doc review P4).
 - **Checks:** a palette histogram on sheets (violet outside `uv`, luminol outside `luminol`, red outside 165.16 - 186, tungsten outside `scene`; value range per shot) and a PSNR or SSIM comparison at the approved still times, flagged for the lead and never a hard fail (doc review P2, P3; proposed).

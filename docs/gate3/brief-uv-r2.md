@@ -13,7 +13,7 @@ Round 1 (`65680b3`, clips `out/gate3/kinetic/uv-r1/`, brief `brief-uv-r1.md`) pa
    - Use real hand proportions: slimmer fingers, tapering, of unequal lengths, with visible knuckle joints and a thumb that wraps the handle.
    - Add surface detail: fine creases at the knuckles and the palm, stretch where the grip pulls the material taut, a rolled cuff with thickness at the wrist, and a sleeve beyond it.
    - Material: thin semi-gloss nitrile. The UV tube gives a tight specular, the sheen breaks over the creases, and the fingertips catch the beam's spill.
-   - Apply all of this to both the lamp hand and the swab hand. `uv` keeps its own glove copy in `uv-glsl.ts`; don't edit `match-glsl.ts`. The shared kit glove is a gate 4 item in BACKLOG.
+   - Apply all of this to both the lamp hand and the swab hand. `uv` keeps its own glove copy in `uv-glsl.ts`; don't edit `match-glsl.ts`. The shared kit glove is ported from this one after the full pass (R51); it was a gate 4 item in BACKLOG.
 2. **Beam action on the beat (R37, R38, R79).**
    - The pool snaps from word to word, landing on each onset with a small overshoot and settle, instead of gliding.
    - **Downbeats:** a quick sweep across the line so far, and the words it crosses flare from floor to full and back.
@@ -38,7 +38,7 @@ Round 1 (`65680b3`, clips `out/gate3/kinetic/uv-r1/`, brief `brief-uv-r1.md`) pa
    - the floor at ≥40 luma steps;
    - the pillowcase edges and the tag;
    - the lamp in view;
-   - the supporting caps at ≥5%, and the macros at ≥1.1x;
+   - the supporting caps at ≥5%, and the macros (see the rules check below);
    - GO's decay, the swab action, and speed ≤200 ms per frame.
 
 **Code map** (from the r1 report; `app/src/teeth2/scenes/`):
@@ -100,3 +100,11 @@ all to `out/gate3/kinetic/uv-r2/`.
    - lint, presence, `uv_occ`, the hits by tier, and ms per frame.
 
 Then run the full pass as listed above, into `out/gate3/kinetic/uv-r2/`.
+
+**Rules check (lead, 2026-11-23, after the RULES rewrite).** RULES now has 40 rules (process in `PROCESS.md`; `uv`'s own rules on card 6). Three items change this full pass; the rest of the brief stands.
+1. **At most three tier-1 hits per chorus line (R37).** Lines 1-3 fit already: the opener and the two heroes. Line 4 has five today: the opener at 72.90, three NEVERs and GO.
+   - Keep tier 1 on the first NEVER (it is also the cut and the opener), the third "never" (74.08) and GO.
+   - The second NEVER's sweep and pump drop to tier 2 (a light change and a ≤5 px nudge).
+   - The three sweeps still get faster.
+2. **Macros are ≥1.2x the line framing (R36),** or ≥1.1x where the surface forbids it, with the reason reported. Round 1 built SWEET at 1.11x and DEVIL and HANDS at 1.16x. Bring them to ≥1.2x, or report why the cloth and title-safe don't allow it.
+3. **`uv`'s p99 target (R13)** is set on card 6 from measurement. Report the luma p1, p50 and p99 per key still, and the p99 of the fluor-white words under the beam. The lead will set the target from those numbers.
