@@ -194,3 +194,7 @@ The type probe (`de41447`, Sonnet high) makes the Teeth lint see kit words (pres
 - **`uv` round 2 and the process change (2026-11-23):**
   - The client asked for more on `uv`: the gloves look cartoonish, and its energy is below P(doom). The client's calls: beam action on the beat, and an in-world TEETH (brief `docs/gate3/brief-uv-r2.md`).
   - The client then asked how to cut the back-and-forth. Section I of RULES (R92-R98) turns the calls from `scale` and `uv` into a taste baseline for every plate, and moves the full-pass go to the client at the 540p checkpoint. It also adds a measured checklist, a shared plate starter (`docs/gate3/brief-plate-starter.md`) and measured energy against P(doom), and sets the target at one checkpoint plus one full pass per plate.
+- **`uv` round 2, done (2026-11-24):** the checkpoint (`acb8b18`), then the rules review and rewrite (98 rules to 40, `32b60b0`), then the full pass with the glove, TALK and rules-check fixes.
+  - R95 figures are in HANDOFF; card 6's p99 target is now ≥235 per shot.
+  - Lesson: every R95 figure was measured and reported, which made the lead's review quick.
+  - The repo gained `CLAUDE.md` and `docs/teeth2/media/` so a cloud session can continue the work.

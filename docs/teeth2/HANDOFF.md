@@ -1,6 +1,6 @@
 # Teeth v2: handoff (state only)
 
-Read this first, then `RULES.md` and `PROCESS.md`. Rewritten as the last step of every session; history lives in `docs/TEETH2-LEDGER.md`. Last updated 2026-11-23.
+Read this first, then `RULES.md` and `PROCESS.md`. Rewritten as the last step of every session; history lives in `docs/TEETH2-LEDGER.md`. Last updated 2026-11-24.
 
 ## Current gate
 
@@ -16,7 +16,10 @@ The 14 plates x {scene, camera, type, light} matrix is in `PLATES.md` ("Status o
 
 The client's taste baseline (R92, now merged into RULES R2, R13, R24, R26, R35, R36, R51) applies from round 1 on every plate. Process (`PROCESS.md`): taste questions up front (R93), the client approves the 540p checkpoint before any full pass (R94), the R95 checklist, and one checkpoint plus one full pass per plate (R98).
 
-1. **`uv` round 2 full pass** (client-approved with the checkpoint fixes; brief `docs/gate3/brief-uv-r2.md`) into `out/gate3/kinetic/uv-r2/`. It measures the R95 checklist, including the luma p99 that sets card 6's glow-token target (R13), and checks the tier-1 count on line 4 (R37).
+1. **The client reviews `uv` round 2.** The full pass is committed (brief `docs/gate3/brief-uv-r2.md`). Clips are in `out/gate3/kinetic/uv-r2/*-share.mp4` (laptop only; commit `00c72fb`); the sheet and strip are in `docs/teeth2/media/uv-r2-*.jpg`.
+   - R95 checklist: lint 0 errors and 100% presence; `uv_occ` 0 hits; the floor ≥41 luma steps; a case edge in frame 96-100% per line; the lamp in view 67-81%; macros 1.20-1.30x; the smallest supporting cap 5.2-5.5%; three tier-1 hits per line; 55 ms per frame.
+   - Open: the gloves are better but still a little lumpy close up, and TALK (66.3-66.8) is still the dimmest stretch (frame p99 91).
+   - The kit-glove chore (R51) follows the client's OK.
 2. **The kit glove port** (R51, R86): after `uv`'s full pass, a chore ports `uv` r2's glove into `GLSL_HAND`; re-check the gate 2 `match` stills, `chart` and `acetate`. (BACKLOG's cross-cutting glove item and `brief-uv-r2.md` still call it a gate 4 item; R51 now makes it gate 3.)
 3. **The plate starter and the energy checks** (`docs/gate3/brief-plate-starter.md`, Sonnet high, after `uv` is done). A Sonnet medium brief check runs first (R91). It records P(doom)'s band in TYPE §7, which sets the chorus band (R26).
 4. **Taste questions for `chart`** and the next three plates in one batch (R93), with the open client questions below. Then fill their type cards, and run `chart` on the starter.
