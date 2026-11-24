@@ -39,7 +39,7 @@ import { FSPass, Layer2D, SS_TAP, W as FW, H as FH } from '../../engine/gl';
 import { clamp, ease, lerp, noise1, pulse, smootherstep, springStep } from '../../engine/util';
 import { T_LIN, trgba } from '../palette';
 import { KinClock, KinWord, LyricPath, drawKin, halfPlane, kinCam, kinProbeOn, kinRecord3D, kinShake, type KinPose } from '../kinetic';
-import { TAG, SLAM, bakeSlam, bakeTag, bakeTraces, type SlamCopy, type TWord } from './uv-type';
+import { TAG, CLOTH, SLAM, bakeSlam, bakeTag, bakeTraces, type SlamCopy, type TWord } from './uv-type';
 import { UV_FRAG, NW, NM } from './uv-glsl';
 
 const DEG = Math.PI / 180;
@@ -68,10 +68,12 @@ const PLANS: Plan[] = [
   // words), tracking right with the words
   { az: [-16, -4], el: [50, 54], roll: [-1.5, -0.5], fov: 30, bx: [-0.86, 0.86, 0.05], la: [-0.3, 0.36], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: 1, pr: 0.2, open: 0.58 },
   // line 2: a three-quarter crane down from the right, the lamp and its glove in frame
-  // (round 2, brief item 4: no slow drift over TALK: the arc and the widening onto "so" land in one purposeful eased
-  // move over Talk landing on "so" (ae: 80% of the angle by then; its framing already holds the room for
-  // PRETTY, so the camera does not creep back again before the macro; pull: the widening paced to that one move))
-  { az: [32, 12], el: [54, 47], roll: [2, 1], fov: 30, bx: [-0.86, 0.86, 0.0], la: [0.3, 0.34], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: -1, pr: 0.2, open: 0.58, ae: 0.43, pull: 1.3 },
+  // (round 2, brief item 4 and the checkpoint review's item 2: no drift and no near-hold over TALK (66.3-66.8): one
+  // purposeful arc from the cut that is still travelling when PRETTY's macro takes over (ae: 80% of the angle eased
+  // over 1.3 s, so it moves on through "so" into the macro); "Talk so" framed at least at its line size (no room
+  // held for PRETTY before it is sung: the framing widens for it only as the move carries into the macro); pull: the
+  // widening paced to that one move)
+  { az: [32, 12], el: [54, 47], roll: [2, 1], fov: 30, bx: [-0.86, 0.86, 0.0], la: [0.3, 0.34], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: -1, pr: 0.2, open: 0.72, ae: 1.3, pull: 1.3 },
   // line 3: a slow orbit round the swab, left to right
   { az: [-26, 2], el: [52, 49], roll: [-1.5, 1.5], fov: 30, bx: [-0.86, 0.86, 0.15], la: [0.3, 0.42], fl: 0.3, lh: 55, yaw: 0, dep: 0, hand: -1, pr: 0.2, open: 0.58 },
   // line 4: a lower profile across the cloth for the three sweeps, then GO
@@ -93,7 +95,9 @@ const EDGE = 0.895, EDGE_Y = 0.815;
  *  would be a second reframe in that half-line); HANDS eases out before "on" (round 1 review: the tag joins the line's
  *  framing with the third row); SWEET and GO hold to the cut. */
 //  The fifth: how far above the line's box its words may reach (NDC; the lamp's room: NEVER's steep angle brings the glove down).
-const MACROS: [number, number, number, boolean, number][] = [[0, 2, 3, true, 0.1], [0, 7, -1, false, 0.1], [1, 2, 3, true, 0.1], [2, 2, 3, true, 0.1], [2, 5, 6, true, 0.1], [3, 1, 2, true, 0], [3, 6, -1, false, 0.1]];
+//  The sixth (optional): its push (the rules check, R36: SWEET holds to the cut over a whole bar, so a shorter push
+//  lets it open bigger; still a push in, R80).
+const MACROS: [number, number, number, boolean, number, number?][] = [[0, 2, 3, true, 0.1], [0, 7, -1, false, 0.2, 1.04], [1, 2, 3, true, 0.1], [2, 2, 3, true, 0.2], [2, 5, 6, true, 0.2, 1.0], [3, 1, 2, true, 0], [3, 6, -1, false, 0.1]];
 const MACRO_PUSH = 1.1, MACRO_EASE = 0.75, MACRO_LEAD = 0.35;
 /** The largest a macro takes its hero (cap, fraction of the frame height). */
 const MACRO_CAP = 0.3;
@@ -104,6 +108,8 @@ const FLOOR = 0.05;
 const AMB = 1.6;
 /** The lamp rig's scale (its SDFs in uv-glsl.ts and the occlusion stand-ins): a smaller torch and hand, whole in frame. */
 const LS = 0.62;
+/** The room's ambient in the TEETH slam (x AMB). */
+const SLAM_AMB = 0.35;
 
 interface Cam { tx: number; ty: number; D: number; az: number; el: number; roll: number; fov: number; mac: number }
 interface Basis { pos: V3; tgt: V3; fw: V3; rt: V3; up: V3; tanH: number }
@@ -135,7 +141,7 @@ const blendCam = (a: Cam, b: Cam, w: number): Cam => ({
 });
 
 interface Line { k: number; t0: number; t1: number; words: TWord[]; plan: Plan; path: LyricPath; box: [number, number, number, number] }
-interface Macro { line: number; hero: TWord; t0: number; t1: number; te: number; ease: boolean; cam: Cam; push: number; cap: number; span: number; sup: number; ratio: number; hold: number; peak: number }
+interface Macro { pk: number; line: number; hero: TWord; t0: number; t1: number; te: number; ease: boolean; cam: Cam; push: number; cap: number; span: number; sup: number; ratio: number; hold: number; peak: number }
 /** A pump of the lamp (round 2): its time, strength (0..1), tier (1: openers and heroes, 2: sweeps, 3: kicks), and
  *  the hero it flares. */
 interface Pump { t: number; k: number; tier: 1 | 2 | 3; hero: TWord | null }
@@ -200,7 +206,7 @@ export default class UvPlate extends Scene {
   private kws = new Map<TWord, KinWord>();
   private L = new Layer2D();
   private slamA!: SlamCopy; private slamB!: SlamCopy; private kinA!: KinWord; private kinB!: KinWord; private slamCam!: Cam;
-  private logged = false; private occLogged = false;
+  private logged = false; private occLogged = false; private amb0 = AMB;
 
   override init() {
     const { lyrics, audio } = this.ctx;
@@ -232,7 +238,7 @@ export default class UvPlate extends Scene {
       this.lines.push({ k, t0: cuts[k]!, t1, words: ws, plan: PLANS[k]!, path: null as unknown as LyricPath, box: [x0, y0, x1, y1] });
     }
     for (const L of this.lines) this.buildPath(L);
-    this.macros = MACROS.map(([k, hi, xi, ez, top]) => this.solveMacro(this.lines[k]!, hi, xi, ez, top)).filter((m): m is Macro => !!m);
+    this.macros = MACROS.map(([k, hi, xi, ez, top, pk]) => this.solveMacro(this.lines[k]!, hi, xi, ez, top, pk ?? MACRO_PUSH)).filter((m): m is Macro => !!m);
 
     // the probe's words (cells in cloth mm)
     for (const w of this.words) this.kws.set(w, KinWord.fromCells(w.text, w.size, w.cells, { family: w.serif ? 'serif' : 'archivo', width: w.st === 'sup' ? 100 : 62 }));
@@ -247,6 +253,7 @@ export default class UvPlate extends Scene {
     const sweepAt = (td: number, L: Line) => !L.words.some((w) => w.start > td - 0.2 && w.start < td - 0.03);
     const gotW = this.lines[1]!.words.find((w) => w.line === 1 && w.k === 6);
     const butW = this.lines[1]!.words.find((w) => w.line === 1 && w.k === 3);
+    const talkW = this.lines[1]!.words.find((w) => w.line === 1 && w.k === 0), soW = this.lines[1]!.words.find((w) => w.line === 1 && w.k === 1);
     for (const L of this.lines) {
       const sung = L.words.filter((w) => w.start >= L.t0 - 0.05);
       const standing = L.words.filter((w) => w.start < L.t0 - 0.05);
@@ -263,6 +270,8 @@ export default class UvPlate extends Scene {
         if (lit.length >= 2 && nw && !swabbed.includes(nw) && sweepAt(d, L)) sw.push({ td: d, from: L.words[0]! });
       }
       if (L.k === 1 && gotW && butW) sw.push({ td: gotW.start, from: butW });
+      // (the checkpoint review's item 2: a beam pass over "Talk so", landing on "so")
+      if (L.k === 1 && talkW && soW) sw.push({ td: soW.start, from: talkW });
       sw.sort((a, b) => a.td - b.td);
       let prevEnd = L.t0, prevOn = L.t0;
       const push = (k: Key) => { k.d = Math.max(0.001, Math.min(k.d, k.t - prevEnd)); this.beamKeys.push(k); prevEnd = k.t; };
@@ -306,9 +315,13 @@ export default class UvPlate extends Scene {
       [this.lines[0]!.t0, 0.75, null], [byText('DIRTY')[0]!.start, 1, byText('DIRTY')[0]!], [byText('SWEET')[0]!.start, 0.9, byText('SWEET')[0]!],
       [this.lines[1]!.t0, 0.7, null], [byText('PRETTY')[0]!.start, 1, byText('PRETTY')[0]!],
       [this.lines[2]!.t0, 0.8, null], [byText('DEVIL')[0]!.start, 1, byText('DEVIL')[0]!], [hands.start, 1, hands],
-      [nev[0]!.start, 1, nev[0]!], [nev[1]!.start, 0.9, nev[1]!], [nev[2]!.start, 0.95, nev[2]!], [byText('GO')[0]!.start, 1, byText('GO')[0]!],
+      [nev[0]!.start, 1, nev[0]!], [nev[2]!.start, 0.95, nev[2]!], [byText('GO')[0]!.start, 1, byText('GO')[0]!],
     ];
     for (const [t, k, w] of tier1) this.pumps.push({ t, k, tier: 1, hero: w });
+    // (the rules check, R37: at most three tier-1 hits per chorus line; line 4 keeps them on the first NEVER (its cut
+    // and opener), the third "never" and GO; the second NEVER's sweep and pump drop to tier 2: a light change and a
+    // <= 5 px nudge, no hero flare)
+    this.pumps.push({ t: nev[1]!.start, k: 0.7, tier: 2, hero: null });
     for (const s of this.sweeps) if (!this.pumps.some((p) => Math.abs(p.t - s.t) < 0.1)) this.pumps.push({ t: s.t, k: s.L === 1 ? (s.t > 68 ? 0.9 : 0.8) : 0.6, tier: 2, hero: null });
     const grade = (t: number) => {
       const L = this.lineAt(t);
@@ -339,6 +352,7 @@ export default class UvPlate extends Scene {
     for (const cp of [sl.A, sl.B]) for (const [x, y] of [[cp.x0, cp.base], [cp.x0 + cp.w, cp.base], [cp.x0 + cp.w, cp.base + cp.cap * cp.sy], [cp.x0, cp.base + cp.cap * cp.sy]]) sp.push(V(x!, y!, ZC));
     this.slamCam = this.fit(sp, V(SLAM.x, SLAM.y, ZC), 12, 54, levelRoll(12, 54) - 2, 30, 0, { x0: -0.85, x1: 0.85, y0: -0.78, y1: 0.78 });   // (inside title-safe through the landing's overshoot, the jolt and the drift)
 
+    this.amb0 = QP?.get('uv_amb') ? +QP.get('uv_amb')! : AMB;
     const W = Array.from({ length: NW }, () => new THREE.Vector4());
     const W2 = Array.from({ length: NW }, () => new THREE.Vector4(0, 0, 1, 1));
     this.pass = new FSPass(UV_FRAG, {
@@ -350,7 +364,7 @@ export default class UvPlate extends Scene {
       sP: { value: V(0, 0, 0) }, sX: { value: V(0, 0, 0) }, sY: { value: V(0, 0, 0) }, sZ: { value: V(0, 0, 0) }, swabOn: { value: 0 }, swabGlow: { value: 0 },
       strokes: { value: Array.from({ length: 5 }, () => new THREE.Vector4()) }, strokeK: { value: [0, 0, 0, 0, 0] }, strokeW: { value: sw.map((w) => (w === hands ? 12 : 7.5)) },
       slamU: { value: new THREE.Vector4() }, slamT: { value: new THREE.Vector4(0.5, 0.5, 0, 0) }, slamD: { value: new THREE.Vector2(1, 0.16).normalize() }, slamTex: { value: sl.tex },
-      pxAng: { value: 0 }, lS: { value: LS }, ambK: { value: QP?.get('uv_amb') ? +QP.get('uv_amb')! : AMB }, wordBounce: { value: V(0, 0, 0) }, gSide: { value: 1 }, ssTap: SS_TAP,
+      pxAng: { value: 0 }, lS: { value: LS }, ambK: { value: this.amb0 }, wordBounce: { value: V(0, 0, 0) }, gSide: { value: 1 }, ssTap: SS_TAP,
     });
     const st = this.pass.u.strokes!.value as THREE.Vector4[];
     for (let k = 0; k < 5; k++) st[k]!.set(this.swab.A[k]![0], this.swab.A[k]![1], this.swab.B[k]![0], this.swab.B[k]![1]);
@@ -424,9 +438,7 @@ export default class UvPlate extends Scene {
       const w = L.words[i]!;
       const t = i === i0 ? L.t0 : Math.max(L.t0 + 0.02, w.start - lead);
       const [az, el, roll] = ang(t);
-      // (a plan with ae: a word before the hero frames the hero's room too)
-      const look = P.ae && L.words[i + 1]?.hero && i > i0 ? 1 : 0;
-      keys.push({ t, c: this.fit(framePts(L.k, L.words.slice(0, i + 1 + look)), V(w.x, w.y, ZC), az, el, roll + levelRoll(az, el), P.fov, RIDE, bx) });
+      keys.push({ t, c: this.fit(framePts(L.k, L.words.slice(0, i + 1)), V(w.x, w.y, ZC), az, el, roll + levelRoll(az, el), P.fov, RIDE, bx) });
     }
     const Dend = Math.max(...keys.map((k) => k.c.D));
     keys[0]!.c.D = Math.max(keys[0]!.c.D, Dend * P.open);
@@ -463,7 +475,7 @@ export default class UvPlate extends Scene {
    *  the hero the most over its size in the line's framing (item 4: >= 1.15x), preferring a visibly different angle (a
    *  reframe, not a nudge). It opens on the hero's onset and pushes in MACRO_PUSH over the word (R80), so the line so
    *  far ends at the frame's edge. */
-  private solveMacro(L: Line, hk: number, xk: number, easeOut: boolean, top: number): Macro | null {
+  private solveMacro(L: Line, hk: number, xk: number, easeOut: boolean, top: number, MP: number): Macro | null {
     const hero = L.words.find((w) => w.line === L.k && w.k === hk);
     if (!hero) return null;
     const exitW = xk >= 0 ? L.words.find((w) => w.line === L.k && w.k === xk) : undefined;
@@ -480,11 +492,14 @@ export default class UvPlate extends Scene {
     for (const w of ws) if (w !== hero) ref.set(w, this.size(this.lineCam(L, Math.max(t0, w.start + 0.05)), w)[0]);
     // (the push this macro reaches before it leaves: an eased exit cuts it short)
     const push = Math.max(0.4, hero.end - hero.start);
-    const lb = boxOf(L.plan), P = easeOut ? 1 + (MACRO_PUSH - 1) * ease.inOutQuad(clamp((t1 - t0) / push)) : MACRO_PUSH;
+    const lb = boxOf(L.plan), P = easeOut ? 1 + (MP - 1) * ease.inOutQuad(clamp((t1 - t0) / push)) : MP;
     // (to the frame's edge, except on the lamp's side)
     const ob: Box = { x0: (lb.x0 > -0.86 ? lb.x0 : -EDGE) / P, x1: (lb.x1 < 0.86 ? lb.x1 : EDGE) / P, y0: -EDGE_Y / P, y1: (lb.y1 < 0.76 ? lb.y1 + top : EDGE_Y) / P };
     let best: { c: Cam; cap: number; span: number; sup: number; hold: number; score: number } | null = null;
-    for (let da = -16; da <= 16; da += 4) for (let de = -6; de <= 4; de += 2) for (const fov of [lc.fov, 24]) {
+    for (const wide of [false, true]) {
+    // (the rules check, R36: a macro short of 1.2x its line's framing searches wider: more azimuth, lower, a longer lens)
+    if (wide && best && best.cap / lcap >= 1.2) break;
+    for (let da = wide ? -24 : -16; da <= (wide ? 24 : 16); da += 4) for (let de = wide ? -10 : -6; de <= 4; de += 2) for (const fov of wide ? [lc.fov, 24, 20] : [lc.fov, 24]) {
       const el = lc.el + de;
       if (el > 54 || el < 32) continue;
       const roll = (lc.roll - levelRoll(lc.az, lc.el)) * 0.5 + levelRoll(lc.az + da, el);
@@ -500,15 +515,16 @@ export default class UvPlate extends Scene {
       const score = (hold >= 0.995 ? 2 : hold) + Math.min(cap / lcap, 1.35) + diff - 0.002 * Math.abs(de);
       if (!best || score > best.score) best = { c: f, cap, span, sup, hold, score };
     }
+    }
     if (!best) { console.warn(`UVMACRO no framing for ${hero.text}`); return null; }
-    return { line: L.k, hero, t0, t1, te, ease: easeOut, cam: { ...best.c, mac: this.macros.length }, push, cap: best.cap, span: best.span, sup: best.sup, ratio: best.cap / Math.max(1e-3, lcap), hold: best.hold, peak: P };
+    return { pk: MP, line: L.k, hero, t0, t1, te, ease: easeOut, cam: { ...best.c, mac: this.macros.length }, push, cap: best.cap, span: best.span, sup: best.sup, ratio: best.cap / Math.max(1e-3, lcap), hold: best.hold, peak: P };
   }
   /** The macro's camera at t; nopush: its opening framing (the lamp's anchor: the lamp stays put as the camera pushes). */
   private macroCam(M: Macro, mi: number, t: number, nopush = false): Cam {
     // (an eased exit holds the push it has reached: the pull-back never pushes on)
     const u = ease.inOutQuad(clamp((Math.min(t, M.ease ? M.t1 : Infinity) - M.t0) / M.push));
     const dr = (mi % 2 ? 1 : -1) * 1.0 * (ease.inOutQuad(clamp((t - M.t0) / Math.max(0.3, M.t1 - M.t0))) - 0.5);
-    return { ...M.cam, D: nopush ? M.cam.D : M.cam.D / lerp(1, MACRO_PUSH, u), az: M.cam.az + dr, mac: mi };
+    return { ...M.cam, D: nopush ? M.cam.D : M.cam.D / lerp(1, M.pk, u), az: M.cam.az + dr, mac: mi };
   }
   private lineAt(t: number): Line {
     let L = this.lines[0]!;
@@ -670,6 +686,7 @@ export default class UvPlate extends Scene {
     if (QP?.get('uv_log') && !this.logged) { this.logged = true; this.logTravel(); }
     if (QP?.get('uv_occ') && !this.occLogged) { this.occLogged = true; this.occScan(); }
     if (this.slamAt(t)) return this.renderSlam(t, out);
+    this.pass.u.ambK!.value = this.amb0;
     const L = this.lineAt(t);
     const c = this.camAt(t, L);
     const B = basis(c);
@@ -796,6 +813,9 @@ export default class UvPlate extends Scene {
     (u.strokeK!.value as number[]).fill(0);
     (u.wordBounce!.value as V3).set(0, 0, 0);
     u.lampK!.value = 1 + 0.6 * this.hit1(t);
+    // (R13, the full pass's measure: the macro of the weave keeps only a trace of the room's ambient, so the slam
+    // frames reach film-black at their corners, p1 <= 16)
+    u.ambK!.value = this.amb0 * SLAM_AMB;
     // the levels: the first copy stamps (thin -> heavy) on the onset; the wipe from the 8th, 0.22 s across
     const sA = ease.outCubic(clamp((t - t0) / 0.05)), sB = ease.outCubic(clamp((t - t2) / 0.05));
     const wp = clamp((t - t2) / 0.22);
@@ -855,7 +875,12 @@ export default class UvPlate extends Scene {
       { const B = basis(this.lineCam(L, L.t1 - 0.1)); const ps = corners(L.words).map((p) => proj(B, p)); console.warn(`UVLOG line ${L.k + 1} end framing: words x ${Math.min(...ps.map((q) => q[0])).toFixed(2)}..${Math.max(...ps.map((q) => q[0])).toFixed(2)} y ${Math.min(...ps.map((q) => q[1])).toFixed(2)}..${Math.max(...ps.map((q) => q[1])).toFixed(2)}`); }
       const c0 = this.camAt(L.t0 + 0.034, L), [cap0] = this.size(c0, w0);
       console.warn(`UVLOG line ${L.k + 1} ${L.t0.toFixed(2)}-${t1.toFixed(2)}: orbit ${deg(orb)} deg, block centre ${scr.toFixed(0)} px, framing ${(Dmax / Dmin).toFixed(2)}x${jumps ? `, reframes ${jumps}` : ''}; first word ${w0.text} cap ${(cap0 * 100).toFixed(1)}%; smallest supporting cap ${(supMin * 100).toFixed(1)}% at ${supAt.toFixed(2)}; heroes ${[...heroPk].map(([k, v]) => `${k} peak cap ${(v[0] * 100).toFixed(1)}% span ${(v[1] * 100).toFixed(1)}% onset cap ${(v[2] * 100).toFixed(1)}%`).join(', ')}`);
-      for (const M of this.macros.filter((m) => m.line === L.k)) console.warn(`UVLOG   macro ${M.hero.text} ${M.t0.toFixed(2)}-${M.t1.toFixed(2)}${M.ease ? ` (eased to ${M.te.toFixed(2)})` : ''}: az ${M.cam.az.toFixed(0)} el ${M.cam.el.toFixed(0)} fov ${M.cam.fov}, hero cap ${(M.cap * 100).toFixed(1)}% span ${(M.span * 100).toFixed(1)}% (${M.ratio.toFixed(2)}x the line's on the onset, ${(M.ratio * M.peak).toFixed(2)}x at the push's peak), smallest supporting ${(M.sup * 100).toFixed(1)}%, the other words held at ${M.hold.toFixed(2)}x their line size or more`);
+      for (const M of this.macros.filter((m) => m.line === L.k)) console.warn(`UVLOG   macro ${M.hero.text} ${M.t0.toFixed(2)}-${M.t1.toFixed(2)}${M.ease ? ` (eased to ${M.te.toFixed(2)})` : ''}: az ${M.cam.az.toFixed(0)} el ${M.cam.el.toFixed(0)} fov ${M.cam.fov}, hero cap ${(M.cap * 100).toFixed(1)}% span ${(M.span * 100).toFixed(1)}% (${M.ratio.toFixed(3)}x the line's on the onset, ${(M.ratio * M.peak).toFixed(2)}x at the push's peak), smallest supporting ${(M.sup * 100).toFixed(1)}%, the other words held at ${M.hold.toFixed(2)}x their line size or more`);
+      // (the R95 checklist: the hits by tier; line 2 holds the TEETH slam, its two stamps one hook)
+      const ps = this.pumps.filter((p) => p.t >= L.t0 - 1e-3 && p.t < (L.k === 1 ? this.lines[2]!.t0 : L.t1) - 1e-3);
+      const tl = (k: number) => ps.filter((p) => p.tier === k).map((p) => p.t.toFixed(2));
+      const t1s = tl(1); if (L.k === 1) t1s.push(`${this.tTeeth.toFixed(2)} (TEETH slam, re-stamp ${this.tSlam2.toFixed(2)})`);
+      console.warn(`UVHITS line ${L.k + 1}: tier 1 x${t1s.length} [${t1s.join(' ')}], tier 2 x${tl(2).length} [${tl(2).join(' ')}], tier 3 x${tl(3).length}`);
       console.warn(`UVLOG   onset caps: ` + L.words.filter((w) => w.start >= L.t0 - 0.05).map((w) => `${w.text} ${(this.size(this.camAt(w.start + 0.05, L), w)[0] * 100).toFixed(1)}%`).join(', '));
     }
   }
@@ -869,7 +894,10 @@ export default class UvPlate extends Scene {
   private occScan() {
     const runs = new Map<TWord, number>(), hits: string[] = [];
     let frames = 0, worst = 0;
-    const seen = this.lines.map(() => [0, 0]), tagSeen = this.lines.map(() => 0);
+    const seen = this.lines.map(() => [0, 0]), tagSeen = this.lines.map(() => 0), edgeSeen = this.lines.map(() => 0);
+    // (the exhibit: a stretch of the case's edge (the hem, the open end, the seam, the fold) in frame)
+    const edge: V3[] = [];
+    for (let i = 0; i <= 40; i++) { const a = i / 40; edge.push(V(lerp(CLOTH.x0, CLOTH.x1, a), CLOTH.y0, ZC), V(lerp(CLOTH.x0, CLOTH.x1, a), CLOTH.y1, ZC), V(CLOTH.x0, lerp(CLOTH.y0, CLOTH.y1, a), ZC), V(CLOTH.x1, lerp(CLOTH.y0, CLOTH.y1, a), ZC)); }
     for (let t = this.ctx.start; t < this.ctx.end - 1e-6; t += 1 / 30) {
       if (this.slamAt(t)) continue;
       frames++;
@@ -887,6 +915,7 @@ export default class UvPlate extends Scene {
       // (the lamp in view: the housing's four corners (the tube's end), the knuckles and the glove's wrist at its cuff, all in frame)
       const inF = (v: number[]) => { const [x, y, z] = proj(B, fromL(v)); return z > 5 && Math.abs(x) < 1 && Math.abs(y) < 1; };
       seen[L.k]![1]++;
+      if (edge.filter((p) => { const [x, y, z] = proj(B, p); return z > 5 && Math.abs(x) < 0.98 && Math.abs(y) < 0.98; }).length >= 3) edgeSeen[L.k]!++;
       // (the EXHIBIT 5 tag whole in frame: its four corners)
       if ([[-1, -1], [1, -1], [1, 1], [-1, 1]].every(([a, b]) => { const [x, y, z] = proj(B, V(TAG.x + a! * TAG.hx, TAG.y + b! * TAG.hy, ZC)); return z > 5 && Math.abs(x) < 0.97 && Math.abs(y) < 0.97; })) tagSeen[L.k]!++;
       if ([[-62, -24, -15], [-62, 24, -15], [62, -24, -15], [62, 24, -15], [122, 25, -16], [205, 45, -60]].every(inF)) seen[L.k]![0]++;
@@ -918,7 +947,7 @@ export default class UvPlate extends Scene {
       }
     }
     for (const h of hits) console.warn(`UVOCC hit: ${h}`);
-    console.warn(`UVOCC lamp in view (housing, tube end, glove to the wrist): ` + seen.map((v, k) => `line ${k + 1} ${((100 * v[0]!) / Math.max(1, v[1]!)).toFixed(0)}%`).join(', ') + `; the tag whole in frame: ` + tagSeen.map((v, k) => `line ${k + 1} ${((100 * v) / Math.max(1, seen[k]![1]!)).toFixed(0)}%`).join(', '));
+    console.warn(`UVOCC lamp in view (housing, tube end, glove to the wrist): ` + seen.map((v, k) => `line ${k + 1} ${((100 * v[0]!) / Math.max(1, v[1]!)).toFixed(0)}%`).join(', ') + `; a case edge in frame: ` + edgeSeen.map((v, k) => `line ${k + 1} ${((100 * v) / Math.max(1, seen[k]![1]!)).toFixed(0)}%`).join(', ') + `; the tag whole in frame: ` + tagSeen.map((v, k) => `line ${k + 1} ${((100 * v) / Math.max(1, seen[k]![1]!)).toFixed(0)}%`).join(', '));
     console.warn(`UVOCC total: ${hits.length} hit(s) over ${frames} frames (a word > 15% covered by the lamp, a glove or the swab for more than 2 frames); worst single-frame cover ${(worst * 100).toFixed(0)}%`);
   }
 }

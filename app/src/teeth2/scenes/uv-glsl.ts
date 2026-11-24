@@ -33,7 +33,7 @@ const LAMP_GLOVE = `const vec3 LT0 = ${v3(THUMB[0]!)}, LT1 = ${v3(THUMB[1]!)}, L
 const vec3 LF[16] = vec3[16](${FINGERS.flat().map(v3).join(', ')});
 const vec4 LR[4] = vec4[4](${FINGERS.map((g) => `vec4(${g.map((j) => f(j[3]!)).join(', ')})`).join(', ')});
 // the knuckles (the MCP heads) standing on the back of the hand, a little back from each finger's base
-const vec3 LK[4] = vec3[4](${FINGERS.map((g) => v3([g[3]![0], g[3]![1] - 12, g[3]![2] + 5.5])).join(', ')});
+const vec3 LK[4] = vec3[4](${FINGERS.map((g) => v3([g[3]![0], g[3]![1] - 12, g[3]![2] + 3.0])).join(', ')});
 const vec3 LW0 = vec3(158.0, 30.0, -22.0), LW1 = vec3(262.0, 52.0, -86.0);`;
 
 export const NW = 48;
@@ -293,14 +293,15 @@ float rcap(vec3 p, vec3 a, vec3 b, float ra, float rb) {
   return length(pa - ba * h) - mix(ra, rb, h);
 }
 float sdEll(vec3 p, vec3 r) { float k0 = length(p / r), k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / k1; }
-// a finger, tip a -> DIP b -> PIP c -> knuckle d (radii r in that order): straight phalanges, a little slimmer in
-// their middles than at the joints, which stand as soft knuckle bulges (round 2: not sausages)
+// a finger, tip a -> DIP b -> PIP c -> knuckle d (radii r in that order): straight phalanges tapering evenly toward
+// the tip, the film taut over the joints (round 2 checkpoint review: no knuckle bulges, only the slight ridge of the
+// joint under a taut glove, and the bend's smooth fillet)
 float finger(vec3 p, vec3 a, vec3 b, vec3 c, vec3 d, vec4 r) {
-  float f = rcap(p, a, b, r.x, r.y * 0.93);
-  f = smin(f, rcap(p, b, c, r.y * 0.93, r.z * 0.93), 0.7);
-  f = smin(f, rcap(p, c, d, r.z * 0.93, r.w), 0.8);
-  f = smin(f, length(p - b) - r.y * 1.02, 0.9);
-  return smin(f, length(p - c) - r.z * 1.03, 1.0);
+  float f = rcap(p, a, b, r.x, r.y);
+  f = smin(f, rcap(p, b, c, r.y, r.z), 1.6);
+  f = smin(f, rcap(p, c, d, r.z, r.w), 1.8);
+  f = smin(f, length(p - b) - r.y, 0.5);
+  return smin(f, length(p - c) - r.z, 0.5);
 }
 vec2 boxHit(vec3 ro, vec3 rd, vec3 lo, vec3 hi) {
   vec3 iv = 1.0 / rd; vec3 t0 = (lo - ro) * iv, t1 = (hi - ro) * iv;
@@ -328,24 +329,25 @@ float sdLampGlove(vec3 q) {
   d = smin(d, th, 0.8);
   // the back of the hand: flatter, its metacarpals fanning from the wrist to the knuckle row, which stands on it
   float back = sdEll(q - vec3(126.0, 21.0, -18.0), vec3(36.0, 9.0, 22.0));
-  float kn = 1e9;
+  // (the knuckle row one continuous low ridge across the back of the hand, each joint only a slight rise on it)
+  float kn = rcap(q, LK[0], LK[3], 5.7, 4.9);
   for (int k = 0; k < 4; k++) {
-    kn = min(kn, length(q - LK[k]) - LR[k].w * 1.08);
-    // (the metacarpal tendons: soft ridges from each knuckle back toward the wrist)
-    kn = min(kn, rcap(q, LK[k], vec3(156.0, 27.0 + 1.5 * float(k), -24.0 - 2.0 * float(k)), 3.6, 2.4));
+    kn = min(kn, length(q - LK[k]) - LR[k].w * 0.86);
+    // (the metacarpal tendons: faint ridges from each knuckle back toward the wrist)
+    kn = min(kn, rcap(q, LK[k], vec3(156.0, 27.0 + 1.5 * float(k), -24.0 - 2.0 * float(k)), 2.4, 1.8));
   }
-  back = smin(back, kn, 3.0);
+  back = smin(back, kn, 6.0);
   float then = sdEll(q - THEN, vec3(20.0, 11.0, 12.5));
   float wrist = rcap(q, LW0, LW1, 21.0, 23.5);
   float palm = smin(smin(back, then, 10.0), wrist, 12.0);
-  d = smin(d, palm, 4.0);
-  // the rolled cuff: a thick lip of nitrile rolled on itself at the wrist
+  d = smin(d, palm, 6.0);
+  // the rolled cuff: one smooth bead of nitrile rolled on itself at the wrist (round 2 checkpoint review: no ribs)
   vec3 ax = normalize(LW1 - LW0);
   vec3 c = q - (LW0 + ax * 50.0);
   float along = dot(c, ax);
   float rad = length(c - ax * along);
-  d = smin(d, length(vec2(rad - 24.6, along + 1.0)) - 5.4, 1.0);
-  return max(d, along - 4.4);   // the glove ends at the roll
+  d = smin(d, length(vec2(rad - 24.0, along + 1.5)) - 4.6, 2.5);
+  return max(d, along - 3.6);   // the glove ends at the roll
 }
 float sdLampSleeve(vec3 q) {
   q.y *= gSide;
@@ -378,7 +380,9 @@ float lampCrease(vec3 q) {
   // the film bunched round the wrist, short of the cuff: folds running round it
   vec3 wa = normalize(LW1 - LW0);
   float al = dot(q - LW0, wa);
-  c += smoothstep(-6.0, 8.0, al) * (1.0 - smoothstep(30.0, 44.0, al)) * 1.1 * pow(0.5 + 0.5 * sin(al * 0.75 + 2.5 * snoise(q * 0.06)), 3.0);
+  // (round 2 checkpoint review: no bunched rings at the wrist; the film smooth up to the rolled bead, a faint long
+  // wrinkle or two along the wrist where the grip turns it)
+  c += smoothstep(-6.0, 8.0, al) * (1.0 - smoothstep(26.0, 42.0, al)) * 0.25 * snoise(vec3(al * 0.05, q.y * 0.12, q.z * 0.12));
   return c + 0.012 * snoise(q * 0.9);
 }
 // The swab hand: a tripod grip (swab frame), set back up the shaft; the index and middle pads closed a little onto
@@ -395,18 +399,18 @@ float sdSwabGlove(vec3 p) {
   float li = finger(p, vec3(70.0, -44.0, -17.0), vec3(80.0, -49.0, -13.0), vec3(92.0, -52.0, -6.0), vec3(107.0, -52.0, 1.0), vec4(3.9, 4.4, 5.0, 5.8));
   float d = smin(smin(th, ix, 0.8), smin(mi, smin(ri, li, 0.6), 0.6), 0.6);
   float back = sdEll(p - vec3(116.0, -22.0, 5.0), vec3(36.0, 30.0, 10.5));
-  float kn = min(min(length(p - SK0) - 7.0, length(p - SK1) - 7.2), min(length(p - SK2) - 6.6, length(p - SK3) - 5.6));
-  back = smin(back, kn, 3.5);
+  float kn = min(rcap(p, SK0, SK3, 5.2, 4.2), min(min(length(p - SK0) - 5.6, length(p - SK1) - 5.8), min(length(p - SK2) - 5.3, length(p - SK3) - 4.5)));
+  back = smin(back, kn, 6.0);
   float then = sdEll(p - vec3(110.0, 10.0, -8.0), vec3(26.0, 15.0, 11.0));
   float wrist = rcap(p, SW0, SW1, 21.0, 23.5);
   float palm = smin(smin(back, then, 10.0), wrist, 12.0);
-  d = smin(d, palm, 4.0);
+  d = smin(d, palm, 6.0);
   vec3 ax = normalize(SW1 - SW0);
   vec3 q = p - (SW0 + ax * 50.0);
   float along = dot(q, ax);
   float rad = length(q - ax * along);
-  d = smin(d, length(vec2(rad - 24.6, along + 1.0)) - 5.4, 1.0);
-  return max(d, along - 4.4);
+  d = smin(d, length(vec2(rad - 24.0, along + 1.5)) - 4.6, 2.5);
+  return max(d, along - 3.6);
 }
 float sdSwabSleeve(vec3 p) {
   p.x -= SG;
@@ -430,7 +434,9 @@ float swabCrease(vec3 q) {
   c *= 1.0 - 0.85 * swabTaut(q0);
   vec3 wa = normalize(SW1 - SW0);
   float al = dot(q - SW0, wa);
-  c += smoothstep(-6.0, 8.0, al) * (1.0 - smoothstep(30.0, 44.0, al)) * 1.1 * pow(0.5 + 0.5 * sin(al * 0.75 + 2.5 * snoise(q * 0.06)), 3.0);
+  // (round 2 checkpoint review: no bunched rings at the wrist; the film smooth up to the rolled bead, a faint long
+  // wrinkle or two along the wrist where the grip turns it)
+  c += smoothstep(-6.0, 8.0, al) * (1.0 - smoothstep(26.0, 42.0, al)) * 0.25 * snoise(vec3(al * 0.05, q.y * 0.12, q.z * 0.12));
   return c + 0.012 * snoise(q * 0.9);
 }
 
@@ -639,7 +645,8 @@ vec3 shade(vec2 px) {
     // (the slam: the lamp held close above the patch, out of frame: a broad soft pool on the word, and the sweep's edge)
     slamC = slamGlow(p, N, -rd, band);
     float r = length((p - SLAMP.xy) / (1.3 * SLAMP.zw));
-    E = lampK * (0.1 + 0.9 * exp(-r * r * 2.6)) * min(max(N.z, 0.0) * 1.1, 1.4) + 5.0 * band;
+    // (R13: the pool falls off to near nothing at the frame's corners, so the slam reaches film-black, p1 <= 16)
+    E = lampK * (0.02 + 0.98 * exp(-r * r * 2.6)) * min(max(N.z, 0.0) * 1.1, 1.4) + 5.0 * band;
     X = 0.0;
   } else {
     E = irr(P, N);
